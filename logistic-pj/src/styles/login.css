@@ -1,0 +1,60 @@
+
+.login-page {
+    height: 100vh;
+    background: #e0f7f5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Segoe UI', sans-serif;
+  }
+  
+
+  .login-box {
+    max-width: 850px;
+    width: 100%;
+    background-color: white;
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 0 20px rgba(0, 123, 128, 0.2);
+  }
+  
+
+  .logo-img {
+    max-height: 180px;
+    display: block;
+  }
+  
+
+  h4 {
+    text-align: center;
+    color: #333;
+  }
+  
+
+  .btn-teal {
+    background-color: #009fa3 !important;
+    color: white !important;
+    font-weight: 600;
+    border: none;
+  }
+  
+  
+  .btn-teal:hover {
+    background-color: #06c1ca !important;
+    color: white;
+  }
+  
+
+  .form-control {
+    border-radius: 6px;
+  }
+  
+
+  .text-muted {
+    font-size: 0.9rem;
+    display: inline-block;
+    margin-top: 10px;
+    text-align: center;
+    width: 100%;
+  }
+

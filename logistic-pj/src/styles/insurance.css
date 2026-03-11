@@ -1,0 +1,23 @@
+.insurance-container {
+    margin-left: 220px;
+  }
+  
+  .insurance-form {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .btn-orange {
+    background-color: #f15a29;
+    color: white;
+    font-weight: 600;
+    border: none;
+    padding: 10px 32px;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+  }
+  
+  .btn-orange:hover {
+    background-color: #c8461f;
+  }
+  
