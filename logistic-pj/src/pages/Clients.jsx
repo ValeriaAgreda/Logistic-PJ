@@ -3,16 +3,20 @@ import Sidebar from "../components/Sidebar";
 import "../styles/clients.css";
 import * as bootstrap from "bootstrap";
 
+const clienteInicial = {
+  razon_social: "",
+  nit: "",
+  contacto: "",
+  telefono: "",
+  correo: "",
+  direccion: "",
+  observacion: "",
+  estado: 1,
+};
+
 const Clients = () => {
   const [clients, setClients] = useState([]);
-  const [nuevoCliente, setNuevoCliente] = useState({
-    razon_social: "",
-    nit: "",
-    direccion: "",
-    telefono: "",
-    email: "",
-    state: 1,
-  });
+  const [nuevoCliente, setNuevoCliente] = useState(clienteInicial);
   const [errores, setErrores] = useState({});
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [clienteAEliminar, setClienteAEliminar] = useState(null);
@@ -22,11 +26,22 @@ const Clients = () => {
   const [status, setStatus] = useState("ALL");
 
   const fetchClients = async () => {
-    const res = await fetch("http://localhost:3001/api/clientes", {
-      credentials: "include",
-    });
-    const data = await res.json();
-    setClients(data);
+    try {
+      const res = await fetch("http://localhost:3001/api/clientes", {
+        credentials: "include",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error(data?.error || "Error al cargar clientes");
+        return;
+      }
+
+      setClients(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error al obtener clientes:", error);
+    }
   };
 
   useEffect(() => {
@@ -34,93 +49,170 @@ const Clients = () => {
   }, []);
 
   const abrirModalNuevo = () => {
-    setNuevoCliente({
-      razon_social: "",
-      nit: "",
-      direccion: "",
-      telefono: "",
-      email: "",
-      state: 1,
-    });
+    setNuevoCliente(clienteInicial);
     setErrores({});
     new bootstrap.Modal(document.getElementById("addModal")).show();
   };
 
   const abrirModalEditar = (cliente) => {
+    if (!cliente) return;
     setClienteSeleccionado({ ...cliente });
     setErrores({});
     new bootstrap.Modal(document.getElementById("editModal")).show();
   };
 
   const abrirModalEliminar = (cliente) => {
+    if (!cliente) return;
     setClienteAEliminar(cliente);
     new bootstrap.Modal(document.getElementById("deleteModal")).show();
   };
 
   const validar = (c) => {
     const e = {};
-    if (!c.razon_social?.trim()) e.razon_social = "La razón social es obligatoria.";
-    if (!/^\d{5,15}$/.test(String(c.nit || "").trim())) e.nit = "El NIT debe tener entre 5 y 15 dígitos.";
-    if (!c.direccion?.trim()) e.direccion = "La dirección es obligatoria.";
-    if (!/^[67]\d{7}$/.test(String(c.telefono || "").trim())) e.telefono = "El teléfono debe tener 8 dígitos y empezar con 6 o 7.";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c.email || "").trim())) e.email = "Email no válido.";
+
+    if (!c.razon_social?.trim()) {
+      e.razon_social = "La razón social es obligatoria.";
+    }
+
+    if (!/^\d{5,15}$/.test(String(c.nit || "").trim())) {
+      e.nit = "El NIT debe tener entre 5 y 15 dígitos.";
+    }
+
+    if (!c.contacto?.trim()) {
+      e.contacto = "El contacto es obligatorio.";
+    }
+
+    if (!/^[67]\d{7}$/.test(String(c.telefono || "").trim())) {
+      e.telefono = "El teléfono debe tener 8 dígitos y empezar con 6 o 7.";
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c.correo || "").trim())) {
+      e.correo = "El correo no es válido.";
+    }
+
+    if (!c.direccion?.trim()) {
+      e.direccion = "La dirección es obligatoria.";
+    }
+
     return e;
   };
 
   const guardarNuevo = async () => {
     const errs = validar(nuevoCliente);
-    if (Object.keys(errs).length > 0) return setErrores(errs);
+    if (Object.keys(errs).length > 0) {
+      setErrores(errs);
+      return;
+    }
 
-    const body = { ...nuevoCliente, email: nuevoCliente.email.trim().toLowerCase() };
+    const body = {
+      ...nuevoCliente,
+      correo: nuevoCliente.correo.trim().toLowerCase(),
+      observacion: nuevoCliente.observacion?.trim() || "",
+    };
 
-    const res = await fetch("http://localhost:3001/api/clientes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch("http://localhost:3001/api/clientes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
 
-    if (res.ok) {
-      fetchClients();
-      bootstrap.Modal.getInstance(document.getElementById("addModal")).hide();
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "Error al crear cliente");
+        return;
+      }
+
+      await fetchClients();
+      bootstrap.Modal.getInstance(document.getElementById("addModal"))?.hide();
+      setNuevoCliente(clienteInicial);
+      setErrores({});
+    } catch (error) {
+      console.error("Error al crear cliente:", error);
+      alert("Error en el servidor");
     }
   };
 
   const guardarEdicion = async () => {
+    if (!clienteSeleccionado) return;
+
     const errs = validar(clienteSeleccionado);
-    if (Object.keys(errs).length > 0) return setErrores(errs);
+    if (Object.keys(errs).length > 0) {
+      setErrores(errs);
+      return;
+    }
 
-    const body = { ...clienteSeleccionado, email: clienteSeleccionado.email.trim().toLowerCase() };
+    const body = {
+      ...clienteSeleccionado,
+      correo: clienteSeleccionado.correo.trim().toLowerCase(),
+      observacion: clienteSeleccionado.observacion?.trim() || "",
+      estado:
+        Number(clienteSeleccionado.estado) === 0 || Number(clienteSeleccionado.estado) === 1
+          ? Number(clienteSeleccionado.estado)
+          : 1,
+    };
 
-    const res = await fetch(`http://localhost:3001/api/clientes/${clienteSeleccionado.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch(
+        `http://localhost:3001/api/clientes/${clienteSeleccionado.id_cliente}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(body),
+        }
+      );
 
-    if (res.ok) {
-      fetchClients();
-      bootstrap.Modal.getInstance(document.getElementById("editModal")).hide();
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "Error al actualizar cliente");
+        return;
+      }
+
+      await fetchClients();
+      bootstrap.Modal.getInstance(document.getElementById("editModal"))?.hide();
+      setClienteSeleccionado(null);
+      setErrores({});
+    } catch (error) {
+      console.error("Error al actualizar cliente:", error);
+      alert("Error en el servidor");
     }
   };
 
   const confirmarEliminar = async () => {
-    const res = await fetch(`http://localhost:3001/api/clientes/${clienteAEliminar.id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
+    if (!clienteAEliminar) return;
 
-    if (res.ok) {
-      fetchClients();
-      bootstrap.Modal.getInstance(document.getElementById("deleteModal")).hide();
+    try {
+      const res = await fetch(
+        `http://localhost:3001/api/clientes/${clienteAEliminar.id_cliente}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "Error al eliminar cliente");
+        return;
+      }
+
+      await fetchClients();
+      bootstrap.Modal.getInstance(document.getElementById("deleteModal"))?.hide();
       setClienteAEliminar(null);
       setSelectedId(null);
+    } catch (error) {
+      console.error("Error al eliminar cliente:", error);
+      alert("Error en el servidor");
     }
   };
 
   const selectedClient = useMemo(
-    () => clients.find((c) => c.id === selectedId) || null,
+    () => clients.find((c) => c.id_cliente === selectedId) || null,
     [clients, selectedId]
   );
 
@@ -132,12 +224,14 @@ const Clients = () => {
         !q ||
         String(c.razon_social || "").toLowerCase().includes(q) ||
         String(c.nit || "").toLowerCase().includes(q) ||
+        String(c.contacto || "").toLowerCase().includes(q) ||
         String(c.telefono || "").toLowerCase().includes(q) ||
-        String(c.direccion || "").toLowerCase().includes(q)||
-        String(c.email || "").toLowerCase().includes(q);
+        String(c.direccion || "").toLowerCase().includes(q) ||
+        String(c.correo || "").toLowerCase().includes(q) ||
+        String(c.observacion || "").toLowerCase().includes(q);
 
       const matchesStatus =
-        status === "ALL" ? true : String(c.state) === String(status);
+        status === "ALL" ? true : String(c.estado) === String(status);
 
       return matchesSearch && matchesStatus;
     });
@@ -179,7 +273,6 @@ const Clients = () => {
       <Sidebar />
 
       <div className="page-container flex-grow-1 p-4">
-        {/* Header */}
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h1 className="page-title m-0">Gestión de Clientes</h1>
           {selectedClient ? (
@@ -187,11 +280,12 @@ const Clients = () => {
               Seleccionado: <strong>{selectedClient.razon_social}</strong>
             </small>
           ) : (
-            <small className="text-muted">Selecciona un cliente para Editar/Eliminar</small>
+            <small className="text-muted">
+              Selecciona un cliente para Editar/Eliminar
+            </small>
           )}
         </div>
 
-        {/* Toolbar */}
         <div className="ui-card mb-3">
           <div className="d-flex flex-wrap gap-2">
             {toolbarActions.map((a) => (
@@ -208,14 +302,13 @@ const Clients = () => {
           </div>
         </div>
 
-        {/* Filtros */}
         <div className="ui-card mb-3">
           <div className="row g-2 align-items-end">
             <div className="col-12 col-md-6">
               <label className="form-label">Buscar</label>
               <input
                 className="form-control"
-                placeholder="Razón social, NIT, teléfono, dirección, correo..."
+                placeholder="Razón social, NIT, contacto, teléfono, dirección, correo..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -236,7 +329,7 @@ const Clients = () => {
 
             <div className="col-12 col-md-3 d-flex gap-2">
               <button
-                className="btn btn-secondary  w-100"
+                className="btn btn-secondary w-100"
                 type="button"
                 onClick={() => {
                   setSearch("");
@@ -249,7 +342,6 @@ const Clients = () => {
           </div>
         </div>
 
-        {/* Tabla */}
         <div className="table-responsive ui-card">
           <table className="table table-hover table-bordered align-middle m-0">
             <thead className="table-light">
@@ -257,6 +349,7 @@ const Clients = () => {
                 <th style={{ width: 48 }} className="text-center">#</th>
                 <th>Razón social</th>
                 <th>NIT</th>
+                <th>Contacto</th>
                 <th>Teléfono</th>
                 <th>Dirección</th>
                 <th>Correo</th>
@@ -265,26 +358,27 @@ const Clients = () => {
             </thead>
             <tbody>
               {filteredClients.map((c, idx) => {
-                const isSelected = c.id === selectedId;
+                const isSelected = c.id_cliente === selectedId;
 
                 return (
                   <tr
-                    key={c.id}
+                    key={c.id_cliente}
                     className={isSelected ? "row-selected" : ""}
-                    onClick={() => setSelectedId(c.id)}
+                    onClick={() => setSelectedId(c.id_cliente)}
                     style={{ cursor: "pointer" }}
                   >
                     <td className="text-center">{idx + 1}</td>
                     <td>{c.razon_social}</td>
                     <td>{c.nit}</td>
+                    <td>{c.contacto}</td>
                     <td>{c.telefono}</td>
                     <td>{c.direccion}</td>
-                    <td>{c.email}</td>
+                    <td>{c.correo}</td>
                     <td className="text-center">
-                      {Number(c.state) === 1 && (
+                      {Number(c.estado) === 1 && (
                         <span className="badge bg-success">Activo</span>
                       )}
-                      {Number(c.state) === 0 && (
+                      {Number(c.estado) === 0 && (
                         <span className="badge bg-danger">Inactivo</span>
                       )}
                     </td>
@@ -294,7 +388,7 @@ const Clients = () => {
 
               {filteredClients.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-4 text-muted">
+                  <td colSpan={8} className="text-center py-4 text-muted">
                     No hay resultados con los filtros actuales.
                   </td>
                 </tr>
@@ -304,9 +398,8 @@ const Clients = () => {
         </div>
       </div>
 
-      {/* Modal Agregar */}
       <div className="modal fade" id="addModal" tabIndex="-1" aria-hidden="true">
-        <div className="modal-dialog modal-dialog-centered">
+        <div className="modal-dialog modal-dialog-centered modal-lg">
           <div className="modal-content shadow rounded-3">
             <div className="modal-header">
               <h5 className="modal-title">Agregar cliente</h5>
@@ -315,36 +408,59 @@ const Clients = () => {
             <div className="modal-body">
               <form>
                 {[
-                  ["razon_social", "Razón social"],
-                  ["nit", "NIT"],
-                  ["telefono", "Teléfono"],
-                  ["direccion", "Dirección"],
-                  ["email", "Correo"],
-                ].map(([field, label]) => (
+                  ["razon_social", "Razón social", "text"],
+                  ["nit", "NIT", "text"],
+                  ["contacto", "Contacto", "text"],
+                  ["telefono", "Teléfono", "text"],
+                  ["correo", "Correo", "email"],
+                  ["direccion", "Dirección", "text"],
+                ].map(([field, label, type]) => (
                   <div className="mb-3" key={field}>
                     <label className="form-label">{label}</label>
                     <input
-                      type={field === "email" ? "email" : "text"}
+                      type={type}
                       className={`form-control ${errores[field] ? "is-invalid" : ""}`}
                       value={nuevoCliente[field]}
-                      onChange={(e) => setNuevoCliente({ ...nuevoCliente, [field]: e.target.value })}
+                      onChange={(e) =>
+                        setNuevoCliente({ ...nuevoCliente, [field]: e.target.value })
+                      }
                     />
-                    {errores[field] && <div className="invalid-feedback">{errores[field]}</div>}
+                    {errores[field] && (
+                      <div className="invalid-feedback">{errores[field]}</div>
+                    )}
                   </div>
                 ))}
+
+                <div className="mb-3">
+                  <label className="form-label">Observación</label>
+                  <textarea
+                    className="form-control"
+                    rows="3"
+                    value={nuevoCliente.observacion}
+                    onChange={(e) =>
+                      setNuevoCliente({
+                        ...nuevoCliente,
+                        observacion: e.target.value,
+                      })
+                    }
+                  />
+                </div>
               </form>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-              <button className="btn btn-success" onClick={guardarNuevo}>Guardar</button>
+              <button className="btn btn-secondary" data-bs-dismiss="modal">
+                Cancelar
+              </button>
+              <button className="btn btn-success" onClick={guardarNuevo}>
+                Guardar
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modal Editar */}
       <div className="modal fade" id="editModal" tabIndex="-1" aria-hidden="true">
-        <div className="modal-dialog modal-dialog-centered">
+        <div className="modal-dialog modal-dialog-centered modal-lg">
           <div className="modal-content shadow rounded-3">
             <div className="modal-header">
               <h5 className="modal-title">Editar cliente</h5>
@@ -354,37 +470,78 @@ const Clients = () => {
               {clienteSeleccionado && (
                 <form>
                   {[
-                    ["razon_social", "Razón social"],
-                    ["nit", "NIT"],
-                    ["telefono", "Teléfono"],
-                    ["direccion", "Dirección"],
-                    ["email", "Correo"],
-                  ].map(([field, label]) => (
+                    ["razon_social", "Razón social", "text"],
+                    ["nit", "NIT", "text"],
+                    ["contacto", "Contacto", "text"],
+                    ["telefono", "Teléfono", "text"],
+                    ["correo", "Correo", "email"],
+                    ["direccion", "Dirección", "text"],
+                  ].map(([field, label, type]) => (
                     <div className="mb-3" key={field}>
                       <label className="form-label">{label}</label>
                       <input
-                        type={field === "email" ? "email" : "text"}
+                        type={type}
                         className={`form-control ${errores[field] ? "is-invalid" : ""}`}
-                        value={clienteSeleccionado[field]}
+                        value={clienteSeleccionado[field] || ""}
                         onChange={(e) =>
-                          setClienteSeleccionado({ ...clienteSeleccionado, [field]: e.target.value })
+                          setClienteSeleccionado({
+                            ...clienteSeleccionado,
+                            [field]: e.target.value,
+                          })
                         }
                       />
-                      {errores[field] && <div className="invalid-feedback">{errores[field]}</div>}
+                      {errores[field] && (
+                        <div className="invalid-feedback">{errores[field]}</div>
+                      )}
                     </div>
                   ))}
+
+                  <div className="mb-3">
+                    <label className="form-label">Observación</label>
+                    <textarea
+                      className="form-control"
+                      rows="3"
+                      value={clienteSeleccionado.observacion || ""}
+                      onChange={(e) =>
+                        setClienteSeleccionado({
+                          ...clienteSeleccionado,
+                          observacion: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Estado</label>
+                    <select
+                      className="form-select"
+                      value={clienteSeleccionado.estado ?? 1}
+                      onChange={(e) =>
+                        setClienteSeleccionado({
+                          ...clienteSeleccionado,
+                          estado: Number(e.target.value),
+                        })
+                      }
+                    >
+                      <option value={1}>Activo</option>
+                      <option value={0}>Inactivo</option>
+                    </select>
+                  </div>
                 </form>
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-              <button className="btn btn-primary" onClick={guardarEdicion}>Guardar cambios</button>
+              <button className="btn btn-secondary" data-bs-dismiss="modal">
+                Cancelar
+              </button>
+              <button className="btn btn-primary" onClick={guardarEdicion}>
+                Guardar cambios
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modal Eliminar */}
       <div className="modal fade" id="deleteModal" tabIndex="-1" aria-hidden="true">
         <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content shadow rounded-3">
@@ -395,13 +552,18 @@ const Clients = () => {
             <div className="modal-body">
               {clienteAEliminar && (
                 <p>
-                  ¿Seguro que deseas eliminar a <strong>{clienteAEliminar.razon_social}</strong>?
+                  ¿Seguro que deseas desactivar a{" "}
+                  <strong>{clienteAEliminar.razon_social}</strong>?
                 </p>
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-              <button className="btn btn-danger" onClick={confirmarEliminar}>Eliminar</button>
+              <button className="btn btn-secondary" data-bs-dismiss="modal">
+                Cancelar
+              </button>
+              <button className="btn btn-danger" onClick={confirmarEliminar}>
+                Eliminar
+              </button>
             </div>
           </div>
         </div>

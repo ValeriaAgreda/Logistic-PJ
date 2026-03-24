@@ -7,21 +7,23 @@ const authRoutes = require("./routes/auth");
 const cookieParser = require("cookie-parser");
 const contenedoresRoutes = require('./routes/contenedores');
 const operacionesRoutes = require('./routes/operaciones'); 
+const tipoServicioRoutes = require("./routes/tipoServicio");
 
 
 app.use(cors({
-  origin: 'http://localhost:5173', // 👈 especifica el origen
-  credentials: true               // 👈 permite enviar cookies
+  origin: 'http://localhost:5173', 
+  credentials: true               
 }));
 
 app.use(express.json());
 
 app.use('/api/clientes', clientesRoutes);
-app.use('/api/proveedores', proveedoresRoutes); // 👈 asegúrate de tener esta línea
+app.use('/api/proveedores', proveedoresRoutes); 
 app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use('/api/contenedores', contenedoresRoutes);
 app.use('/api/operaciones', operacionesRoutes); 
+app.use("/api/tipo-servicio", tipoServicioRoutes);
 
 
 app.listen(3001, () => {

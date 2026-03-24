@@ -1,4 +1,3 @@
-// src/App.jsx
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -9,6 +8,7 @@ import Containers from "./pages/Containers";
 import Documents from "./pages/Documents";
 import Costs from "./pages/Costs";
 import InsuranceAI from "./pages/InsuranceAI";
+import ServiceType from "./pages/ServiceType";
 
 function App() {
   return (
@@ -23,6 +23,7 @@ function App() {
         <Route path="/documents" element={<Documents />} />
         <Route path="/costs" element={<Costs />} />
         <Route path="/insurance" element={<InsuranceAI />} />
+        <Route path="/tipo-servicio" element={<ServiceType />} />
       </Routes>
     </Router>
   );

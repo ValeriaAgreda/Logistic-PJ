@@ -1,4 +1,3 @@
-// routes/proveedores.js
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
@@ -6,15 +5,29 @@ const cookieParser = require("cookie-parser");
 
 router.use(cookieParser());
 
-// GET: listar proveedores (solo activos)
+// GET: listar proveedores
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT id, razon_social, tipo_servicio, contacto, telefono, email, direccion, state,
-              register_date, last_update, user_id
-       FROM proveedor
-       ORDER BY id DESC`
+      `SELECT
+        id_proveedor,
+        empresa,
+        nit,
+        contacto,
+        telefono,
+        correo,
+        direccion,
+        lugar_origen,
+        id_tipo_servicio,
+        fecha_registro,
+        id_usuario_registro,
+        fecha_modificacion,
+        id_usuario_modificacion,
+        estado
+      FROM proveedor
+      ORDER BY id_proveedor DESC`
     );
+
     res.json(rows);
   } catch (err) {
     console.error("Error al obtener proveedores:", err);
@@ -22,63 +35,132 @@ router.get("/", async (_req, res) => {
   }
 });
 
-// POST: crear proveedor (usa user_id del usuario logueado desde cookie)
+// POST: crear proveedor
 router.post("/", async (req, res) => {
   try {
-    const { razon_social, tipo_servicio, contacto, telefono, email, direccion } = req.body;
+    const {
+      empresa,
+      nit,
+      contacto,
+      telefono,
+      correo,
+      direccion,
+      lugar_origen,
+      id_tipo_servicio,
+    } = req.body;
 
-    if (!razon_social || !tipo_servicio || !contacto || !telefono || !email || !direccion) {
+    if (
+      !empresa ||
+      !nit ||
+      !contacto ||
+      !telefono ||
+      !correo ||
+      !direccion ||
+      !lugar_origen ||
+      !id_tipo_servicio
+    ) {
       return res.status(400).json({ error: "Faltan campos obligatorios." });
     }
 
-    const userId = req.cookies?.user?.id ?? null;
+    const idUsuarioRegistro = req.cookies?.user?.id_usuario ?? null;
 
-    await db.query(
-      `INSERT INTO proveedor
-        (razon_social, tipo_servicio, contacto, telefono, email, direccion,
-         state, register_date, last_update, user_id)
-       VALUES (?, ?, ?, ?, ?, ?, 1, NOW(), NOW(), ?)`,
+    const [result] = await db.query(
+      `INSERT INTO proveedor (
+        empresa,
+        nit,
+        contacto,
+        telefono,
+        correo,
+        direccion,
+        lugar_origen,
+        id_tipo_servicio,
+        fecha_registro,
+        id_usuario_registro,
+        fecha_modificacion,
+        id_usuario_modificacion,
+        estado
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(), ?, 1)`,
       [
-        String(razon_social).trim(),
-        String(tipo_servicio).trim(),
+        String(empresa).trim(),
+        String(nit).trim(),
         String(contacto).trim(),
         String(telefono).trim(),
-        String(email).trim().toLowerCase(),
+        String(correo).trim().toLowerCase(),
         String(direccion).trim(),
-        userId,
+        String(lugar_origen).trim(),
+        Number(id_tipo_servicio),
+        idUsuarioRegistro,
+        idUsuarioRegistro,
       ]
     );
 
-    res.status(201).json({ mensaje: "Proveedor creado correctamente." });
+    res.status(201).json({
+      id_proveedor: result.insertId,
+      mensaje: "Proveedor creado correctamente.",
+    });
   } catch (err) {
     console.error("Error al guardar proveedor:", err);
     res.status(500).json({ error: "Error al guardar proveedor" });
   }
 });
 
-// PUT: actualizar proveedor (guarda user_id del modificador)
-router.put("/:id", async (req, res) => {
+// PUT: actualizar proveedor
+router.put("/:id_proveedor", async (req, res) => {
   try {
-    const { id } = req.params;
-    const { razon_social, tipo_servicio, contacto, telefono, email, direccion, state } = req.body;
+    const { id_proveedor } = req.params;
+    const {
+      empresa,
+      nit,
+      contacto,
+      telefono,
+      correo,
+      direccion,
+      lugar_origen,
+      id_tipo_servicio,
+      estado,
+    } = req.body;
 
-    const userId = req.cookies?.user?.id ?? null;
+    if (
+      !empresa ||
+      !nit ||
+      !contacto ||
+      !telefono ||
+      !correo ||
+      !direccion ||
+      !lugar_origen ||
+      !id_tipo_servicio
+    ) {
+      return res.status(400).json({ error: "Faltan campos obligatorios." });
+    }
+
+    const idUsuarioModificacion = req.cookies?.user?.id_usuario ?? null;
 
     const [result] = await db.query(
       `UPDATE proveedor
-          SET razon_social = ?, tipo_servicio = ?, contacto = ?, telefono = ?,
-              email = ?, direccion = ?, state = ?, last_update = NOW(), user_id = ?
-        WHERE id = ?`,
+       SET empresa = ?,
+           nit = ?,
+           contacto = ?,
+           telefono = ?,
+           correo = ?,
+           direccion = ?,
+           lugar_origen = ?,
+           id_tipo_servicio = ?,
+           fecha_modificacion = NOW(),
+           id_usuario_modificacion = ?,
+           estado = ?
+       WHERE id_proveedor = ?`,
       [
-        String(razon_social).trim(),
-        String(tipo_servicio).trim(),
+        String(empresa).trim(),
+        String(nit).trim(),
         String(contacto).trim(),
         String(telefono).trim(),
-        String(email).trim().toLowerCase(),
+        String(correo).trim().toLowerCase(),
         String(direccion).trim(),
-        typeof state === "number" ? state : 1,
-        userId,
-        id,
+        String(lugar_origen).trim(),
+        Number(id_tipo_servicio),
+        idUsuarioModificacion,
+        typeof estado === "number" ? estado : 1,
+        id_proveedor,
       ]
     );
 
@@ -93,16 +175,19 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// DELETE: borrado lógico (desactivar proveedor)
-router.delete("/:id", async (req, res) => {
+// DELETE: borrado lógico
+router.delete("/:id_proveedor", async (req, res) => {
   try {
-    const userId = req.cookies?.user?.id ?? null;
+    const { id_proveedor } = req.params;
+    const idUsuarioModificacion = req.cookies?.user?.id_usuario ?? null;
 
     const [result] = await db.query(
       `UPDATE proveedor
-          SET state = 0, last_update = NOW(), user_id = ?
-        WHERE id = ?`,
-      [userId, req.params.id]
+       SET estado = 0,
+           fecha_modificacion = NOW(),
+           id_usuario_modificacion = ?
+       WHERE id_proveedor = ?`,
+      [idUsuarioModificacion, id_proveedor]
     );
 
     if (result.affectedRows === 0) {

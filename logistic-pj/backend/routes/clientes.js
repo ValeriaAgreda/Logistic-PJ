@@ -1,4 +1,3 @@
-// routes/clientes.js
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
@@ -6,77 +5,142 @@ const cookieParser = require("cookie-parser");
 
 router.use(cookieParser());
 
-// GET: listar clientes activos
+// GET: listar clientes
 router.get("/", async (req, res) => {
   try {
     const [rows] = await db.query(
-      `SELECT id, razon_social, nit, direccion, telefono, email, state, register_date, last_update
-       FROM cliente
-       ORDER BY id DESC`
+      `SELECT 
+        id_cliente,
+        razon_social,
+        nit,
+        contacto,
+        telefono,
+        correo,
+        direccion,
+        observacion,
+        fecha_registro,
+        id_usuario_registro,
+        fecha_modificacion,
+        id_usuario_modificacion,
+        estado
+      FROM cliente
+      ORDER BY id_cliente DESC`
     );
+
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: "Error al listar clientes: " + err.message });
   }
 });
 
-// POST: crear cliente (guarda user_id del creador)
+// POST: crear cliente
 router.post("/", async (req, res) => {
   try {
-    const { razon_social, nit, direccion, telefono, email } = req.body;
+    const {
+      razon_social,
+      nit,
+      contacto,
+      telefono,
+      correo,
+      direccion,
+      observacion,
+    } = req.body;
 
-    if (!razon_social || !nit || !direccion || !telefono || !email) {
+    if (!razon_social || !nit || !contacto || !telefono || !correo || !direccion) {
       return res.status(400).json({ error: "Faltan campos obligatorios." });
     }
 
-    const userId = req.cookies?.user?.id ?? null; // ← id del usuario logueado
+    const idUsuarioRegistro = req.cookies?.user?.id_usuario ?? null;
 
     const [result] = await db.query(
-      `INSERT INTO cliente
-        (razon_social, nit, direccion, telefono, email, state, register_date, last_update, user_id)
-       VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW(), ?)`,
+      `INSERT INTO cliente (
+        razon_social,
+        nit,
+        contacto,
+        telefono,
+        correo,
+        direccion,
+        observacion,
+        fecha_registro,
+        id_usuario_registro,
+        fecha_modificacion,
+        id_usuario_modificacion,
+        estado
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(), ?, 1)`,
       [
         razon_social.trim(),
         String(nit).trim(),
-        direccion.trim(),
+        contacto.trim(),
         String(telefono).trim(),
-        String(email).trim().toLowerCase(),
-        userId,
+        correo.trim().toLowerCase(),
+        direccion.trim(),
+        observacion ? observacion.trim() : null,
+        idUsuarioRegistro,
+        idUsuarioRegistro,
       ]
     );
 
-    res.status(201).json({ id: result.insertId, mensaje: "Cliente creado correctamente." });
+    res.status(201).json({
+      id_cliente: result.insertId,
+      mensaje: "Cliente creado correctamente.",
+    });
   } catch (err) {
     res.status(500).json({ error: "Error al crear cliente: " + err.message });
   }
 });
 
-// PUT: actualizar cliente (guarda user_id del modificador)
-router.put("/:id", async (req, res) => {
+// PUT: actualizar cliente
+router.put("/:id_cliente", async (req, res) => {
   try {
-    const { id } = req.params;
-    const { razon_social, nit, direccion, telefono, email, state } = req.body;
+    const { id_cliente } = req.params;
+    const {
+      razon_social,
+      nit,
+      contacto,
+      telefono,
+      correo,
+      direccion,
+      observacion,
+      estado,
+    } = req.body;
 
-    const userId = req.cookies?.user?.id ?? null;
+    if (!razon_social || !nit || !contacto || !telefono || !correo || !direccion) {
+      return res.status(400).json({ error: "Faltan campos obligatorios." });
+    }
+
+    const idUsuarioModificacion = req.cookies?.user?.id_usuario ?? null;
 
     const [result] = await db.query(
       `UPDATE cliente
-          SET razon_social = ?, nit = ?, direccion = ?, telefono = ?, email = ?,
-              state = ?, last_update = NOW(), user_id = ?
-        WHERE id = ?`,
+       SET razon_social = ?,
+           nit = ?,
+           contacto = ?,
+           telefono = ?,
+           correo = ?,
+           direccion = ?,
+           observacion = ?,
+           fecha_modificacion = NOW(),
+           id_usuario_modificacion = ?,
+           estado = ?
+       WHERE id_cliente = ?`,
       [
         razon_social.trim(),
         String(nit).trim(),
-        direccion.trim(),
+        contacto.trim(),
         String(telefono).trim(),
-        String(email).trim().toLowerCase(),
-        typeof state === "number" ? state : 1,
-        userId,
-        id,
+        correo.trim().toLowerCase(),
+        direccion.trim(),
+        observacion ? observacion.trim() : null,
+        idUsuarioModificacion,
+        typeof estado === "number" ? estado : 1,
+        id_cliente,
       ]
     );
 
-    if (result.affectedRows === 0) return res.status(404).json({ error: "Cliente no encontrado." });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
     res.json({ mensaje: "Cliente actualizado correctamente." });
   } catch (err) {
     res.status(500).json({ error: "Error al actualizar cliente: " + err.message });
@@ -84,17 +148,24 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE: borrado lógico
-router.delete("/:id", async (req, res) => {
+router.delete("/:id_cliente", async (req, res) => {
   try {
-    const { id } = req.params;
-    const userId = req.cookies?.user?.id ?? null;
+    const { id_cliente } = req.params;
+    const idUsuarioModificacion = req.cookies?.user?.id_usuario ?? null;
 
     const [result] = await db.query(
-      `UPDATE cliente SET state = 0, last_update = NOW(), user_id = ? WHERE id = ?`,
-      [userId, id]
+      `UPDATE cliente
+       SET estado = 0,
+           fecha_modificacion = NOW(),
+           id_usuario_modificacion = ?
+       WHERE id_cliente = ?`,
+      [idUsuarioModificacion, id_cliente]
     );
 
-    if (result.affectedRows === 0) return res.status(404).json({ error: "Cliente no encontrado." });
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
     res.json({ mensaje: "Cliente desactivado correctamente." });
   } catch (err) {
     res.status(500).json({ error: "Error al eliminar cliente: " + err.message });

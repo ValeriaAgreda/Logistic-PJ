@@ -1,18 +1,18 @@
-// Login.jsx (cambios mínimos)
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/login.css";
 
 const Login = () => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [correo, setCorreo] = useState("");
+  const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
 
-    if (!email || !password) {
+    if (!correo || !contrasena) {
       setError("Todos los campos son obligatorios.");
       return;
     }
@@ -22,24 +22,19 @@ const Login = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }), // 👈 claves estándar
+        body: JSON.stringify({
+          correo,
+          contrasena,
+        }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        // intenta leer mensaje del backend; si no es JSON, lee texto
-        let msg = "Credenciales inválidas";
-        try {
-          const data = await res.json();
-          msg = data?.error || msg;
-        } catch {
-          const text = await res.text();
-          if (text) msg = text;
-        }
-        setError(msg);
+        setError(data.error || "Credenciales inválidas");
         return;
       }
 
-      // si llega aquí, autenticó
       navigate("/dashboard");
     } catch (err) {
       console.error("Error en login:", err);
@@ -52,35 +47,49 @@ const Login = () => {
       <div className="login-box shadow bg-white p-5 rounded">
         <div className="row">
           <div className="col-md-6 d-flex justify-content-center align-items-center">
-            <img src="/pjServices-logo.png" alt="PJ Logo" className="img-fluid logo-img" />
+            <img
+              src="/pjServices-logo.png"
+              alt="PJ Logo"
+              className="img-fluid logo-img"
+            />
           </div>
+
           <div className="col-md-6">
             <h4 className="mb-4">Log in</h4>
+
             <form onSubmit={handleSubmit}>
               {error && <div className="alert alert-danger">{error}</div>}
+
               <div className="form-group mb-3">
-                <label>Email</label>
+                <label>Correo</label>
                 <input
                   type="email"
                   className="form-control"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={correo}
+                  onChange={(e) => setCorreo(e.target.value)}
                   required
                 />
               </div>
+
               <div className="form-group mb-4">
-                <label>Password</label>
+                <label>Contraseña</label>
                 <input
                   type="password"
                   className="form-control"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={contrasena}
+                  onChange={(e) => setContrasena(e.target.value)}
                   required
                 />
               </div>
-              <button type="submit" className="btn btn-teal w-100 mb-3">Sign In</button>
+
+              <button type="submit" className="btn btn-teal w-100 mb-3">
+                Iniciar sesión
+              </button>
+
               <div className="text-center">
-                <a href="#" className="text-muted">Forgot password?</a>
+                <a href="#" className="text-muted">
+                  ¿Olvidaste tu contraseña?
+                </a>
               </div>
             </form>
           </div>

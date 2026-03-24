@@ -32,6 +32,7 @@ const Sidebar = () => {
         children: [
           { id: "clients", label: "Clientes", icon: "👥",path: "/clients", roles: ["ADMIN"] },
           { id: "suppliers", label: "Proveedores", icon: "🚚", path: "/suppliers", roles: ["ADMIN"] },
+          { id: "tipo-servicio", label: "Tipo de Servicio", icon: "📋", path: "/tipo-servicio", roles: ["ADMIN"] },
         ],
       },
       {
