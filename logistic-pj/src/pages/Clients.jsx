@@ -23,7 +23,6 @@ const Clients = () => {
   const [selectedId, setSelectedId] = useState(null);
 
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("ALL");
 
   const fetchClients = async () => {
     try {
@@ -148,10 +147,7 @@ const Clients = () => {
       ...clienteSeleccionado,
       correo: clienteSeleccionado.correo.trim().toLowerCase(),
       observacion: clienteSeleccionado.observacion?.trim() || "",
-      estado:
-        Number(clienteSeleccionado.estado) === 0 || Number(clienteSeleccionado.estado) === 1
-          ? Number(clienteSeleccionado.estado)
-          : 1,
+      estado: clienteSeleccionado.estado,
     };
 
     try {
@@ -220,7 +216,7 @@ const Clients = () => {
     const q = search.trim().toLowerCase();
 
     return clients.filter((c) => {
-      const matchesSearch =
+      return (
         !q ||
         String(c.razon_social || "").toLowerCase().includes(q) ||
         String(c.nit || "").toLowerCase().includes(q) ||
@@ -228,14 +224,10 @@ const Clients = () => {
         String(c.telefono || "").toLowerCase().includes(q) ||
         String(c.direccion || "").toLowerCase().includes(q) ||
         String(c.correo || "").toLowerCase().includes(q) ||
-        String(c.observacion || "").toLowerCase().includes(q);
-
-      const matchesStatus =
-        status === "ALL" ? true : String(c.estado) === String(status);
-
-      return matchesSearch && matchesStatus;
+        String(c.observacion || "").toLowerCase().includes(q)
+      );
     });
-  }, [clients, search, status]);
+  }, [clients, search]);
 
   const toolbarActions = [
     {
@@ -314,26 +306,12 @@ const Clients = () => {
               />
             </div>
 
-            <div className="col-12 col-md-3">
-              <label className="form-label">Estado</label>
-              <select
-                className="form-select"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                <option value="ALL">Todos</option>
-                <option value="1">Activos</option>
-                <option value="0">Inactivos</option>
-              </select>
-            </div>
-
             <div className="col-12 col-md-3 d-flex gap-2">
               <button
                 className="btn btn-secondary w-100"
                 type="button"
                 onClick={() => {
                   setSearch("");
-                  setStatus("ALL");
                 }}
               >
                 Limpiar
@@ -353,9 +331,9 @@ const Clients = () => {
                 <th>Teléfono</th>
                 <th>Dirección</th>
                 <th>Correo</th>
-                <th style={{ width: 120 }} className="text-center">Estado</th>
               </tr>
             </thead>
+
             <tbody>
               {filteredClients.map((c, idx) => {
                 const isSelected = c.id_cliente === selectedId;
@@ -374,21 +352,13 @@ const Clients = () => {
                     <td>{c.telefono}</td>
                     <td>{c.direccion}</td>
                     <td>{c.correo}</td>
-                    <td className="text-center">
-                      {Number(c.estado) === 1 && (
-                        <span className="badge bg-success">Activo</span>
-                      )}
-                      {Number(c.estado) === 0 && (
-                        <span className="badge bg-danger">Inactivo</span>
-                      )}
-                    </td>
                   </tr>
                 );
               })}
 
               {filteredClients.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-4 text-muted">
+                  <td colSpan={7} className="text-center py-4 text-muted">
                     No hay resultados con los filtros actuales.
                   </td>
                 </tr>
@@ -509,23 +479,6 @@ const Clients = () => {
                         })
                       }
                     />
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="form-label">Estado</label>
-                    <select
-                      className="form-select"
-                      value={clienteSeleccionado.estado ?? 1}
-                      onChange={(e) =>
-                        setClienteSeleccionado({
-                          ...clienteSeleccionado,
-                          estado: Number(e.target.value),
-                        })
-                      }
-                    >
-                      <option value={1}>Activo</option>
-                      <option value={0}>Inactivo</option>
-                    </select>
                   </div>
                 </form>
               )}
