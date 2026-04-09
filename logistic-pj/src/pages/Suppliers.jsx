@@ -15,15 +15,9 @@ const proveedorInicial = {
   estado: 1,
 };
 
-const opcionesTipoServicio = [
-  { id_tipo_servicio: 1, nombre: "Marítimo" },
-  { id_tipo_servicio: 2, nombre: "Aéreo" },
-  { id_tipo_servicio: 3, nombre: "Terrestre" },
-  { id_tipo_servicio: 4, nombre: "Bimodal" },
-];
-
 const Suppliers = () => {
   const [proveedores, setProveedores] = useState([]);
+  const [tiposServicio, setTiposServicio] = useState([]);
   const [nuevoProveedor, setNuevoProveedor] = useState(proveedorInicial);
   const [proveedorSeleccionado, setProveedorSeleccionado] = useState(null);
   const [proveedorAEliminar, setProveedorAEliminar] = useState(null);
@@ -32,7 +26,6 @@ const Suppliers = () => {
 
   const [search, setSearch] = useState("");
   const [tipoServicioFiltro, setTipoServicioFiltro] = useState("ALL");
-  const [estadoFiltro, setEstadoFiltro] = useState("ALL");
 
   const validar = (p) => {
     const e = {};
@@ -91,8 +84,33 @@ const Suppliers = () => {
     }
   };
 
+  const cargarTiposServicio = async () => {
+    try {
+      const res = await fetch("http://localhost:3001/api/tipo-servicio", {
+        credentials: "include",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error(data?.error || "Error al obtener tipos de servicio");
+        return;
+      }
+
+      // Si quieres mostrar solo activos en el combo:
+      const tiposActivos = Array.isArray(data)
+        ? data.filter((t) => Number(t.estado) === 1)
+        : [];
+
+      setTiposServicio(tiposActivos);
+    } catch (error) {
+      console.error("Error al obtener tipos de servicio:", error);
+    }
+  };
+
   useEffect(() => {
     cargarProveedores();
+    cargarTiposServicio();
   }, []);
 
   const abrirNuevo = () => {
@@ -103,7 +121,10 @@ const Suppliers = () => {
 
   const abrirEditar = (proveedor) => {
     if (!proveedor) return;
-    setProveedorSeleccionado({ ...proveedor });
+    setProveedorSeleccionado({
+      ...proveedor,
+      id_tipo_servicio: proveedor.id_tipo_servicio ?? "",
+    });
     setErrores({});
     new bootstrap.Modal(document.getElementById("editSupplierModal")).show();
   };
@@ -144,7 +165,9 @@ const Suppliers = () => {
       }
 
       await cargarProveedores();
-      bootstrap.Modal.getInstance(document.getElementById("addSupplierModal"))?.hide();
+      bootstrap.Modal.getInstance(
+        document.getElementById("addSupplierModal")
+      )?.hide();
       setNuevoProveedor(proveedorInicial);
       setErrores({});
     } catch (error) {
@@ -192,7 +215,9 @@ const Suppliers = () => {
       }
 
       await cargarProveedores();
-      bootstrap.Modal.getInstance(document.getElementById("editSupplierModal"))?.hide();
+      bootstrap.Modal.getInstance(
+        document.getElementById("editSupplierModal")
+      )?.hide();
       setProveedorSeleccionado(null);
       setErrores({});
     } catch (error) {
@@ -221,7 +246,9 @@ const Suppliers = () => {
       }
 
       await cargarProveedores();
-      bootstrap.Modal.getInstance(document.getElementById("deleteSupplierModal"))?.hide();
+      bootstrap.Modal.getInstance(
+        document.getElementById("deleteSupplierModal")
+      )?.hide();
       setSelectedId(null);
       setProveedorAEliminar(null);
     } catch (error) {
@@ -244,10 +271,10 @@ const Suppliers = () => {
   );
 
   const nombreTipoServicio = (idTipoServicio) => {
-    const tipo = opcionesTipoServicio.find(
+    const tipo = tiposServicio.find(
       (t) => Number(t.id_tipo_servicio) === Number(idTipoServicio)
     );
-    return tipo ? tipo.nombre : `Tipo ${idTipoServicio}`;
+    return tipo ? tipo.descripcion : "Sin tipo";
   };
 
   const proveedorSeleccionadoTabla = useMemo(
@@ -274,14 +301,9 @@ const Suppliers = () => {
           ? true
           : String(p.id_tipo_servicio) === String(tipoServicioFiltro);
 
-      const matchesEstado =
-        estadoFiltro === "ALL"
-          ? true
-          : String(p.estado) === String(estadoFiltro);
-
-      return matchesSearch && matchesTipo && matchesEstado;
+      return matchesSearch && matchesTipo;
     });
-  }, [proveedores, search, tipoServicioFiltro, estadoFiltro]);
+  }, [proveedores, search, tipoServicioFiltro]);
 
   const toolbarActions = [
     {
@@ -309,7 +331,10 @@ const Suppliers = () => {
       id: "refresh",
       label: "Refrescar",
       className: "btn btn-outline-light",
-      onClick: cargarProveedores,
+      onClick: async () => {
+        await cargarProveedores();
+        await cargarTiposServicio();
+      },
       disabled: false,
     },
   ];
@@ -369,27 +394,14 @@ const Suppliers = () => {
                 onChange={(e) => setTipoServicioFiltro(e.target.value)}
               >
                 <option value="ALL">Todos</option>
-                {opcionesTipoServicio.map((tipo) => (
+                {tiposServicio.map((tipo) => (
                   <option
                     key={tipo.id_tipo_servicio}
                     value={tipo.id_tipo_servicio}
                   >
-                    {tipo.nombre}
+                    {tipo.descripcion}
                   </option>
                 ))}
-              </select>
-            </div>
-
-            <div className="col-12 col-md-3">
-              <label className="form-label">Estado</label>
-              <select
-                className="form-select"
-                value={estadoFiltro}
-                onChange={(e) => setEstadoFiltro(e.target.value)}
-              >
-                <option value="ALL">Todos</option>
-                <option value="1">Activos</option>
-                <option value="0">Inactivos</option>
               </select>
             </div>
 
@@ -400,7 +412,6 @@ const Suppliers = () => {
                 onClick={() => {
                   setSearch("");
                   setTipoServicioFiltro("ALL");
-                  setEstadoFiltro("ALL");
                 }}
               >
                 Limpiar
@@ -421,7 +432,6 @@ const Suppliers = () => {
                 <th>Teléfono</th>
                 <th>Correo</th>
                 <th>Lugar de origen</th>
-                <th style={{ width: 120 }} className="text-center">Estado</th>
               </tr>
             </thead>
             <tbody>
@@ -443,21 +453,13 @@ const Suppliers = () => {
                     <td>{p.telefono}</td>
                     <td>{p.correo}</td>
                     <td>{p.lugar_origen}</td>
-                    <td className="text-center">
-                      {Number(p.estado) === 1 && (
-                        <span className="badge bg-success">Activo</span>
-                      )}
-                      {Number(p.estado) === 0 && (
-                        <span className="badge bg-danger">Inactivo</span>
-                      )}
-                    </td>
                   </tr>
                 );
               })}
 
               {proveedoresFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center py-4 text-muted">
+                  <td colSpan={8} className="text-center py-4 text-muted">
                     No hay resultados con los filtros actuales.
                   </td>
                 </tr>
@@ -467,7 +469,12 @@ const Suppliers = () => {
         </div>
       </div>
 
-      <div className="modal fade" id="addSupplierModal" tabIndex="-1" aria-hidden="true">
+      <div
+        className="modal fade"
+        id="addSupplierModal"
+        tabIndex="-1"
+        aria-hidden="true"
+      >
         <div className="modal-dialog modal-dialog-centered modal-lg">
           <div className="modal-content shadow rounded-3">
             <div className="modal-header">
@@ -515,14 +522,17 @@ const Suppliers = () => {
               {input(
                 "Lugar de origen",
                 nuevoProveedor.lugar_origen,
-                (v) => setNuevoProveedor({ ...nuevoProveedor, lugar_origen: v }),
+                (v) =>
+                  setNuevoProveedor({ ...nuevoProveedor, lugar_origen: v }),
                 errores.lugar_origen
               )}
 
               <div className="mb-3">
                 <label className="form-label">Tipo de servicio</label>
                 <select
-                  className={`form-select ${errores.id_tipo_servicio ? "is-invalid" : ""}`}
+                  className={`form-select ${
+                    errores.id_tipo_servicio ? "is-invalid" : ""
+                  }`}
                   value={nuevoProveedor.id_tipo_servicio}
                   onChange={(e) =>
                     setNuevoProveedor({
@@ -532,17 +542,19 @@ const Suppliers = () => {
                   }
                 >
                   <option value="">Seleccionar</option>
-                  {opcionesTipoServicio.map((tipo) => (
+                  {tiposServicio.map((tipo) => (
                     <option
                       key={tipo.id_tipo_servicio}
                       value={tipo.id_tipo_servicio}
                     >
-                      {tipo.nombre}
+                      {tipo.descripcion}
                     </option>
                   ))}
                 </select>
                 {errores.id_tipo_servicio && (
-                  <div className="invalid-feedback">{errores.id_tipo_servicio}</div>
+                  <div className="invalid-feedback">
+                    {errores.id_tipo_servicio}
+                  </div>
                 )}
               </div>
             </div>
@@ -558,7 +570,12 @@ const Suppliers = () => {
         </div>
       </div>
 
-      <div className="modal fade" id="editSupplierModal" tabIndex="-1" aria-hidden="true">
+      <div
+        className="modal fade"
+        id="editSupplierModal"
+        tabIndex="-1"
+        aria-hidden="true"
+      >
         <div className="modal-dialog modal-dialog-centered modal-lg">
           <div className="modal-content shadow rounded-3">
             <div className="modal-header">
@@ -643,7 +660,9 @@ const Suppliers = () => {
                   <div className="mb-3">
                     <label className="form-label">Tipo de servicio</label>
                     <select
-                      className={`form-select ${errores.id_tipo_servicio ? "is-invalid" : ""}`}
+                      className={`form-select ${
+                        errores.id_tipo_servicio ? "is-invalid" : ""
+                      }`}
                       value={proveedorSeleccionado.id_tipo_servicio || ""}
                       onChange={(e) =>
                         setProveedorSeleccionado({
@@ -653,35 +672,20 @@ const Suppliers = () => {
                       }
                     >
                       <option value="">Seleccionar</option>
-                      {opcionesTipoServicio.map((tipo) => (
+                      {tiposServicio.map((tipo) => (
                         <option
                           key={tipo.id_tipo_servicio}
                           value={tipo.id_tipo_servicio}
                         >
-                          {tipo.nombre}
+                          {tipo.descripcion}
                         </option>
                       ))}
                     </select>
                     {errores.id_tipo_servicio && (
-                      <div className="invalid-feedback">{errores.id_tipo_servicio}</div>
+                      <div className="invalid-feedback">
+                        {errores.id_tipo_servicio}
+                      </div>
                     )}
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="form-label">Estado</label>
-                    <select
-                      className="form-select"
-                      value={proveedorSeleccionado.estado ?? 1}
-                      onChange={(e) =>
-                        setProveedorSeleccionado({
-                          ...proveedorSeleccionado,
-                          estado: Number(e.target.value),
-                        })
-                      }
-                    >
-                      <option value={1}>Activo</option>
-                      <option value={0}>Inactivo</option>
-                    </select>
                   </div>
                 </>
               )}
@@ -698,7 +702,12 @@ const Suppliers = () => {
         </div>
       </div>
 
-      <div className="modal fade" id="deleteSupplierModal" tabIndex="-1" aria-hidden="true">
+      <div
+        className="modal fade"
+        id="deleteSupplierModal"
+        tabIndex="-1"
+        aria-hidden="true"
+      >
         <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content shadow rounded-3">
             <div className="modal-header">

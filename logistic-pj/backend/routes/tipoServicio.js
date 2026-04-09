@@ -11,7 +11,8 @@ router.get("/", async (_req, res) => {
         descripcion,
         estado
       FROM tipo_servicio
-      ORDER BY id_tipo_servicio DESC`
+      WHERE estado = 1
+      ORDER BY descripcion ASC`
     );
 
     res.json(rows);

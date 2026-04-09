@@ -25,6 +25,7 @@ router.get("/", async (_req, res) => {
         id_usuario_modificacion,
         estado
       FROM proveedor
+      WHERE estado = '1'
       ORDER BY id_proveedor DESC`
     );
 
