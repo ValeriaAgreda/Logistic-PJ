@@ -4,7 +4,6 @@ import * as bootstrap from "bootstrap";
 
 const tipoInicial = {
   descripcion: "",
-  estado: 1,
 };
 
 const TipoServicio = () => {
@@ -16,7 +15,6 @@ const TipoServicio = () => {
   const [selectedId, setSelectedId] = useState(null);
 
   const [search, setSearch] = useState("");
-  const [estadoFiltro, setEstadoFiltro] = useState("ALL");
 
   const validar = (tipo) => {
     const e = {};
@@ -126,11 +124,6 @@ const TipoServicio = () => {
           credentials: "include",
           body: JSON.stringify({
             descripcion: tipoSeleccionado.descripcion.trim(),
-            estado:
-              Number(tipoSeleccionado.estado) === 0 ||
-              Number(tipoSeleccionado.estado) === 1
-                ? Number(tipoSeleccionado.estado)
-                : 1,
           }),
         }
       );
@@ -196,18 +189,10 @@ const TipoServicio = () => {
   const tiposFiltrados = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return tiposServicio.filter((t) => {
-      const matchesSearch =
-        !q || String(t.descripcion || "").toLowerCase().includes(q);
-
-      const matchesEstado =
-        estadoFiltro === "ALL"
-          ? true
-          : String(t.estado) === String(estadoFiltro);
-
-      return matchesSearch && matchesEstado;
-    });
-  }, [tiposServicio, search, estadoFiltro]);
+    return tiposServicio.filter(
+      (t) => !q || String(t.descripcion || "").toLowerCase().includes(q)
+    );
+  }, [tiposServicio, search]);
 
   const toolbarActions = [
     {
@@ -277,7 +262,7 @@ const TipoServicio = () => {
 
         <div className="ui-card mb-3">
           <div className="row g-2 align-items-end">
-            <div className="col-12 col-md-6">
+            <div className="col-12 col-md-9">
               <label className="form-label">Buscar</label>
               <input
                 className="form-control"
@@ -287,26 +272,12 @@ const TipoServicio = () => {
               />
             </div>
 
-            <div className="col-12 col-md-3">
-              <label className="form-label">Estado</label>
-              <select
-                className="form-select"
-                value={estadoFiltro}
-                onChange={(e) => setEstadoFiltro(e.target.value)}
-              >
-                <option value="ALL">Todos</option>
-                <option value="1">Activos</option>
-                <option value="0">Inactivos</option>
-              </select>
-            </div>
-
             <div className="col-12 col-md-3 d-flex gap-2">
               <button
                 className="btn btn-secondary w-100"
                 type="button"
                 onClick={() => {
                   setSearch("");
-                  setEstadoFiltro("ALL");
                 }}
               >
                 Limpiar
@@ -321,7 +292,6 @@ const TipoServicio = () => {
               <tr>
                 <th style={{ width: 48 }} className="text-center">#</th>
                 <th>Descripción</th>
-                <th style={{ width: 120 }} className="text-center">Estado</th>
               </tr>
             </thead>
             <tbody>
@@ -337,21 +307,13 @@ const TipoServicio = () => {
                   >
                     <td className="text-center">{idx + 1}</td>
                     <td>{t.descripcion}</td>
-                    <td className="text-center">
-                      {Number(t.estado) === 1 && (
-                        <span className="badge bg-success">Activo</span>
-                      )}
-                      {Number(t.estado) === 0 && (
-                        <span className="badge bg-danger">Inactivo</span>
-                      )}
-                    </td>
                   </tr>
                 );
               })}
 
               {tiposFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="text-center py-4 text-muted">
+                  <td colSpan={2} className="text-center py-4 text-muted">
                     No hay resultados con los filtros actuales.
                   </td>
                 </tr>
@@ -445,22 +407,6 @@ const TipoServicio = () => {
                     )}
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label">Estado</label>
-                    <select
-                      className="form-select"
-                      value={tipoSeleccionado.estado ?? 1}
-                      onChange={(e) =>
-                        setTipoSeleccionado({
-                          ...tipoSeleccionado,
-                          estado: Number(e.target.value),
-                        })
-                      }
-                    >
-                      <option value={1}>Activo</option>
-                      <option value={0}>Inactivo</option>
-                    </select>
-                  </div>
                 </>
               )}
             </div>
