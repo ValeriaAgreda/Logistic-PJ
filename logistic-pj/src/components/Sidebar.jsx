@@ -30,9 +30,55 @@ const Sidebar = () => {
         icon: "👥",
         roles: ["ADMIN"],
         children: [
-          { id: "clients", label: "Clientes", icon: "👥",path: "/clients", roles: ["ADMIN"] },
-          { id: "suppliers", label: "Proveedores", icon: "🚚", path: "/suppliers", roles: ["ADMIN"] },
-          { id: "tipo-servicio", label: "Tipo de Servicio", icon: "📋", path: "/tipo-servicio", roles: ["ADMIN"] },
+          {
+            id: "clients",
+            label: "Clientes",
+            icon: "[C]",
+            path: "/clients",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "suppliers",
+            label: "Proveedores",
+            icon: "[PV]",
+            path: "/suppliers",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "tipo-servicio",
+            label: "Tipo de Servicio",
+            icon: "[TS]",
+            path: "/tipo-servicio",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "tipo-contenedor",
+            label: "Tipo de Contenedor",
+            icon: "[TC]",
+            path: "/tipo-contenedor",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "tipo-costo",
+            label: "Tipo de Costo",
+            icon: "[T$]",
+            path: "/tipo-costo",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "tipo-documento",
+            label: "Tipo de Documento",
+            icon: "[TD]",
+            path: "/tipo-documento",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "tipo-nacionalizacion",
+            label: "Tipo de Nacionalizacion",
+            icon: "[TN]",
+            path: "/tipo-nacionalizacion",
+            roles: ["ADMIN"],
+          },
         ],
       },
       {
@@ -41,8 +87,18 @@ const Sidebar = () => {
         icon: "🚢",
         roles: ["ADMIN"],
         children: [
-          { id: "containers", label: "Contenedores", path: "/containers", roles: ["ADMIN"] },
-          { id: "documents", label: "Documentos", path: "/documents", roles: ["ADMIN"] },
+          {
+            id: "containers",
+            label: "Contenedores",
+            path: "/containers",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "documents",
+            label: "Documentos",
+            path: "/documents",
+            roles: ["ADMIN"],
+          },
         ],
       },
       {
@@ -51,7 +107,13 @@ const Sidebar = () => {
         icon: "💲",
         roles: ["ADMIN", "CONTADOR"],
         children: [
-          { id: "costs", label: "Costos",icon: "💲", path: "/costs", roles: ["ADMIN", "CONTADOR"] },
+          {
+            id: "costs",
+            label: "Costos",
+            icon: "[$]",
+            path: "/costs",
+            roles: ["ADMIN", "CONTADOR"],
+          },
         ],
       },
       {
@@ -89,9 +151,8 @@ const Sidebar = () => {
   };
 
   useEffect(() => {
-    const parent = filteredMenu.find(
-      (item) =>
-        item.children?.some((child) => pathname.startsWith(child.path))
+    const parent = filteredMenu.find((item) =>
+      item.children?.some((child) => pathname.startsWith(child.path))
     );
     if (parent) setOpenMenu(parent.id);
   }, [pathname, filteredMenu]);
@@ -132,7 +193,9 @@ const Sidebar = () => {
                               : ""
                           }
                         >
-                          {child.icon ? <span className="menu-icon">{child.icon}</span> : null}
+                          {child.icon ? (
+                            <span className="menu-icon">{child.icon}</span>
+                          ) : null}
                           {child.label}
                         </NavLink>
                       </li>

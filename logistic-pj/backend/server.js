@@ -8,6 +8,10 @@ const cookieParser = require("cookie-parser");
 const contenedoresRoutes = require('./routes/contenedores');
 const operacionesRoutes = require('./routes/operaciones'); 
 const tipoServicioRoutes = require("./routes/tipoServicio");
+const tipoContenedorRoutes = require("./routes/tipoContenedor");
+const tipoCostoRoutes = require("./routes/tipoCosto");
+const tipoDocumentoRoutes = require("./routes/tipoDocumento");
+const tipoNacionalizacionRoutes = require("./routes/tipoNacionalizacion");
 
 
 app.use(cors({
@@ -24,6 +28,10 @@ app.use("/api/auth", authRoutes);
 app.use('/api/contenedores', contenedoresRoutes);
 app.use('/api/operaciones', operacionesRoutes); 
 app.use("/api/tipo-servicio", tipoServicioRoutes);
+app.use("/api/tipo-contenedor", tipoContenedorRoutes);
+app.use("/api/tipo-costo", tipoCostoRoutes);
+app.use("/api/tipo-documento", tipoDocumentoRoutes);
+app.use("/api/tipo-nacionalizacion", tipoNacionalizacionRoutes);
 
 
 app.listen(3001, () => {
