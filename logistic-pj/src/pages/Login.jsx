@@ -35,6 +35,10 @@ const Login = () => {
         return;
       }
 
+      if (data?.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+
       navigate("/dashboard");
     } catch (err) {
       console.error("Error en login:", err);

@@ -4,7 +4,7 @@ import "../styles/sidebar.css";
 
 const Sidebar = () => {
   const { pathname } = useLocation();
-  const [openMenu, setOpenMenu] = useState(null);
+  const [openMenus, setOpenMenus] = useState({});
 
   const currentRole = "ADMIN";
 
@@ -13,21 +13,43 @@ const Sidebar = () => {
       {
         id: "dashboard",
         label: "Dashboard",
-        icon: "📊",
+        icon: "[D]",
         path: "/dashboard",
         roles: ["ADMIN", "CONTADOR"],
       },
       {
+        id: "usuarios",
+        label: "Usuarios",
+        icon: "[U]",
+        roles: ["ADMIN"],
+        children: [
+          {
+            id: "usuarios-registro",
+            label: "Registro de Usuarios",
+            icon: "[RU]",
+            path: "/usuarios/registro",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "usuarios-roles",
+            label: "Asignacion de Roles",
+            icon: "[AR]",
+            path: "/usuarios/asignacion-roles",
+            roles: ["ADMIN"],
+          },
+        ],
+      },
+      {
         id: "operations",
         label: "Operaciones",
-        icon: "📦",
+        icon: "[O]",
         path: "/operations",
         roles: ["ADMIN"],
       },
       {
         id: "parameters",
         label: "Parametros",
-        icon: "👥",
+        icon: "[P]",
         roles: ["ADMIN"],
         children: [
           {
@@ -41,8 +63,30 @@ const Sidebar = () => {
             id: "suppliers",
             label: "Proveedores",
             icon: "[PV]",
-            path: "/suppliers",
             roles: ["ADMIN"],
+            children: [
+              {
+                id: "suppliers-registro",
+                label: "Registro de Proveedores",
+                icon: "[RP]",
+                path: "/suppliers/registro",
+                roles: ["ADMIN"],
+              },
+              {
+                id: "suppliers-cuentas",
+                label: "Cuenta de Proveedores",
+                icon: "[CP]",
+                path: "/suppliers/cuentas",
+                roles: ["ADMIN"],
+              },
+              {
+                id: "suppliers-rutas",
+                label: "Ruta de Proveedores",
+                icon: "[PR]",
+                path: "/suppliers/rutas",
+                roles: ["ADMIN"],
+              },
+            ],
           },
           {
             id: "tipo-servicio",
@@ -66,6 +110,27 @@ const Sidebar = () => {
             roles: ["ADMIN"],
           },
           {
+            id: "estado-operacion",
+            label: "Estado de Operacion",
+            icon: "[EO]",
+            path: "/estado-operacion",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "moneda",
+            label: "Moneda",
+            icon: "[M]",
+            path: "/moneda",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "ruta",
+            label: "Ruta",
+            icon: "[RT]",
+            path: "/ruta",
+            roles: ["ADMIN"],
+          },
+          {
             id: "tipo-documento",
             label: "Tipo de Documento",
             icon: "[TD]",
@@ -79,12 +144,19 @@ const Sidebar = () => {
             path: "/tipo-nacionalizacion",
             roles: ["ADMIN"],
           },
+          {
+            id: "rol",
+            label: "Rol",
+            icon: "[R]",
+            path: "/rol",
+            roles: ["ADMIN"],
+          },
         ],
       },
       {
         id: "logistics",
-        label: "Logística",
-        icon: "🚢",
+        label: "Logistica",
+        icon: "[L]",
         roles: ["ADMIN"],
         children: [
           {
@@ -104,7 +176,7 @@ const Sidebar = () => {
       {
         id: "accounting",
         label: "Contabilidad",
-        icon: "💲",
+        icon: "[$]",
         roles: ["ADMIN", "CONTADOR"],
         children: [
           {
@@ -119,7 +191,7 @@ const Sidebar = () => {
       {
         id: "insurance",
         label: "IA Seguros",
-        icon: "🧠",
+        icon: "[IA]",
         path: "/insurance",
         roles: ["ADMIN"],
       },
@@ -128,34 +200,97 @@ const Sidebar = () => {
   );
 
   const filteredMenu = useMemo(() => {
-    const role = currentRole;
+    const filtrarMenuPorRol = (items, role) =>
+      items
+        .filter((item) => !item.roles || item.roles.includes(role))
+        .map((item) => {
+          if (!item.children) return item;
 
-    return menuItems
-      .filter((item) => !item.roles || item.roles.includes(role))
-      .map((item) => {
-        if (!item.children) return item;
+          const children = filtrarMenuPorRol(item.children, role);
 
-        const children = item.children.filter(
-          (c) => !c.roles || c.roles.includes(role)
-        );
+          if (children.length === 0) return null;
 
-        if (children.length === 0) return null;
+          return { ...item, children };
+        })
+        .filter(Boolean);
 
-        return { ...item, children };
-      })
-      .filter(Boolean);
+    return filtrarMenuPorRol(menuItems, currentRole);
   }, [menuItems, currentRole]);
 
   const toggleMenu = (id) => {
-    setOpenMenu((prev) => (prev === id ? null : id));
+    setOpenMenus((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   };
 
   useEffect(() => {
-    const parent = filteredMenu.find((item) =>
-      item.children?.some((child) => pathname.startsWith(child.path))
-    );
-    if (parent) setOpenMenu(parent.id);
+    const expandedMenus = {};
+
+    const marcarPadresActivos = (items) => {
+      for (const item of items) {
+        if (item.children?.length) {
+          const tieneRutaActiva = item.children.some((child) => {
+            if (child.path && pathname.startsWith(child.path)) {
+              return true;
+            }
+
+            if (child.children?.length) {
+              return marcarPadresActivos([child]);
+            }
+
+            return false;
+          });
+
+          if (tieneRutaActiva) {
+            expandedMenus[item.id] = true;
+            return true;
+          }
+        }
+      }
+
+      return false;
+    };
+
+    marcarPadresActivos(filteredMenu);
+    setOpenMenus((prev) => ({ ...prev, ...expandedMenus }));
   }, [pathname, filteredMenu]);
+
+  const renderMenuItems = (items, level = 0) =>
+    items.map((item) => (
+      <li key={item.id}>
+        {item.children ? (
+          <>
+            <button
+              type="button"
+              className="menu-parent"
+              onClick={() => toggleMenu(item.id)}
+              aria-expanded={Boolean(openMenus[item.id])}
+              style={level > 0 ? { paddingLeft: `${1 + level}rem` } : undefined}
+            >
+              {item.icon} {item.label}
+            </button>
+
+            {openMenus[item.id] && (
+              <ul className="submenu">
+                {renderMenuItems(item.children, level + 1)}
+              </ul>
+            )}
+          </>
+        ) : (
+          <NavLink
+            to={item.path}
+            className={({ isActive }) =>
+              isActive || pathname.startsWith(item.path) ? "active" : ""
+            }
+            style={level > 0 ? { paddingLeft: `${1 + level}rem` } : undefined}
+          >
+            {item.icon ? <span className="menu-icon">{item.icon}</span> : null}
+            {item.label}
+          </NavLink>
+        )}
+      </li>
+    ));
 
   return (
     <aside className="sidebar">
@@ -167,55 +302,7 @@ const Sidebar = () => {
         />
       </div>
 
-      <ul className="sidebar-menu">
-        {filteredMenu.map((item) => (
-          <li key={item.id}>
-            {item.children ? (
-              <>
-                <button
-                  type="button"
-                  className="menu-parent"
-                  onClick={() => toggleMenu(item.id)}
-                  aria-expanded={openMenu === item.id}
-                >
-                  {item.icon} {item.label}
-                </button>
-
-                {openMenu === item.id && (
-                  <ul className="submenu">
-                    {item.children.map((child) => (
-                      <li key={child.id}>
-                        <NavLink
-                          to={child.path}
-                          className={({ isActive }) =>
-                            isActive || pathname.startsWith(child.path)
-                              ? "active"
-                              : ""
-                          }
-                        >
-                          {child.icon ? (
-                            <span className="menu-icon">{child.icon}</span>
-                          ) : null}
-                          {child.label}
-                        </NavLink>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
-            ) : (
-              <NavLink
-                to={item.path}
-                className={({ isActive }) =>
-                  isActive || pathname.startsWith(item.path) ? "active" : ""
-                }
-              >
-                {item.icon} {item.label}
-              </NavLink>
-            )}
-          </li>
-        ))}
-      </ul>
+      <ul className="sidebar-menu">{renderMenuItems(filteredMenu)}</ul>
     </aside>
   );
 };

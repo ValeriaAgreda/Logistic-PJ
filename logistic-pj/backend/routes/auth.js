@@ -40,6 +40,18 @@ router.post("/login", async (req, res) => {
       return res.status(403).json({ error: "Usuario inactivo" });
     }
 
+    res.cookie("user", {
+      id_usuario: user.id_usuario,
+      nombre_completo: user.nombre_completo,
+      usuario: user.usuario,
+      correo: user.correo,
+      estado: user.estado,
+    }, {
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 1000 * 60 * 60 * 8,
+    });
+
     return res.json({
       message: "Login exitoso",
       user: {
