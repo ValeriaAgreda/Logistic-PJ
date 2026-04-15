@@ -1,43 +1,5 @@
-.documents-view {
-    margin-left: 220px;
-    background-color: #ffffff;
-  }
-  
-  .upload-box {
-    background-color: #e8e8e8;
-    padding: 30px;
-    border-radius: 8px;
-  }
-  
-  .upload-icon {
-    font-size: 2rem;
-    color: #f15a29;
-    margin-bottom: 8px;
-  }
-  
-  .btn-orange {
-    background-color: #f15a29;
-    color: white;
-    font-weight: bold;
-    border: none;
-    padding: 10px 24px;
-    border-radius: 6px;
-    transition: background-color 0.2s ease;
-    cursor: pointer;
-  }
-  
-  .btn-orange:hover {
-    background-color: #c8461f;
-  }
-  
-  .documents-table th {
-    background-color: #dcdcdc;
-    font-weight: bold;
-  }
-  
-  .documents-table td,
-  .documents-table th {
-    text-align: left;
-    padding: 12px;
-  }
-  
+.document-route {
+  max-width: 280px;
+  word-break: break-word;
+  white-space: normal;
+}

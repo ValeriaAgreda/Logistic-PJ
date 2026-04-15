@@ -6,9 +6,11 @@ import SupplierAccounts from "./pages/SupplierAccounts";
 import SupplierRoutes from "./pages/SupplierRoutes";
 import Suppliers from "./pages/Suppliers";
 import Operations from "./pages/Operations";
+import OperationContainerAssignments from "./pages/OperationContainerAssignments";
 import Containers from "./pages/Containers";
 import Documents from "./pages/Documents";
 import Costs from "./pages/Costs";
+import Sales from "./pages/Sales";
 import InsuranceAI from "./pages/InsuranceAI";
 import ServiceType from "./pages/ServiceType";
 import ContainerType from "./pages/ContainerType";
@@ -36,10 +38,16 @@ function App() {
         <Route path="/suppliers/registro" element={<Suppliers />} />
         <Route path="/suppliers/cuentas" element={<SupplierAccounts />} />
         <Route path="/suppliers/rutas" element={<SupplierRoutes />} />
-        <Route path="/operations" element={<Operations />} />
+        <Route path="/operations" element={<Navigate to="/operations/registro" replace />} />
+        <Route path="/operations/registro" element={<Operations />} />
+        <Route
+          path="/operations/asignacion-contenedores"
+          element={<OperationContainerAssignments />}
+        />
         <Route path="/containers" element={<Containers />} />
         <Route path="/documents" element={<Documents />} />
         <Route path="/costs" element={<Costs />} />
+        <Route path="/sales" element={<Sales />} />
         <Route path="/insurance" element={<InsuranceAI />} />
         <Route path="/tipo-servicio" element={<ServiceType />} />
         <Route path="/tipo-contenedor" element={<ContainerType />} />

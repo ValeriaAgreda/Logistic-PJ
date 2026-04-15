@@ -1,11 +1,4 @@
-.operations-container {
-    margin-left: 220px;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .operation-form {
-    width: 100%;
-    max-width: 600px;
-  }
-  
+.quick-add-button {
+  min-width: 52px;
+  white-space: nowrap;
+}

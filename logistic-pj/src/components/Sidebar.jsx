@@ -43,8 +43,23 @@ const Sidebar = () => {
         id: "operations",
         label: "Operaciones",
         icon: "[O]",
-        path: "/operations",
         roles: ["ADMIN"],
+        children: [
+          {
+            id: "operations-registro",
+            label: "Registro de Operaciones",
+            icon: "[RO]",
+            path: "/operations/registro",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "operations-contenedores",
+            label: "Asignacion de Contenedores",
+            icon: "[AC]",
+            path: "/operations/asignacion-contenedores",
+            roles: ["ADMIN"],
+          },
+        ],
       },
       {
         id: "parameters",
@@ -184,6 +199,13 @@ const Sidebar = () => {
             label: "Costos",
             icon: "[$]",
             path: "/costs",
+            roles: ["ADMIN", "CONTADOR"],
+          },
+          {
+            id: "sales",
+            label: "Ventas",
+            icon: "[V]",
+            path: "/sales",
             roles: ["ADMIN", "CONTADOR"],
           },
         ],
