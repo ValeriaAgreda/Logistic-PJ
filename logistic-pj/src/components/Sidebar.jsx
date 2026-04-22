@@ -1,15 +1,101 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import "../styles/sidebar.css";
+
+const ROLE_KEYS = {
+  ADMIN: "ADMIN",
+  CONTADOR: "CONTADOR",
+};
+
+const normalizeRole = (value) => {
+  if (value == null) return null;
+
+  const raw = String(value).trim().toUpperCase();
+
+  if (!raw) return null;
+
+  if (["ADMIN", "ADMINISTRADOR", "1"].includes(raw)) {
+    return ROLE_KEYS.ADMIN;
+  }
+
+  if (["CONTADOR", "ACCOUNTANT", "2"].includes(raw)) {
+    return ROLE_KEYS.CONTADOR;
+  }
+
+  return raw;
+};
+
+const extractUserRoles = (user) => {
+  const normalizedRoles = new Set();
+
+  const appendRole = (value) => {
+    const normalized = normalizeRole(value);
+    if (normalized) {
+      normalizedRoles.add(normalized);
+    }
+  };
+
+  if (Array.isArray(user?.roles)) {
+    user.roles.forEach((role) => {
+      if (role && typeof role === "object") {
+        appendRole(role.codigo);
+        appendRole(role.descripcion);
+        appendRole(role.nombre);
+        appendRole(role.id_rol);
+      } else {
+        appendRole(role);
+      }
+    });
+  }
+
+  if (Array.isArray(user?.role_codes)) {
+    user.role_codes.forEach(appendRole);
+  }
+
+  if (Array.isArray(user?.role_names)) {
+    user.role_names.forEach(appendRole);
+  }
+
+  appendRole(user?.primary_role);
+  appendRole(user?.rol);
+  appendRole(user?.role);
+  appendRole(user?.id_rol);
+  appendRole(user?.idRol);
+  appendRole(user?.rol_id);
+  appendRole(user?.nombre_rol);
+  appendRole(user?.nombreRol);
+  appendRole(user?.tipoRol);
+  appendRole(user?.tipo_rol);
+  appendRole(user?.rol_nombre);
+  appendRole(user?.rolName);
+  appendRole(user?.rol?.id_rol);
+  appendRole(user?.rol?.id);
+  appendRole(user?.rol?.nombre);
+  appendRole(user?.role?.id);
+  appendRole(user?.role?.name);
+
+  return Array.from(normalizedRoles);
+};
 
 const Sidebar = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [openMenus, setOpenMenus] = useState({});
-
-  const currentRole = "ADMIN";
 
   const renderIcon = (iconClass) =>
     iconClass ? <i className={`${iconClass} menu-icon`} aria-hidden="true" /> : null;
+
+  const currentRoles = useMemo(() => {
+    try {
+      const storedUser = localStorage.getItem("user");
+      if (!storedUser) return [];
+
+      const user = JSON.parse(storedUser);
+      return extractUserRoles(user);
+    } catch {
+      return [];
+    }
+  }, []);
 
   const menuItems = useMemo(
     () => [
@@ -18,34 +104,34 @@ const Sidebar = () => {
         label: "Dashboard",
         icon: "pi pi-home",
         path: "/dashboard",
-        roles: ["ADMIN", "CONTADOR"],
+        roles: [ROLE_KEYS.ADMIN, ROLE_KEYS.CONTADOR],
       },
       {
         id: "usuarios",
         label: "Usuarios",
         icon: "pi pi-users",
-        roles: ["ADMIN"],
+        roles: [ROLE_KEYS.ADMIN],
         children: [
           {
             id: "usuarios-registro",
             label: "Registro de Usuarios",
             icon: "pi pi-user-plus",
             path: "/usuarios/registro",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "usuarios-roles",
             label: "Asignacion de Roles",
             icon: "pi pi-id-card",
             path: "/usuarios/asignacion-roles",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "rol",
             label: "Rol",
             icon: "pi pi-shield",
             path: "/rol",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
         ],
       },
@@ -55,34 +141,34 @@ const Sidebar = () => {
         label: "Clientes",
         icon: "pi pi-users",
         path: "/clients",
-        roles: ["ADMIN"],
+        roles: [ROLE_KEYS.ADMIN],
       },
       {
         id: "suppliers",
         label: "Proveedores",
         icon: "pi pi-briefcase",
-        roles: ["ADMIN"],
+        roles: [ROLE_KEYS.ADMIN],
         children: [
           {
             id: "suppliers-registro",
             label: "Registro de Proveedores",
             icon: "pi pi-plus-circle",
             path: "/suppliers/registro",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "suppliers-cuentas",
             label: "Cuenta de Proveedores",
             icon: "pi pi-wallet",
             path: "/suppliers/cuentas",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "suppliers-rutas",
             label: "Ruta de Proveedores",
             icon: "pi pi-directions",
             path: "/suppliers/rutas",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
         ],
       },
@@ -90,21 +176,21 @@ const Sidebar = () => {
         id: "operations",
         label: "Operaciones",
         icon: "pi pi-clipboard",
-        roles: ["ADMIN"],
+        roles: [ROLE_KEYS.ADMIN],
         children: [
           {
             id: "operations-registro",
             label: "Registro de Operaciones",
             icon: "pi pi-file-edit",
             path: "/operations/registro",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "operations-contenedores",
             label: "Asignacion de Contenedores",
             icon: "pi pi-box",
             path: "/operations/asignacion-contenedores",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
         ],
       },
@@ -112,63 +198,63 @@ const Sidebar = () => {
         id: "parameters",
         label: "Parametros",
         icon: "pi pi-cog",
-        roles: ["ADMIN"],
+        roles: [ROLE_KEYS.ADMIN],
         children: [
           {
             id: "tipo-servicio",
             label: "Tipo de Servicio",
             icon: "pi pi-wrench",
             path: "/tipo-servicio",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "tipo-contenedor",
             label: "Tipo de Contenedor",
             icon: "pi pi-inbox",
             path: "/tipo-contenedor",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "tipo-costo",
             label: "Tipo de Costo",
             icon: "pi pi-dollar",
             path: "/tipo-costo",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "estado-operacion",
             label: "Estado de Operacion",
             icon: "pi pi-sync",
             path: "/estado-operacion",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "moneda",
             label: "Moneda",
             icon: "pi pi-money-bill",
             path: "/moneda",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "ruta",
             label: "Ruta",
             icon: "pi pi-map",
             path: "/ruta",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "tipo-documento",
             label: "Tipo de Documento",
             icon: "pi pi-file",
             path: "/tipo-documento",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "tipo-nacionalizacion",
             label: "Tipo de Nacionalizacion",
             icon: "pi pi-globe",
             path: "/tipo-nacionalizacion",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
         ],
       },
@@ -176,21 +262,21 @@ const Sidebar = () => {
         id: "logistics",
         label: "Logistica",
         icon: "pi pi-truck",
-        roles: ["ADMIN"],
+        roles: [ROLE_KEYS.ADMIN],
         children: [
           {
             id: "containers",
             label: "Contenedores",
             icon: "pi pi-box",
             path: "/containers",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
           {
             id: "documents",
             label: "Documentos",
             icon: "pi pi-folder-open",
             path: "/documents",
-            roles: ["ADMIN"],
+            roles: [ROLE_KEYS.ADMIN],
           },
         ],
       },
@@ -198,21 +284,21 @@ const Sidebar = () => {
         id: "accounting",
         label: "Contabilidad",
         icon: "pi pi-calculator",
-        roles: ["ADMIN", "CONTADOR"],
+        roles: [ROLE_KEYS.ADMIN, ROLE_KEYS.CONTADOR],
         children: [
           {
             id: "costs",
             label: "Costos",
             icon: "pi pi-money-bill",
             path: "/costs",
-            roles: ["ADMIN", "CONTADOR"],
+            roles: [ROLE_KEYS.ADMIN, ROLE_KEYS.CONTADOR],
           },
           {
             id: "sales",
             label: "Ventas",
             icon: "pi pi-chart-line",
             path: "/sales",
-            roles: ["ADMIN", "CONTADOR"],
+            roles: [ROLE_KEYS.ADMIN, ROLE_KEYS.CONTADOR],
           },
         ],
       },
@@ -221,20 +307,24 @@ const Sidebar = () => {
         label: "IA Seguros",
         icon: "pi pi-sparkles",
         path: "/insurance",
-        roles: ["ADMIN"],
+        roles: [ROLE_KEYS.ADMIN],
       },
     ],
     []
   );
 
   const filteredMenu = useMemo(() => {
-    const filtrarMenuPorRol = (items, role) =>
+    const filtrarMenuPorRol = (items, roles) =>
       items
-        .filter((item) => !item.roles || item.roles.includes(role))
+        .filter(
+          (item) =>
+            !item.roles ||
+            item.roles.some((allowedRole) => roles.includes(allowedRole))
+        )
         .map((item) => {
           if (!item.children) return item;
 
-          const children = filtrarMenuPorRol(item.children, role);
+          const children = filtrarMenuPorRol(item.children, roles);
 
           if (children.length === 0) return null;
 
@@ -242,14 +332,19 @@ const Sidebar = () => {
         })
         .filter(Boolean);
 
-    return filtrarMenuPorRol(menuItems, currentRole);
-  }, [menuItems, currentRole]);
+    return filtrarMenuPorRol(menuItems, currentRoles);
+  }, [menuItems, currentRoles]);
 
   const toggleMenu = (id) => {
     setOpenMenus((prev) => ({
       ...prev,
       [id]: !prev[id],
     }));
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    navigate("/", { replace: true });
   };
 
   useEffect(() => {
@@ -332,6 +427,11 @@ const Sidebar = () => {
       </div>
 
       <ul className="sidebar-menu">{renderMenuItems(filteredMenu)}</ul>
+
+      <button type="button" className="logout-button" onClick={handleLogout}>
+        {renderIcon("pi pi-sign-out")}
+        <span>Cerrar sesion</span>
+      </button>
     </aside>
   );
 };
