@@ -1,5 +1,9 @@
+:root {
+  --sidebar-width: 280px;
+}
+
 .page-container {
-  margin-left: 220px;
+  margin-left: var(--sidebar-width);
 }
 
 .page-title {

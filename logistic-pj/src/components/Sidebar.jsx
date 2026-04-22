@@ -8,39 +8,42 @@ const Sidebar = () => {
 
   const currentRole = "ADMIN";
 
+  const renderIcon = (iconClass) =>
+    iconClass ? <i className={`${iconClass} menu-icon`} aria-hidden="true" /> : null;
+
   const menuItems = useMemo(
     () => [
       {
         id: "dashboard",
         label: "Dashboard",
-        icon: "[D]",
+        icon: "pi pi-home",
         path: "/dashboard",
         roles: ["ADMIN", "CONTADOR"],
       },
       {
         id: "usuarios",
         label: "Usuarios",
-        icon: "[U]",
+        icon: "pi pi-users",
         roles: ["ADMIN"],
         children: [
           {
             id: "usuarios-registro",
             label: "Registro de Usuarios",
-            icon: "[RU]",
+            icon: "pi pi-user-plus",
             path: "/usuarios/registro",
             roles: ["ADMIN"],
           },
           {
             id: "usuarios-roles",
             label: "Asignacion de Roles",
-            icon: "[AR]",
+            icon: "pi pi-id-card",
             path: "/usuarios/asignacion-roles",
             roles: ["ADMIN"],
           },
           {
             id: "rol",
             label: "Rol",
-            icon: "[R]",
+            icon: "pi pi-shield",
             path: "/rol",
             roles: ["ADMIN"],
           },
@@ -50,34 +53,34 @@ const Sidebar = () => {
       {
         id: "clients",
         label: "Clientes",
-        icon: "[C]",
+        icon: "pi pi-users",
         path: "/clients",
         roles: ["ADMIN"],
       },
       {
         id: "suppliers",
         label: "Proveedores",
-        icon: "[PV]",
+        icon: "pi pi-briefcase",
         roles: ["ADMIN"],
         children: [
           {
             id: "suppliers-registro",
             label: "Registro de Proveedores",
-            icon: "[RP]",
+            icon: "pi pi-plus-circle",
             path: "/suppliers/registro",
             roles: ["ADMIN"],
           },
           {
             id: "suppliers-cuentas",
             label: "Cuenta de Proveedores",
-            icon: "[CP]",
+            icon: "pi pi-wallet",
             path: "/suppliers/cuentas",
             roles: ["ADMIN"],
           },
           {
             id: "suppliers-rutas",
             label: "Ruta de Proveedores",
-            icon: "[PR]",
+            icon: "pi pi-directions",
             path: "/suppliers/rutas",
             roles: ["ADMIN"],
           },
@@ -86,20 +89,20 @@ const Sidebar = () => {
       {
         id: "operations",
         label: "Operaciones",
-        icon: "[O]",
+        icon: "pi pi-clipboard",
         roles: ["ADMIN"],
         children: [
           {
             id: "operations-registro",
             label: "Registro de Operaciones",
-            icon: "[RO]",
+            icon: "pi pi-file-edit",
             path: "/operations/registro",
             roles: ["ADMIN"],
           },
           {
             id: "operations-contenedores",
             label: "Asignacion de Contenedores",
-            icon: "[AC]",
+            icon: "pi pi-box",
             path: "/operations/asignacion-contenedores",
             roles: ["ADMIN"],
           },
@@ -108,62 +111,62 @@ const Sidebar = () => {
       {
         id: "parameters",
         label: "Parametros",
-        icon: "[P]",
+        icon: "pi pi-cog",
         roles: ["ADMIN"],
         children: [
           {
             id: "tipo-servicio",
             label: "Tipo de Servicio",
-            icon: "[TS]",
+            icon: "pi pi-wrench",
             path: "/tipo-servicio",
             roles: ["ADMIN"],
           },
           {
             id: "tipo-contenedor",
             label: "Tipo de Contenedor",
-            icon: "[TC]",
+            icon: "pi pi-inbox",
             path: "/tipo-contenedor",
             roles: ["ADMIN"],
           },
           {
             id: "tipo-costo",
             label: "Tipo de Costo",
-            icon: "[T$]",
+            icon: "pi pi-dollar",
             path: "/tipo-costo",
             roles: ["ADMIN"],
           },
           {
             id: "estado-operacion",
             label: "Estado de Operacion",
-            icon: "[EO]",
+            icon: "pi pi-sync",
             path: "/estado-operacion",
             roles: ["ADMIN"],
           },
           {
             id: "moneda",
             label: "Moneda",
-            icon: "[M]",
+            icon: "pi pi-money-bill",
             path: "/moneda",
             roles: ["ADMIN"],
           },
           {
             id: "ruta",
             label: "Ruta",
-            icon: "[RT]",
+            icon: "pi pi-map",
             path: "/ruta",
             roles: ["ADMIN"],
           },
           {
             id: "tipo-documento",
             label: "Tipo de Documento",
-            icon: "[TD]",
+            icon: "pi pi-file",
             path: "/tipo-documento",
             roles: ["ADMIN"],
           },
           {
             id: "tipo-nacionalizacion",
             label: "Tipo de Nacionalizacion",
-            icon: "[TN]",
+            icon: "pi pi-globe",
             path: "/tipo-nacionalizacion",
             roles: ["ADMIN"],
           },
@@ -172,18 +175,20 @@ const Sidebar = () => {
       {
         id: "logistics",
         label: "Logistica",
-        icon: "[L]",
+        icon: "pi pi-truck",
         roles: ["ADMIN"],
         children: [
           {
             id: "containers",
             label: "Contenedores",
+            icon: "pi pi-box",
             path: "/containers",
             roles: ["ADMIN"],
           },
           {
             id: "documents",
             label: "Documentos",
+            icon: "pi pi-folder-open",
             path: "/documents",
             roles: ["ADMIN"],
           },
@@ -192,20 +197,20 @@ const Sidebar = () => {
       {
         id: "accounting",
         label: "Contabilidad",
-        icon: "[$]",
+        icon: "pi pi-calculator",
         roles: ["ADMIN", "CONTADOR"],
         children: [
           {
             id: "costs",
             label: "Costos",
-            icon: "[$]",
+            icon: "pi pi-money-bill",
             path: "/costs",
             roles: ["ADMIN", "CONTADOR"],
           },
           {
             id: "sales",
             label: "Ventas",
-            icon: "[V]",
+            icon: "pi pi-chart-line",
             path: "/sales",
             roles: ["ADMIN", "CONTADOR"],
           },
@@ -214,7 +219,7 @@ const Sidebar = () => {
       {
         id: "insurance",
         label: "IA Seguros",
-        icon: "[IA]",
+        icon: "pi pi-sparkles",
         path: "/insurance",
         roles: ["ADMIN"],
       },
@@ -291,7 +296,8 @@ const Sidebar = () => {
               aria-expanded={Boolean(openMenus[item.id])}
               style={level > 0 ? { paddingLeft: `${1 + level}rem` } : undefined}
             >
-              {item.icon} {item.label}
+              {renderIcon(item.icon)}
+              <span>{item.label}</span>
             </button>
 
             {openMenus[item.id] && (
@@ -308,8 +314,8 @@ const Sidebar = () => {
             }
             style={level > 0 ? { paddingLeft: `${1 + level}rem` } : undefined}
           >
-            {item.icon ? <span className="menu-icon">{item.icon}</span> : null}
-            {item.label}
+            {renderIcon(item.icon)}
+            <span>{item.label}</span>
           </NavLink>
         )}
       </li>

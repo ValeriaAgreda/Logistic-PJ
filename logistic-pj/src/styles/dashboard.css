@@ -1,5 +1,5 @@
 .dashboard-container {
-  margin-left: 220px;
+  margin-left: var(--sidebar-width);
   background: linear-gradient(180deg, #f6fbfc 0%, #eef5f7 100%);
   min-height: 100vh;
 }

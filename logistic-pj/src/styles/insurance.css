@@ -1,5 +1,5 @@
 .insurance-container {
-    margin-left: 220px;
+    margin-left: var(--sidebar-width);
   }
   
   .insurance-form {
