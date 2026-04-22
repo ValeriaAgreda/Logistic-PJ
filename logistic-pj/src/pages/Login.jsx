@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "../styles/login.css";
+import { API_BASE_URL } from "../config/api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -8,8 +9,8 @@ const Login = () => {
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError("");
 
     if (!correo || !contrasena) {
@@ -18,7 +19,7 @@ const Login = () => {
     }
 
     try {
-      const res = await fetch("http://localhost:3001/api/auth/login", {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -70,7 +71,7 @@ const Login = () => {
                   type="email"
                   className="form-control"
                   value={correo}
-                  onChange={(e) => setCorreo(e.target.value)}
+                  onChange={(event) => setCorreo(event.target.value)}
                   required
                 />
               </div>
@@ -81,7 +82,7 @@ const Login = () => {
                   type="password"
                   className="form-control"
                   value={contrasena}
-                  onChange={(e) => setContrasena(e.target.value)}
+                  onChange={(event) => setContrasena(event.target.value)}
                   required
                 />
               </div>
@@ -91,9 +92,9 @@ const Login = () => {
               </button>
 
               <div className="text-center">
-                <a href="#" className="text-muted">
+                <Link to="/olvide-contrasena" className="text-muted login-link">
                   ¿Olvidaste tu contraseña?
-                </a>
+                </Link>
               </div>
             </form>
           </div>

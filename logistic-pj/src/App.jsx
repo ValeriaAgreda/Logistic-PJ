@@ -23,12 +23,16 @@ import NationalizationType from "./pages/NationalizationType";
 import Roles from "./pages/Roles";
 import UserRoleAssignments from "./pages/UserRoleAssignments";
 import Users from "./pages/Users";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<Login />} />
+        <Route path="/olvide-contrasena" element={<ForgotPassword />} />
+        <Route path="/restablecer-contrasena" element={<ResetPassword />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/usuarios" element={<Navigate to="/usuarios/registro" replace />} />
         <Route path="/usuarios/registro" element={<Users />} />
