@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "frontend": "npm run dev --prefix logistic-pj",
+    "backend": "npm run dev --prefix logistic-pj/backend"
+  },
   "dependencies": {
     "bootstrap": "^5.3.6",
     "react-router-dom": "^7.6.2"

@@ -37,6 +37,50 @@ const Sidebar = () => {
             path: "/usuarios/asignacion-roles",
             roles: ["ADMIN"],
           },
+          {
+            id: "rol",
+            label: "Rol",
+            icon: "[R]",
+            path: "/rol",
+            roles: ["ADMIN"],
+          },
+        ],
+      },
+
+      {
+        id: "clients",
+        label: "Clientes",
+        icon: "[C]",
+        path: "/clients",
+        roles: ["ADMIN"],
+      },
+      {
+        id: "suppliers",
+        label: "Proveedores",
+        icon: "[PV]",
+        roles: ["ADMIN"],
+        children: [
+          {
+            id: "suppliers-registro",
+            label: "Registro de Proveedores",
+            icon: "[RP]",
+            path: "/suppliers/registro",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "suppliers-cuentas",
+            label: "Cuenta de Proveedores",
+            icon: "[CP]",
+            path: "/suppliers/cuentas",
+            roles: ["ADMIN"],
+          },
+          {
+            id: "suppliers-rutas",
+            label: "Ruta de Proveedores",
+            icon: "[PR]",
+            path: "/suppliers/rutas",
+            roles: ["ADMIN"],
+          },
         ],
       },
       {
@@ -67,42 +111,6 @@ const Sidebar = () => {
         icon: "[P]",
         roles: ["ADMIN"],
         children: [
-          {
-            id: "clients",
-            label: "Clientes",
-            icon: "[C]",
-            path: "/clients",
-            roles: ["ADMIN"],
-          },
-          {
-            id: "suppliers",
-            label: "Proveedores",
-            icon: "[PV]",
-            roles: ["ADMIN"],
-            children: [
-              {
-                id: "suppliers-registro",
-                label: "Registro de Proveedores",
-                icon: "[RP]",
-                path: "/suppliers/registro",
-                roles: ["ADMIN"],
-              },
-              {
-                id: "suppliers-cuentas",
-                label: "Cuenta de Proveedores",
-                icon: "[CP]",
-                path: "/suppliers/cuentas",
-                roles: ["ADMIN"],
-              },
-              {
-                id: "suppliers-rutas",
-                label: "Ruta de Proveedores",
-                icon: "[PR]",
-                path: "/suppliers/rutas",
-                roles: ["ADMIN"],
-              },
-            ],
-          },
           {
             id: "tipo-servicio",
             label: "Tipo de Servicio",
@@ -157,13 +165,6 @@ const Sidebar = () => {
             label: "Tipo de Nacionalizacion",
             icon: "[TN]",
             path: "/tipo-nacionalizacion",
-            roles: ["ADMIN"],
-          },
-          {
-            id: "rol",
-            label: "Rol",
-            icon: "[R]",
-            path: "/rol",
             roles: ["ADMIN"],
           },
         ],

@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require("path");
 const app = express();
-const dashboardRoutes = require("./routes/dashboard");
 const clientesRoutes = require('./routes/clientes');
 const proveedoresRoutes = require('./routes/proveedores');
 const proveedorCuentaRoutes = require("./routes/proveedorCuenta");
@@ -37,7 +36,6 @@ app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-app.use("/api/dashboard", dashboardRoutes);
 app.use('/api/clientes', clientesRoutes);
 app.use('/api/proveedores', proveedoresRoutes);
 app.use("/api/proveedor-cuenta", proveedorCuentaRoutes);
