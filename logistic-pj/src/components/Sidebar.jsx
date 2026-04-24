@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import "../styles/sidebar.css";
+import { API_BASE_URL } from "../config/api";
 
 const ROLE_KEYS = {
   ADMIN: "ADMIN",
@@ -343,8 +344,13 @@ const Sidebar = () => {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("user");
-    navigate("/", { replace: true });
+    fetch(`${API_BASE_URL}/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    }).finally(() => {
+      localStorage.removeItem("user");
+      navigate("/", { replace: true });
+    });
   };
 
   useEffect(() => {

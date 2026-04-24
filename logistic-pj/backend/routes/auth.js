@@ -175,6 +175,82 @@ const sendResetPasswordEmail = async ({ correo, nombre, resetLink }) => {
   return { delivered: true };
 };
 
+const getAuthenticatedUserFromRequest = async (req) => {
+  const cookieUser = req.cookies?.user;
+  let userId = null;
+
+  if (cookieUser && typeof cookieUser === "object" && cookieUser.id_usuario) {
+    userId = Number(cookieUser.id_usuario);
+  } else if (typeof cookieUser === "string") {
+    try {
+      const parsedUser = JSON.parse(cookieUser);
+      if (parsedUser?.id_usuario) {
+        userId = Number(parsedUser.id_usuario);
+      }
+    } catch (_error) {
+      userId = null;
+    }
+  }
+
+  if (!userId) {
+    return null;
+  }
+
+  const [rows] = await db.query(
+    `SELECT
+      id_usuario,
+      nombre_completo,
+      usuario,
+      correo,
+      estado
+     FROM usuario
+     WHERE id_usuario = ?
+     LIMIT 1`,
+    [userId]
+  );
+
+  if (rows.length === 0 || rows[0].estado !== 1) {
+    return null;
+  }
+
+  const user = rows[0];
+
+  const [roleRows] = await db.query(
+    `SELECT
+      ru.id_rol_usuario,
+      ru.id_rol,
+      r.descripcion AS rol_descripcion
+    FROM rol_usuario ru
+    INNER JOIN rol r ON r.id_rol = ru.id_rol
+    WHERE ru.id_usuario = ?
+      AND ru.estado = 1
+      AND r.estado = 1
+    ORDER BY ru.id_rol_usuario DESC`,
+    [user.id_usuario]
+  );
+
+  const roles = roleRows
+    .map((role) => ({
+      id_rol_usuario: role.id_rol_usuario,
+      id_rol: role.id_rol,
+      descripcion: role.rol_descripcion,
+      codigo: normalizeRole(role.rol_descripcion ?? role.id_rol),
+    }))
+    .filter((role) => role.codigo);
+
+  return {
+    id_usuario: user.id_usuario,
+    nombre_completo: user.nombre_completo,
+    usuario: user.usuario,
+    correo: user.correo,
+    estado: user.estado,
+    roles,
+    role_codes: roles.map((role) => role.codigo),
+    role_names: roles.map((role) => role.descripcion),
+    primary_role: roles[0]?.codigo || null,
+  };
+};
+
 router.post("/login", async (req, res) => {
   try {
     const correo = (req.body.correo ?? "").trim().toLowerCase();
@@ -261,6 +337,35 @@ router.post("/login", async (req, res) => {
     console.error("Error en login:", err);
     return res.status(500).json({ error: "Error en el servidor" });
   }
+});
+
+router.get("/me", async (req, res) => {
+  try {
+    const user = await getAuthenticatedUserFromRequest(req);
+
+    if (!user) {
+      res.clearCookie("user", {
+        httpOnly: true,
+        sameSite: "lax",
+      });
+
+      return res.status(401).json({ error: "No autenticado." });
+    }
+
+    return res.json({ user });
+  } catch (err) {
+    console.error("Error al validar la sesion:", err);
+    return res.status(500).json({ error: "Error en el servidor" });
+  }
+});
+
+router.post("/logout", (_req, res) => {
+  res.clearCookie("user", {
+    httpOnly: true,
+    sameSite: "lax",
+  });
+
+  return res.json({ message: "Sesion cerrada correctamente." });
 });
 
 router.post("/forgot-password", async (req, res) => {

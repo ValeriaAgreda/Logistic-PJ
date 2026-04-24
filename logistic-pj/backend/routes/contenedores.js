@@ -23,11 +23,6 @@ const obtenerIdUsuarioAutenticado = (req) => {
     }
   }
 
-  const headerUserId = req.headers["x-user-id"];
-  if (headerUserId && !Number.isNaN(Number(headerUserId))) {
-    return Number(headerUserId);
-  }
-
   return null;
 };
 
