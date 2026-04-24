@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as bootstrap from "bootstrap";
-import Sidebar from "../components/Sidebar";
 
 const asignacionInicial = {
   id_contenedor: "",
@@ -307,8 +306,7 @@ const OperationContainerAssignments = () => {
   );
 
   return (
-    <div className="d-flex">
-      <Sidebar />
+    <>
 
       <div className="page-container flex-grow-1 p-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
@@ -650,8 +648,9 @@ const OperationContainerAssignments = () => {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
 export default OperationContainerAssignments;
+

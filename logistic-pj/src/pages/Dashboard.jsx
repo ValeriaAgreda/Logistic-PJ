@@ -1,6 +1,5 @@
 // src/pages/Dashboard.jsx
 import React from "react";
-import Sidebar from "../components/Sidebar";
 import "../styles/dashboard.css";
 import {
   BarChart,
@@ -36,8 +35,7 @@ const Dashboard = () => {
   const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
   return (
-    <div className="d-flex">
-      <Sidebar />
+    <>
       <div className="dashboard-container flex-grow-1 p-4">
         <div className="d-flex justify-content-between align-items-center mb-4">
           <h4>Welcome Administrator</h4>
@@ -138,8 +136,9 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
 export default Dashboard;
+

@@ -1,11 +1,9 @@
 import React from "react";
-import Sidebar from "../components/Sidebar";
 import "../styles/operations.css";
 
 const Operations = () => {
   return (
-    <div className="d-flex">
-      <Sidebar />
+    <>
       <div className="operations-container p-4 flex-grow-1">
         <h3 className="mb-4">Register import operation</h3>
 
@@ -46,7 +44,7 @@ const Operations = () => {
           <button type="submit" className="btn btn-dark w-100">Register</button>
         </form>
       </div>
-    </div>
+    </>
   );
 };
 

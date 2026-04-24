@@ -1,7 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import "../styles/sidebar.css";
 import { API_BASE_URL } from "../config/api";
+
+const SIDEBAR_SCROLL_STORAGE_KEY = "sidebar-scroll-top";
+const SIDEBAR_MENUS_STORAGE_KEY = "sidebar-open-menus";
 
 const ROLE_KEYS = {
   ADMIN: "ADMIN",
@@ -81,7 +84,15 @@ const extractUserRoles = (user) => {
 const Sidebar = () => {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [openMenus, setOpenMenus] = useState({});
+  const menuRef = useRef(null);
+  const [openMenus, setOpenMenus] = useState(() => {
+    try {
+      const storedMenus = sessionStorage.getItem(SIDEBAR_MENUS_STORAGE_KEY);
+      return storedMenus ? JSON.parse(storedMenus) : {};
+    } catch {
+      return {};
+    }
+  });
 
   const renderIcon = (iconClass) =>
     iconClass ? <i className={`${iconClass} menu-icon`} aria-hidden="true" /> : null;
@@ -349,9 +360,19 @@ const Sidebar = () => {
       credentials: "include",
     }).finally(() => {
       localStorage.removeItem("user");
+      sessionStorage.removeItem(SIDEBAR_SCROLL_STORAGE_KEY);
+      sessionStorage.removeItem(SIDEBAR_MENUS_STORAGE_KEY);
       navigate("/", { replace: true });
     });
   };
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SIDEBAR_MENUS_STORAGE_KEY, JSON.stringify(openMenus));
+    } catch {
+      // Ignorar problemas de almacenamiento del navegador.
+    }
+  }, [openMenus]);
 
   useEffect(() => {
     const expandedMenus = {};
@@ -384,6 +405,40 @@ const Sidebar = () => {
     marcarPadresActivos(filteredMenu);
     setOpenMenus((prev) => ({ ...prev, ...expandedMenus }));
   }, [pathname, filteredMenu]);
+
+  useEffect(() => {
+    const menuElement = menuRef.current;
+    if (!menuElement) {
+      return undefined;
+    }
+
+    try {
+      const savedScrollTop = sessionStorage.getItem(SIDEBAR_SCROLL_STORAGE_KEY);
+      if (savedScrollTop !== null) {
+        menuElement.scrollTop = Number(savedScrollTop) || 0;
+      }
+    } catch {
+      // Ignorar problemas de almacenamiento del navegador.
+    }
+
+    const handleScroll = () => {
+      try {
+        sessionStorage.setItem(
+          SIDEBAR_SCROLL_STORAGE_KEY,
+          String(menuElement.scrollTop)
+        );
+      } catch {
+        // Ignorar problemas de almacenamiento del navegador.
+      }
+    };
+
+    menuElement.addEventListener("scroll", handleScroll);
+
+    return () => {
+      handleScroll();
+      menuElement.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   const renderMenuItems = (items, level = 0) =>
     items.map((item) => (
@@ -432,7 +487,7 @@ const Sidebar = () => {
         />
       </div>
 
-      <ul className="sidebar-menu">{renderMenuItems(filteredMenu)}</ul>
+      <ul ref={menuRef} className="sidebar-menu">{renderMenuItems(filteredMenu)}</ul>
 
       <button type="button" className="logout-button" onClick={handleLogout}>
         {renderIcon("pi pi-sign-out")}

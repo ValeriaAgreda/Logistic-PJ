@@ -1,11 +1,9 @@
 import React from "react";
-import Sidebar from "../components/Sidebar";
 import "../styles/insurance.css";
 
 const InsuranceAI = () => {
   return (
-    <div className="d-flex">
-      <Sidebar />
+    <>
       <div className="insurance-container flex-grow-1 p-4">
         <h3 className="mb-4">Insurance Recommendation</h3>
 
@@ -42,8 +40,9 @@ const InsuranceAI = () => {
           </div>
         </form>
       </div>
-    </div>
+    </>
   );
 };
 
 export default InsuranceAI;
+

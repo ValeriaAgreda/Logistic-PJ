@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import Sidebar from "../components/Sidebar";
 import * as bootstrap from "bootstrap";
 
 const tipoInicial = {
@@ -225,8 +224,7 @@ const NationalizationType = () => {
   ];
 
   return (
-    <div className="d-flex">
-      <Sidebar />
+    <>
 
       <div className="page-container flex-grow-1 p-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
@@ -454,8 +452,9 @@ const NationalizationType = () => {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
 export default NationalizationType;
+
