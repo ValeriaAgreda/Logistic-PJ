@@ -499,11 +499,12 @@ const Suppliers = () => {
               <li key={`${country.iso}-${country.code}`}>
                 <button
                   type="button"
-                  className="dropdown-item d-flex align-items-center gap-2"
+                  className="dropdown-item d-grid align-items-center"
                   onClick={() => {
                     onChange(buildPhone(country.code, parts.localNumber), country.iso);
                     setPhoneMenuOpen(null);
                   }}
+                  style={{ gridTemplateColumns: "28px minmax(0, 1fr) 74px", columnGap: 8 }}
                 >
                   <img
                     src={country.flag}
@@ -512,8 +513,8 @@ const Suppliers = () => {
                     height="18"
                     style={flagStyle}
                   />
-                  <span className="flex-grow-1 text-start">{country.country}</span>
-                  <span className="text-muted">{country.code}</span>
+                  <span className="text-truncate">{country.country}</span>
+                  <span className="text-muted text-end">{country.code}</span>
                 </button>
               </li>
             ))}
