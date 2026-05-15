@@ -7,11 +7,133 @@ const proveedorInicial = {
   nit: "",
   contacto: "",
   telefono: "",
+  telefonoPais: "bo",
   correo: "",
   direccion: "",
   lugar_origen: "",
   id_tipo_servicio: "",
   estado: 1,
+};
+
+const COUNTRY_API_URL =
+  "https://restcountries.com/v3.1/all?fields=name,cca2,idd,flags,translations";
+const FALLBACK_PHONE_COUNTRIES = [
+  {
+    country: "Bolivia",
+    iso: "bo",
+    code: "+591",
+    flag: "https://flagcdn.com/w40/bo.png",
+  },
+];
+const DEFAULT_PHONE_COUNTRY_ID = "bo";
+const DEFAULT_PHONE_COUNTRY = FALLBACK_PHONE_COUNTRIES[0];
+const INTERNATIONAL_PHONE = /^\+\d{8,15}$/;
+
+const onlyDigits = (value) => String(value || "").replace(/\D/g, "");
+
+const buildDialCode = (idd) => {
+  if (!idd?.root || !Array.isArray(idd.suffixes) || idd.suffixes.length === 0) {
+    return "";
+  }
+
+  return `${idd.root}${idd.suffixes[0]}`;
+};
+
+const normalizeCountries = (countries) =>
+  countries
+    .map((country) => ({
+      country:
+        country.translations?.spa?.common ||
+        country.name?.common ||
+        country.cca2 ||
+        "",
+      iso: String(country.cca2 || "").toLowerCase(),
+      code: buildDialCode(country.idd),
+      flag: country.flags?.svg || country.flags?.png || "",
+    }))
+    .filter((country) => country.country && country.iso && country.code)
+    .sort((a, b) => {
+      if (a.iso === DEFAULT_PHONE_COUNTRY_ID) return -1;
+      if (b.iso === DEFAULT_PHONE_COUNTRY_ID) return 1;
+      return a.country.localeCompare(b.country, "es");
+    });
+
+const findPhoneCountry = (
+  countries,
+  countryIdOrCode = DEFAULT_PHONE_COUNTRY_ID
+) =>
+  countries.find(
+    (country) =>
+      country.iso === countryIdOrCode || country.code === countryIdOrCode
+  ) || DEFAULT_PHONE_COUNTRY;
+
+const getPhoneParts = (
+  value,
+  fallbackCountryId = DEFAULT_PHONE_COUNTRY_ID,
+  countries = FALLBACK_PHONE_COUNTRIES
+) => {
+  const raw = String(value || "").trim();
+  const fallbackCountry = findPhoneCountry(countries, fallbackCountryId);
+  const fallbackCode = fallbackCountry.code;
+  const sortedCountries = [...countries].sort(
+    (a, b) => b.code.length - a.code.length
+  );
+
+  if (raw.startsWith("+")) {
+    if (raw.startsWith(fallbackCode)) {
+      return {
+        countryId: fallbackCountry.iso,
+        countryCode: fallbackCode,
+        localNumber: onlyDigits(raw.slice(fallbackCode.length)),
+      };
+    }
+
+    const match = sortedCountries.find((country) =>
+      raw.startsWith(country.code)
+    );
+
+    if (match) {
+      return {
+        countryId: match.iso,
+        countryCode: match.code,
+        localNumber: onlyDigits(raw.slice(match.code.length)),
+      };
+    }
+
+    return {
+      countryId: fallbackCountry.iso,
+      countryCode: fallbackCode,
+      localNumber: onlyDigits(raw),
+    };
+  }
+
+  return {
+    countryId: fallbackCountry.iso,
+    countryCode: fallbackCode,
+    localNumber: onlyDigits(raw),
+  };
+};
+
+const buildPhone = (countryCode, localNumber) =>
+  `${countryCode}${onlyDigits(localNumber)}`;
+
+const normalizePhoneForSave = (
+  phone,
+  fallbackCountryId = DEFAULT_PHONE_COUNTRY_ID,
+  countries = FALLBACK_PHONE_COUNTRIES
+) => {
+  const { countryCode, localNumber } = getPhoneParts(
+    phone,
+    fallbackCountryId,
+    countries
+  );
+  return buildPhone(countryCode, localNumber);
+};
+
+const flagStyle = {
+  background: "#fff",
+  border: "1px solid rgba(0, 0, 0, 0.12)",
+  objectFit: "contain",
 };
 
 const Suppliers = () => {
@@ -22,6 +144,8 @@ const Suppliers = () => {
   const [proveedorAEliminar, setProveedorAEliminar] = useState(null);
   const [errores, setErrores] = useState({});
   const [selectedId, setSelectedId] = useState(null);
+  const [phoneMenuOpen, setPhoneMenuOpen] = useState(null);
+  const [phoneCountries, setPhoneCountries] = useState(FALLBACK_PHONE_COUNTRIES);
 
   const [search, setSearch] = useState("");
   const [tipoServicioFiltro, setTipoServicioFiltro] = useState("ALL");
@@ -41,8 +165,12 @@ const Suppliers = () => {
       e.contacto = "El contacto es obligatorio.";
     }
 
-    if (!/^[67]\d{7}$/.test(String(p.telefono || "").trim())) {
-      e.telefono = "El teléfono debe tener 8 dígitos y empezar con 6 o 7.";
+    if (
+      !INTERNATIONAL_PHONE.test(
+        normalizePhoneForSave(p.telefono, p.telefonoPais, phoneCountries)
+      )
+    ) {
+      e.telefono = "Selecciona un pais e ingresa un telefono valido.";
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(p.correo || "").trim())) {
@@ -107,14 +235,44 @@ const Suppliers = () => {
     }
   };
 
+  const cargarPaisesTelefono = async () => {
+    try {
+      const res = await fetch(COUNTRY_API_URL);
+      const data = await res.json();
+
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error("No se pudo obtener el catalogo de paises.");
+      }
+
+      const countries = normalizeCountries(data);
+      const nextCountries =
+        countries.length > 0 ? countries : FALLBACK_PHONE_COUNTRIES;
+      const defaultCountry = findPhoneCountry(
+        nextCountries,
+        DEFAULT_PHONE_COUNTRY_ID
+      );
+
+      setPhoneCountries(nextCountries);
+      setNuevoProveedor((current) => ({
+        ...current,
+        telefonoPais: current.telefonoPais || defaultCountry.iso,
+      }));
+    } catch (error) {
+      console.error("Error al cargar paises para telefono:", error);
+      setPhoneCountries(FALLBACK_PHONE_COUNTRIES);
+    }
+  };
+
   useEffect(() => {
     cargarProveedores();
     cargarTiposServicio();
+    cargarPaisesTelefono();
   }, []);
 
   const abrirNuevo = () => {
     setNuevoProveedor(proveedorInicial);
     setErrores({});
+    setPhoneMenuOpen(null);
     new bootstrap.Modal(document.getElementById("addSupplierModal")).show();
   };
 
@@ -122,9 +280,20 @@ const Suppliers = () => {
     if (!proveedor) return;
     setProveedorSeleccionado({
       ...proveedor,
+      telefono: normalizePhoneForSave(
+        proveedor.telefono,
+        DEFAULT_PHONE_COUNTRY_ID,
+        phoneCountries
+      ),
+      telefonoPais: getPhoneParts(
+        proveedor.telefono,
+        DEFAULT_PHONE_COUNTRY_ID,
+        phoneCountries
+      ).countryId,
       id_tipo_servicio: proveedor.id_tipo_servicio ?? "",
     });
     setErrores({});
+    setPhoneMenuOpen(null);
     new bootstrap.Modal(document.getElementById("editSupplierModal")).show();
   };
 
@@ -143,6 +312,11 @@ const Suppliers = () => {
 
     const body = {
       ...nuevoProveedor,
+      telefono: normalizePhoneForSave(
+        nuevoProveedor.telefono,
+        nuevoProveedor.telefonoPais,
+        phoneCountries
+      ),
       correo: nuevoProveedor.correo.trim().toLowerCase(),
       id_tipo_servicio: Number(nuevoProveedor.id_tipo_servicio),
       estado: 1,
@@ -186,6 +360,11 @@ const Suppliers = () => {
 
     const body = {
       ...proveedorSeleccionado,
+      telefono: normalizePhoneForSave(
+        proveedorSeleccionado.telefono,
+        proveedorSeleccionado.telefonoPais,
+        phoneCountries
+      ),
       correo: proveedorSeleccionado.correo.trim().toLowerCase(),
       id_tipo_servicio: Number(proveedorSeleccionado.id_tipo_servicio),
       estado:
@@ -268,6 +447,92 @@ const Suppliers = () => {
       {error && <div className="invalid-feedback">{error}</div>}
     </div>
   );
+
+  const phoneInput = (value, onChange, error, selectedCountryId, menuId) => {
+    const parts = getPhoneParts(
+      value,
+      selectedCountryId || DEFAULT_PHONE_COUNTRY_ID,
+      phoneCountries
+    );
+    const selectedCountry =
+      phoneCountries.find((country) => country.iso === parts.countryId) ||
+      DEFAULT_PHONE_COUNTRY;
+    const isOpen = phoneMenuOpen === menuId;
+
+    return (
+      <div className="mb-3">
+        <label className="form-label">Telefono</label>
+        <div className="input-group position-relative">
+          <button
+            type="button"
+            className="btn btn-outline-secondary dropdown-toggle d-flex align-items-center gap-2"
+            aria-expanded={isOpen}
+            onClick={() =>
+              setPhoneMenuOpen((current) =>
+                current === menuId ? null : menuId
+              )
+            }
+            title={selectedCountry.country}
+            style={{ width: 118 }}
+          >
+            <img
+              src={selectedCountry.flag}
+              alt={selectedCountry.country}
+              width="28"
+              height="18"
+              style={flagStyle}
+            />
+            <span>{selectedCountry.code}</span>
+          </button>
+          <ul
+            className={`dropdown-menu ${isOpen ? "show" : ""}`}
+            style={{
+              maxHeight: 260,
+              overflowY: "auto",
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              zIndex: 1080,
+            }}
+          >
+            {phoneCountries.map((country) => (
+              <li key={`${country.iso}-${country.code}`}>
+                <button
+                  type="button"
+                  className="dropdown-item d-flex align-items-center gap-2"
+                  onClick={() => {
+                    onChange(buildPhone(country.code, parts.localNumber), country.iso);
+                    setPhoneMenuOpen(null);
+                  }}
+                >
+                  <img
+                    src={country.flag}
+                    alt={country.country}
+                    width="28"
+                    height="18"
+                    style={flagStyle}
+                  />
+                  <span className="flex-grow-1 text-start">{country.country}</span>
+                  <span className="text-muted">{country.code}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <input
+            type="tel"
+            inputMode="numeric"
+            className={`form-control ${error ? "is-invalid" : ""}`}
+            value={parts.localNumber}
+            onChange={(e) =>
+              onChange(buildPhone(parts.countryCode, e.target.value), parts.countryId)
+            }
+            placeholder="Numero local"
+          />
+          {error && <div className="invalid-feedback d-block">{error}</div>}
+        </div>
+      </div>
+    );
+  };
 
   const nombreTipoServicio = (idTipoServicio) => {
     const tipo = tiposServicio.find(
@@ -498,11 +763,23 @@ const Suppliers = () => {
                 (v) => setNuevoProveedor({ ...nuevoProveedor, contacto: v }),
                 errores.contacto
               )}
-              {input(
-                "Teléfono",
+              {phoneInput(
                 nuevoProveedor.telefono,
-                (v) => setNuevoProveedor({ ...nuevoProveedor, telefono: v }),
-                errores.telefono
+                (v, countryId) =>
+                  setNuevoProveedor({
+                    ...nuevoProveedor,
+                    telefono: v,
+                    telefonoPais:
+                      countryId ||
+                      getPhoneParts(
+                        v,
+                        nuevoProveedor.telefonoPais,
+                        phoneCountries
+                      ).countryId,
+                  }),
+                errores.telefono,
+                nuevoProveedor.telefonoPais,
+                "new-supplier-phone"
               )}
               {input(
                 "Correo",
@@ -613,15 +890,23 @@ const Suppliers = () => {
                       }),
                     errores.contacto
                   )}
-                  {input(
-                    "Teléfono",
+                  {phoneInput(
                     proveedorSeleccionado.telefono || "",
-                    (v) =>
+                    (v, countryId) =>
                       setProveedorSeleccionado({
                         ...proveedorSeleccionado,
                         telefono: v,
+                        telefonoPais:
+                          countryId ||
+                          getPhoneParts(
+                            v,
+                            proveedorSeleccionado.telefonoPais,
+                            phoneCountries
+                          ).countryId,
                       }),
-                    errores.telefono
+                    errores.telefono,
+                    proveedorSeleccionado.telefonoPais,
+                    "edit-supplier-phone"
                   )}
                   {input(
                     "Correo",

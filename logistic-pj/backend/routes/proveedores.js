@@ -5,6 +5,13 @@ const cookieParser = require("cookie-parser");
 
 router.use(cookieParser());
 
+const TELEFONO_INTERNACIONAL = /^\+\d{8,15}$/;
+
+const normalizarTelefono = (telefono) => String(telefono || "").trim();
+
+const validarTelefono = (telefono) =>
+  TELEFONO_INTERNACIONAL.test(normalizarTelefono(telefono));
+
 // GET: listar proveedores
 router.get("/", async (_req, res) => {
   try {
@@ -63,6 +70,12 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Faltan campos obligatorios." });
     }
 
+    if (!validarTelefono(telefono)) {
+      return res.status(400).json({
+        error: "El telefono debe incluir codigo de pais y entre 8 y 15 digitos.",
+      });
+    }
+
     const idUsuarioRegistro = req.cookies?.user?.id_usuario ?? null;
 
     const [result] = await db.query(
@@ -85,7 +98,7 @@ router.post("/", async (req, res) => {
         String(empresa).trim(),
         String(nit).trim(),
         String(contacto).trim(),
-        String(telefono).trim(),
+        normalizarTelefono(telefono),
         String(correo).trim().toLowerCase(),
         String(direccion).trim(),
         String(lugar_origen).trim(),
@@ -134,6 +147,12 @@ router.put("/:id_proveedor", async (req, res) => {
       return res.status(400).json({ error: "Faltan campos obligatorios." });
     }
 
+    if (!validarTelefono(telefono)) {
+      return res.status(400).json({
+        error: "El telefono debe incluir codigo de pais y entre 8 y 15 digitos.",
+      });
+    }
+
     const idUsuarioModificacion = req.cookies?.user?.id_usuario ?? null;
 
     const [result] = await db.query(
@@ -154,7 +173,7 @@ router.put("/:id_proveedor", async (req, res) => {
         String(empresa).trim(),
         String(nit).trim(),
         String(contacto).trim(),
-        String(telefono).trim(),
+        normalizarTelefono(telefono),
         String(correo).trim().toLowerCase(),
         String(direccion).trim(),
         String(lugar_origen).trim(),
