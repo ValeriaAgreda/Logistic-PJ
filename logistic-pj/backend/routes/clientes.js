@@ -5,6 +5,9 @@ const cookieParser = require("cookie-parser");
 
 router.use(cookieParser());
 
+const optionalText = (value) => (value == null ? "" : String(value).trim());
+const optionalEmail = (value) => optionalText(value).toLowerCase();
+
 // GET: listar clientes
 router.get("/", async (req, res) => {
   try {
@@ -47,7 +50,7 @@ router.post("/", async (req, res) => {
       observacion,
     } = req.body;
 
-    if (!razon_social || !nit || !contacto || !telefono || !correo || !direccion) {
+    if (!razon_social || !nit || !contacto) {
       return res.status(400).json({ error: "Faltan campos obligatorios." });
     }
 
@@ -72,9 +75,9 @@ router.post("/", async (req, res) => {
         razon_social.trim(),
         String(nit).trim(),
         contacto.trim(),
-        String(telefono).trim(),
-        correo.trim().toLowerCase(),
-        direccion.trim(),
+        optionalText(telefono),
+        optionalEmail(correo),
+        optionalText(direccion),
         observacion ? observacion.trim() : null,
         idUsuarioRegistro,
         idUsuarioRegistro,
@@ -105,7 +108,7 @@ router.put("/:id_cliente", async (req, res) => {
       estado,
     } = req.body;
 
-    if (!razon_social || !nit || !contacto || !telefono || !correo || !direccion) {
+    if (!razon_social || !nit || !contacto) {
       return res.status(400).json({ error: "Faltan campos obligatorios." });
     }
 
@@ -128,9 +131,9 @@ router.put("/:id_cliente", async (req, res) => {
         razon_social.trim(),
         String(nit).trim(),
         contacto.trim(),
-        String(telefono).trim(),
-        correo.trim().toLowerCase(),
-        direccion.trim(),
+        optionalText(telefono),
+        optionalEmail(correo),
+        optionalText(direccion),
         observacion ? observacion.trim() : null,
         idUsuarioModificacion,
         typeof estado === "number" ? estado : 1,

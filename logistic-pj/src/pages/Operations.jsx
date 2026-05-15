@@ -10,6 +10,14 @@ const itemInit = { descripcion: "" };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NIT = /^\d{5,15}$/;
 const PHONE = /^[67]\d{7}$/;
+const quickIcons = {
+  client: "pi pi-users",
+  supplier: "pi pi-briefcase",
+  service: "pi pi-wrench",
+  "service-supplier": "pi pi-wrench",
+  nationalization: "pi pi-globe",
+  status: "pi pi-sync",
+};
 
 const modal = (id) => new bootstrap.Modal(document.getElementById(id)).show();
 const hideModal = (id) => bootstrap.Modal.getInstance(document.getElementById(id))?.hide();
@@ -108,15 +116,17 @@ const Operations = () => {
     if (!v.razon_social.trim()) e.razon_social = "Razon social obligatoria.";
     if (!NIT.test(String(v.nit).trim())) e.nit = "NIT invalido.";
     if (!v.contacto.trim()) e.contacto = "Contacto obligatorio.";
-    if (!PHONE.test(String(v.telefono).trim())) e.telefono = "Telefono invalido.";
-    if (!EMAIL.test(String(v.correo).trim())) e.correo = "Correo invalido.";
-    if (!v.direccion.trim()) e.direccion = "Direccion obligatoria.";
+    if (String(v.telefono || "").trim() && !PHONE.test(String(v.telefono).trim())) e.telefono = "Telefono invalido.";
+    if (String(v.correo || "").trim() && !EMAIL.test(String(v.correo).trim())) e.correo = "Correo invalido.";
     return e;
   };
   const validateSupplier = (v) => {
     const e = validateClient({ ...v, razon_social: v.empresa });
     delete e.razon_social;
     if (!v.empresa.trim()) e.empresa = "Empresa obligatoria.";
+    if (!PHONE.test(String(v.telefono).trim())) e.telefono = "Telefono invalido.";
+    if (!EMAIL.test(String(v.correo).trim())) e.correo = "Correo invalido.";
+    if (!v.direccion.trim()) e.direccion = "Direccion obligatoria.";
     if (!v.lugar_origen.trim()) e.lugar_origen = "Lugar de origen obligatorio.";
     if (!v.id_tipo_servicio) e.id_tipo_servicio = "Selecciona un tipo de servicio.";
     return e;
@@ -186,7 +196,7 @@ const Operations = () => {
     const e = validateClient(quickClient);
     if (Object.keys(e).length) return setQuickErrors(e);
     try {
-      const data = await request(`${API}/clientes`, { method: "POST", body: JSON.stringify({ ...quickClient, correo: quickClient.correo.trim().toLowerCase(), observacion: quickClient.observacion.trim() }) });
+      const data = await request(`${API}/clientes`, { method: "POST", body: JSON.stringify({ ...quickClient, telefono: quickClient.telefono.trim(), correo: quickClient.correo.trim().toLowerCase(), direccion: quickClient.direccion.trim(), observacion: quickClient.observacion.trim() }) });
       await loadAll(); activeSetter((c) => ({ ...c, id_cliente: String(data.id_cliente) })); hideModal("quickClientModal");
     } catch (error) { alert(error.message); }
   };
@@ -241,7 +251,9 @@ const Operations = () => {
           <option value="">Seleccionar</option>
           {list.map((item) => <option key={item[idKey]} value={item[idKey]}>{item[textKey]}</option>)}
         </select>
-        <button type="button" className="btn btn-outline-primary quick-add-button" onClick={() => openQuick(quickType)} title={`Crear ${label}`}>[P]</button>
+        <button type="button" className="btn btn-outline-primary quick-add-button" onClick={() => openQuick(quickType)} title={`Crear ${label}`} aria-label={`Crear ${label}`}>
+          <i className={quickIcons[quickType]} aria-hidden="true" />
+        </button>
       </div>
       {errs[name] ? <div className="invalid-feedback d-block">{errs[name]}</div> : null}
     </div>

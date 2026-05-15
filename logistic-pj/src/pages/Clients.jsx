@@ -80,16 +80,18 @@ const Clients = () => {
       e.contacto = "El contacto es obligatorio.";
     }
 
-    if (!/^[67]\d{7}$/.test(String(c.telefono || "").trim())) {
+    if (
+      String(c.telefono || "").trim() &&
+      !/^[67]\d{7}$/.test(String(c.telefono || "").trim())
+    ) {
       e.telefono = "El teléfono debe tener 8 dígitos y empezar con 6 o 7.";
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c.correo || "").trim())) {
+    if (
+      String(c.correo || "").trim() &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c.correo || "").trim())
+    ) {
       e.correo = "El correo no es válido.";
-    }
-
-    if (!c.direccion?.trim()) {
-      e.direccion = "La dirección es obligatoria.";
     }
 
     return e;
@@ -104,7 +106,9 @@ const Clients = () => {
 
     const body = {
       ...nuevoCliente,
+      telefono: nuevoCliente.telefono.trim(),
       correo: nuevoCliente.correo.trim().toLowerCase(),
+      direccion: nuevoCliente.direccion.trim(),
       observacion: nuevoCliente.observacion?.trim() || "",
     };
 
@@ -144,7 +148,9 @@ const Clients = () => {
 
     const body = {
       ...clienteSeleccionado,
-      correo: clienteSeleccionado.correo.trim().toLowerCase(),
+      telefono: String(clienteSeleccionado.telefono || "").trim(),
+      correo: String(clienteSeleccionado.correo || "").trim().toLowerCase(),
+      direccion: String(clienteSeleccionado.direccion || "").trim(),
       observacion: clienteSeleccionado.observacion?.trim() || "",
       estado: clienteSeleccionado.estado,
     };

@@ -1,4 +1,14 @@
 .quick-add-button {
-  min-width: 52px;
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 42px;
+  height: 38px;
+  justify-content: center;
+  min-width: 42px;
+  padding: 0;
   white-space: nowrap;
+}
+
+.quick-add-button i {
+  font-size: 1rem;
 }

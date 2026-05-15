@@ -60,7 +60,7 @@ const Login = () => {
           </div>
 
           <div className="col-md-6">
-            <h4 className="mb-4">Log in</h4>
+            <h4 className="mb-4">Inicio de sesión</h4>
 
             <form onSubmit={handleSubmit}>
               {error && <div className="alert alert-danger">{error}</div>}
