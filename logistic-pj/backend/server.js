@@ -25,6 +25,7 @@ const tipoNacionalizacionRoutes = require("./routes/tipoNacionalizacion");
 const rolRoutes = require("./routes/rol");
 const rolUsuarioRoutes = require("./routes/rolUsuario");
 const usuariosRoutes = require("./routes/usuarios");
+const recomendacionSeguroRoutes = require("./routes/recomendacionSeguro");
 
 
 app.use(cors({
@@ -59,6 +60,7 @@ app.use("/api/tipo-nacionalizacion", tipoNacionalizacionRoutes);
 app.use("/api/rol", rolRoutes);
 app.use("/api/rol-usuario", rolUsuarioRoutes);
 app.use("/api/usuarios", usuariosRoutes);
+app.use("/api/recomendacion-seguro", recomendacionSeguroRoutes);
 
 
 app.listen(3001, () => {
