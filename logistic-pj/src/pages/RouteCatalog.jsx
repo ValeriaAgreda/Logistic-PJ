@@ -228,7 +228,7 @@ const RouteCatalog = () => {
 
       <div className="page-container flex-grow-1 p-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h1 className="page-title m-0">Gestion de Rutas</h1>
+          <h1 className="page-title m-0">Gestión de Rutas</h1>
 
           {rutaSeleccionadaTabla ? (
             <small className="text-muted">

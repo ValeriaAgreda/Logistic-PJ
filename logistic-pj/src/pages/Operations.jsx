@@ -283,7 +283,7 @@ const Operations = () => {
     <>
       <div className="page-container flex-grow-1 p-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h1 className="page-title m-0">Gestion de Operaciones</h1>
+          <h1 className="page-title m-0">Gestión de Operaciones</h1>
           <small className="text-muted">{selected ? <>Seleccionado: <strong>{selected.codigo_operacion}</strong></> : "Selecciona una operacion para Editar o Eliminar"}</small>
         </div>
         <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-outline-light" type="button" onClick={() => loadAll().catch((e) => alert(e.message))}>Refrescar</button></div></div>

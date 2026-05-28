@@ -109,7 +109,7 @@ router.post("/", async (req, res) => {
     if (!PASSWORD_REGEX.test(String(contrasena))) {
       return res.status(400).json({
         error:
-          "La contrasena debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.",
+          "La contraseña debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.",
       });
     }
 
@@ -232,7 +232,7 @@ router.put("/:id_usuario", async (req, res) => {
     if (contrasena && String(contrasena).trim() && !PASSWORD_REGEX.test(String(contrasena))) {
       return res.status(400).json({
         error:
-          "La contrasena debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.",
+          "La contraseña debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.",
       });
     }
 

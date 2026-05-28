@@ -61,19 +61,19 @@ const Users = () => {
 
     if (requiereContrasena) {
       if (!usuario.contrasena || !usuario.contrasena.trim()) {
-        e.contrasena = "La contrasena es obligatoria.";
+        e.contrasena = "La contraseña es obligatoria.";
       } else if (usuario.contrasena.trim().length > 50) {
-        e.contrasena = "La contrasena no puede superar 50 caracteres.";
+        e.contrasena = "La contraseña no puede superar 50 caracteres.";
       } else if (!PASSWORD_REGEX.test(usuario.contrasena)) {
         e.contrasena =
-          "La contrasena debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.";
+          "La contraseña debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.";
       }
     } else if (usuario.contrasena && usuario.contrasena.trim()) {
       if (usuario.contrasena.trim().length > 50) {
-        e.contrasena = "La contrasena no puede superar 50 caracteres.";
+        e.contrasena = "La contraseña no puede superar 50 caracteres.";
       } else if (!PASSWORD_REGEX.test(usuario.contrasena)) {
         e.contrasena =
-          "La contrasena debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.";
+          "La contraseña debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.";
       }
     }
 
@@ -302,7 +302,7 @@ const Users = () => {
 
       <div className="page-container flex-grow-1 p-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h1 className="page-title m-0">Gestion de Usuarios</h1>
+          <h1 className="page-title m-0">Gestión de Usuarios</h1>
 
           {usuarioSeleccionadoTabla ? (
             <small className="text-muted">
@@ -435,8 +435,8 @@ const Users = () => {
                 </div>
               ))}
               <small className="text-muted d-block">
-                La contrasena debe tener minimo 8 caracteres, mayuscula,
-                minuscula, numero y caracter especial.
+                La contraseña debe tener minimo 8 caracteres, mayuscula,
+                minuscula, número y caracter especial.
               </small>
             </div>
             <div className="modal-footer">
@@ -486,7 +486,7 @@ const Users = () => {
                     </div>
                   ))}
                   <small className="text-muted d-block mb-3">
-                    Si cambias la contrasena, debe tener minimo 8 caracteres,
+                    Si cambias la contraseña, debe tener minimo 8 caracteres,
                     mayuscula, minuscula, numero y caracter especial.
                   </small>
                 </>

@@ -459,7 +459,7 @@ router.post("/reset-password", async (req, res) => {
     if (!PASSWORD_REGEX.test(contrasena)) {
       return res.status(400).json({
         error:
-          "La contrasena debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.",
+          "La contraseña debe tener minimo 8 caracteres, mayuscula, minuscula, numero y caracter especial.",
       });
     }
 

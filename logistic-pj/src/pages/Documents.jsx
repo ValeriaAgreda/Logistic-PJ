@@ -227,7 +227,7 @@ const Documents = () => {
     <>
       <div className="page-container flex-grow-1 p-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h1 className="page-title m-0">Gestion de Documentos</h1>
+          <h1 className="page-title m-0">Gestión de Documentos</h1>
           {documentoSeleccionadoTabla ? <small className="text-muted">Seleccionado: <strong>{documentoSeleccionadoTabla.numero_documento}</strong></small> : <small className="text-muted">Selecciona un documento para Editar/Eliminar</small>}
         </div>
 

@@ -94,7 +94,7 @@ const UserRoleAssignments = () => {
         setRoles(Array.isArray(dataRoles) ? dataRoles : []);
       }
     } catch (error) {
-      console.error("Error al cargar catalogos de asignacion:", error);
+      console.error("Error al cargar catalogos de asignación:", error);
     }
   };
 
@@ -153,7 +153,7 @@ const UserRoleAssignments = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data?.error || "Error al crear asignacion");
+        alert(data?.error || "Error al crear asignación");
         return;
       }
 
@@ -195,7 +195,7 @@ const UserRoleAssignments = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data?.error || "Error al actualizar asignacion");
+        alert(data?.error || "Error al actualizar asignación");
         return;
       }
 
@@ -226,7 +226,7 @@ const UserRoleAssignments = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data?.error || "Error al eliminar asignacion");
+        alert(data?.error || "Error al eliminar asignación");
         return;
       }
 
@@ -299,7 +299,7 @@ const UserRoleAssignments = () => {
 
       <div className="page-container flex-grow-1 p-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h1 className="page-title m-0">Asignacion de Roles</h1>
+          <h1 className="page-title m-0">Asignación de Roles</h1>
 
           {asignacionSeleccionadaTabla ? (
             <small className="text-muted">
@@ -307,7 +307,7 @@ const UserRoleAssignments = () => {
             </small>
           ) : (
             <small className="text-muted">
-              Selecciona una asignacion para Editar/Eliminar
+              Selecciona una asignación para Editar/Eliminar
             </small>
           )}
         </div>
@@ -473,7 +473,7 @@ const UserRoleAssignments = () => {
         <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content shadow rounded-3">
             <div className="modal-header">
-              <h5 className="modal-title">Editar asignacion de rol</h5>
+              <h5 className="modal-title">Editar asignación de rol</h5>
               <button className="btn-close" data-bs-dismiss="modal" />
             </div>
             <div className="modal-body">
@@ -545,7 +545,7 @@ const UserRoleAssignments = () => {
         <div className="modal-dialog modal-dialog-centered">
           <div className="modal-content shadow rounded-3">
             <div className="modal-header">
-              <h5 className="modal-title">Eliminar asignacion</h5>
+              <h5 className="modal-title">Eliminar asignación</h5>
               <button className="btn-close" data-bs-dismiss="modal" />
             </div>
             <div className="modal-body">

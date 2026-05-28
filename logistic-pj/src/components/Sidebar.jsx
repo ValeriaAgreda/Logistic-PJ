@@ -133,7 +133,7 @@ const Sidebar = () => {
           },
           {
             id: "usuarios-roles",
-            label: "Asignacion de Roles",
+            label: "Asignación de Roles",
             icon: "pi pi-id-card",
             path: "/usuarios/asignacion-roles",
             roles: [ROLE_KEYS.ADMIN],
@@ -199,7 +199,7 @@ const Sidebar = () => {
           },
           {
             id: "operations-contenedores",
-            label: "Asignacion de Contenedores",
+            label: "Asignación de Contenedores",
             icon: "pi pi-box",
             path: "/operations/asignacion-contenedores",
             roles: [ROLE_KEYS.ADMIN],

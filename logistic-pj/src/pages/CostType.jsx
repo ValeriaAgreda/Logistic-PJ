@@ -237,7 +237,7 @@ const CostType = () => {
 
       <div className="page-container flex-grow-1 p-4">
         <div className="d-flex justify-content-between align-items-center mb-3">
-          <h1 className="page-title m-0">Gestion de Tipos de Costo</h1>
+          <h1 className="page-title m-0">Gestión de Tipos de Costo</h1>
 
           {tipoSeleccionadoTabla ? (
             <small className="text-muted">

@@ -75,7 +75,7 @@ const OperationContainerAssignments = () => {
     }
 
     if (!asignacion.fecha_asignacion) {
-      e.fecha_asignacion = "La fecha de asignacion es obligatoria.";
+      e.fecha_asignacion = "La fecha de asignación es obligatoria.";
     }
 
     if (
@@ -83,7 +83,7 @@ const OperationContainerAssignments = () => {
       asignacion.fecha_devolucion_limite < asignacion.fecha_asignacion
     ) {
       e.fecha_devolucion_limite =
-        "La fecha limite no puede ser menor a la fecha de asignacion.";
+        "La fecha límite no puede ser menor a la fecha de asignación.";
     }
 
     if (
@@ -91,7 +91,7 @@ const OperationContainerAssignments = () => {
       asignacion.fecha_devolucion < asignacion.fecha_asignacion
     ) {
       e.fecha_devolucion =
-        "La fecha de devolucion no puede ser menor a la fecha de asignacion.";
+        "La fecha de devolución no puede ser menor a la fecha de asignación.";
     }
 
     return e;
