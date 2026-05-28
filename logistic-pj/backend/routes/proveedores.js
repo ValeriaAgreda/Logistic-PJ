@@ -8,9 +8,31 @@ router.use(cookieParser());
 const TELEFONO_INTERNACIONAL = /^\+\d{8,15}$/;
 
 const normalizarTelefono = (telefono) => String(telefono || "").trim();
+const normalizarNit = (nit) => String(nit || "").trim();
 
 const validarTelefono = (telefono) =>
   TELEFONO_INTERNACIONAL.test(normalizarTelefono(telefono));
+
+const existeNitActivo = async (nit, idProveedorExcluir = null) => {
+  const params = [normalizarNit(nit)];
+  let filtroExcluir = "";
+
+  if (idProveedorExcluir) {
+    filtroExcluir = " AND id_proveedor <> ?";
+    params.push(Number(idProveedorExcluir));
+  }
+
+  const [rows] = await db.query(
+    `SELECT id_proveedor
+     FROM proveedor
+     WHERE nit = ?
+       AND estado = 1${filtroExcluir}
+     LIMIT 1`,
+    params
+  );
+
+  return rows.length > 0;
+};
 
 // GET: listar proveedores
 router.get("/", async (_req, res) => {
@@ -76,6 +98,12 @@ router.post("/", async (req, res) => {
       });
     }
 
+    if (await existeNitActivo(nit)) {
+      return res.status(400).json({
+        error: "Ya existe un proveedor activo registrado con ese NIT.",
+      });
+    }
+
     const idUsuarioRegistro = req.cookies?.user?.id_usuario ?? null;
 
     const [result] = await db.query(
@@ -96,7 +124,7 @@ router.post("/", async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(), ?, 1)`,
       [
         String(empresa).trim(),
-        String(nit).trim(),
+        normalizarNit(nit),
         String(contacto).trim(),
         normalizarTelefono(telefono),
         String(correo).trim().toLowerCase(),
@@ -153,6 +181,12 @@ router.put("/:id_proveedor", async (req, res) => {
       });
     }
 
+    if (await existeNitActivo(nit, id_proveedor)) {
+      return res.status(400).json({
+        error: "Ya existe otro proveedor activo registrado con ese NIT.",
+      });
+    }
+
     const idUsuarioModificacion = req.cookies?.user?.id_usuario ?? null;
 
     const [result] = await db.query(
@@ -171,7 +205,7 @@ router.put("/:id_proveedor", async (req, res) => {
        WHERE id_proveedor = ?`,
       [
         String(empresa).trim(),
-        String(nit).trim(),
+        normalizarNit(nit),
         String(contacto).trim(),
         normalizarTelefono(telefono),
         String(correo).trim().toLowerCase(),

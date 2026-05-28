@@ -152,13 +152,26 @@ const Suppliers = () => {
 
   const validar = (p) => {
     const e = {};
+    const nitNormalizado = String(p.nit || "").trim();
 
     if (!p.empresa?.trim()) {
       e.empresa = "La empresa es obligatoria.";
     }
 
-    if (!/^\d{5,15}$/.test(String(p.nit || "").trim())) {
+    if (!/^\d{5,15}$/.test(nitNormalizado)) {
       e.nit = "El NIT debe tener entre 5 y 15 dígitos.";
+    }
+
+    if (/^\d{5,15}$/.test(nitNormalizado)) {
+      const nitDuplicado = proveedores.some(
+        (proveedor) =>
+          String(proveedor.nit || "").trim() === nitNormalizado &&
+          Number(proveedor.id_proveedor) !== Number(p.id_proveedor || 0)
+      );
+
+      if (nitDuplicado) {
+        e.nit = "Ya existe un proveedor registrado con ese NIT.";
+      }
     }
 
     if (!p.contacto?.trim()) {
