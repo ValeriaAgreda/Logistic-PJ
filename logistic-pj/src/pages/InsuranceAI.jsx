@@ -37,7 +37,6 @@ const InsuranceAI = () => {
   const [asignaciones, setAsignaciones] = useState([]);
   const [recomendaciones, setRecomendaciones] = useState([]);
   const [idOperacion, setIdOperacion] = useState("");
-  const [valorOperacion, setValorOperacion] = useState("");
   const [resultado, setResultado] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
@@ -110,9 +109,6 @@ const InsuranceAI = () => {
     try {
       const data = await request(`${API_BASE_URL}/recomendacion-seguro/operacion/${idOperacion}`, {
         method: "POST",
-        body: JSON.stringify({
-          valor_operacion: valorOperacion === "" ? 0 : Number(valorOperacion),
-        }),
       });
 
       setResultado(data);
@@ -166,19 +162,6 @@ const InsuranceAI = () => {
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div className="mb-3">
-              <label className="form-label">Valor operativo referencial</label>
-              <input
-                className="form-control"
-                type="number"
-                min="0"
-                step="0.01"
-                value={valorOperacion}
-                onChange={(event) => setValorOperacion(event.target.value)}
-                placeholder="0.00"
-              />
             </div>
 
             {operacionSeleccionada ? (

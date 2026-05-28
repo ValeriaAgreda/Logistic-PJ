@@ -150,7 +150,6 @@ router.post("/operacion/:id_operacion", async (req, res) => {
       cantidad: Number(operacion.cantidad || operacion.contenedores.length),
       origen: operacion.origen,
       destino: operacion.destino,
-      valor_operacion: Number(req.body?.valor_operacion || 0),
       contenedores: operacion.contenedores.map((contenedor) => ({
         id_contenedor: contenedor.id_contenedor,
         numero_contenedor: contenedor.numero_contenedor,
