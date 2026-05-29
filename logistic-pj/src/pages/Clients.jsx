@@ -67,23 +67,38 @@ const Clients = () => {
 
   const validar = (c) => {
     const e = {};
+    const nit = String(c.nit || "").trim();
+    const telefono = String(c.telefono || "").trim();
 
     if (!c.razon_social?.trim()) {
       e.razon_social = "La razón social es obligatoria.";
     }
 
-    if (!/^\d{5,15}$/.test(String(c.nit || "").trim())) {
+    if (nit.startsWith("-")) {
+      e.nit = "El NIT no puede ser negativo.";
+    } else if (!/^\d{5,15}$/.test(nit)) {
       e.nit = "El NIT debe tener entre 5 y 15 dígitos.";
+    }
+
+    if (/^\d{5,15}$/.test(nit)) {
+      const nitDuplicado = clients.some(
+        (cliente) =>
+          String(cliente.nit || "").trim() === nit &&
+          Number(cliente.id_cliente) !== Number(c.id_cliente || 0)
+      );
+
+      if (nitDuplicado) {
+        e.nit = "Ya existe un cliente registrado con ese NIT.";
+      }
     }
 
     if (!c.contacto?.trim()) {
       e.contacto = "El contacto es obligatorio.";
     }
 
-    if (
-      String(c.telefono || "").trim() &&
-      !/^[67]\d{7}$/.test(String(c.telefono || "").trim())
-    ) {
+    if (telefono && telefono.startsWith("-")) {
+      e.telefono = "El teléfono no puede ser negativo.";
+    } else if (telefono && !/^[67]\d{7}$/.test(telefono)) {
       e.telefono = "El teléfono debe tener 8 dígitos y empezar con 6 o 7.";
     }
 

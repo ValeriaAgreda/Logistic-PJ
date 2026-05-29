@@ -7,6 +7,58 @@ router.use(cookieParser());
 
 const optionalText = (value) => (value == null ? "" : String(value).trim());
 const optionalEmail = (value) => optionalText(value).toLowerCase();
+const normalizarNit = (value) => String(value || "").trim();
+const NIT_REGEX = /^\d{5,15}$/;
+const PHONE_REGEX = /^[67]\d{7}$/;
+
+const existeNitActivo = async (nit, idClienteExcluir = null) => {
+  const params = [normalizarNit(nit)];
+  let filtroExcluir = "";
+
+  if (idClienteExcluir) {
+    filtroExcluir = " AND id_cliente <> ?";
+    params.push(Number(idClienteExcluir));
+  }
+
+  const [rows] = await db.query(
+    `SELECT id_cliente
+     FROM cliente
+     WHERE nit = ?
+       AND estado = 1${filtroExcluir}
+     LIMIT 1`,
+    params
+  );
+
+  return rows.length > 0;
+};
+
+const validarCliente = async (body, idClienteExcluir = null) => {
+  const errores = [];
+  const nit = normalizarNit(body.nit);
+  const telefono = optionalText(body.telefono);
+
+  if (!optionalText(body.razon_social) || !nit || !optionalText(body.contacto)) {
+    errores.push("Faltan campos obligatorios.");
+  }
+
+  if (nit && !NIT_REGEX.test(nit)) {
+    errores.push("El NIT debe tener entre 5 y 15 digitos y no puede ser negativo.");
+  }
+
+  if (telefono && !PHONE_REGEX.test(telefono)) {
+    errores.push("El telefono debe tener 8 digitos, empezar con 6 o 7 y no puede ser negativo.");
+  }
+
+  if (nit && NIT_REGEX.test(nit) && await existeNitActivo(nit, idClienteExcluir)) {
+    errores.push(
+      idClienteExcluir
+        ? "Ya existe otro cliente activo registrado con ese NIT."
+        : "Ya existe un cliente activo registrado con ese NIT."
+    );
+  }
+
+  return errores;
+};
 
 // GET: listar clientes
 router.get("/", async (req, res) => {
@@ -50,8 +102,10 @@ router.post("/", async (req, res) => {
       observacion,
     } = req.body;
 
-    if (!razon_social || !nit || !contacto) {
-      return res.status(400).json({ error: "Faltan campos obligatorios." });
+    const errores = await validarCliente(req.body);
+
+    if (errores.length > 0) {
+      return res.status(400).json({ error: errores[0] });
     }
 
     const idUsuarioRegistro = req.cookies?.user?.id_usuario ?? null;
@@ -73,7 +127,7 @@ router.post("/", async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW(), ?, 1)`,
       [
         razon_social.trim(),
-        String(nit).trim(),
+        normalizarNit(nit),
         contacto.trim(),
         optionalText(telefono),
         optionalEmail(correo),
@@ -108,8 +162,10 @@ router.put("/:id_cliente", async (req, res) => {
       estado,
     } = req.body;
 
-    if (!razon_social || !nit || !contacto) {
-      return res.status(400).json({ error: "Faltan campos obligatorios." });
+    const errores = await validarCliente(req.body, id_cliente);
+
+    if (errores.length > 0) {
+      return res.status(400).json({ error: errores[0] });
     }
 
     const idUsuarioModificacion = req.cookies?.user?.id_usuario ?? null;
@@ -129,7 +185,7 @@ router.put("/:id_cliente", async (req, res) => {
        WHERE id_cliente = ?`,
       [
         razon_social.trim(),
-        String(nit).trim(),
+        normalizarNit(nit),
         contacto.trim(),
         optionalText(telefono),
         optionalEmail(correo),
