@@ -29,13 +29,15 @@ router.get("/", async (_req, res) => {
       `SELECT
         ru.id_rol_usuario,
         ru.id_usuario,
-        u.nombre_completo,
+        u.nombres,
+        u.apellidos,
+        CONCAT(u.nombres, ' ', u.apellidos) AS nombre_completo,
         u.usuario,
         ru.id_rol,
         r.descripcion AS rol_descripcion,
         ru.fecha_asignacion,
         ru.id_usuario_asignacion,
-        ua.nombre_completo AS asignado_por,
+        CONCAT(ua.nombres, ' ', ua.apellidos) AS asignado_por,
         ru.fecha_fin,
         ru.estado
       FROM rol_usuario ru
@@ -61,13 +63,15 @@ router.get("/:id_rol_usuario", async (req, res) => {
       `SELECT
         ru.id_rol_usuario,
         ru.id_usuario,
-        u.nombre_completo,
+        u.nombres,
+        u.apellidos,
+        CONCAT(u.nombres, ' ', u.apellidos) AS nombre_completo,
         u.usuario,
         ru.id_rol,
         r.descripcion AS rol_descripcion,
         ru.fecha_asignacion,
         ru.id_usuario_asignacion,
-        ua.nombre_completo AS asignado_por,
+        CONCAT(ua.nombres, ' ', ua.apellidos) AS asignado_por,
         ru.fecha_fin,
         ru.estado
       FROM rol_usuario ru

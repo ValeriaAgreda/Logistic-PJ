@@ -86,7 +86,7 @@ router.get("/", async (_req, res) => {
         oc.fecha_devolucion,
         oc.fecha_registro,
         oc.id_usuario_registro,
-        u.nombre_completo AS usuario_registro
+        CONCAT(u.nombres, ' ', u.apellidos) AS usuario_registro
       FROM operacion_contenedor oc
       INNER JOIN contenedor c ON c.id_contenedor = oc.id_contenedor
       LEFT JOIN tipo_contenedor tc ON tc.id_tipo_contenedor = c.id_tipo_contenedor

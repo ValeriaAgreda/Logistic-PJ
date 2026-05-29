@@ -106,7 +106,9 @@ const getValidResetPayload = async (token) => {
        prt.id_password_reset_token,
        prt.id_usuario,
        u.correo,
-       u.nombre_completo,
+       u.nombres,
+       u.apellidos,
+       CONCAT(u.nombres, ' ', u.apellidos) AS nombre_completo,
        u.estado
      FROM password_reset_token prt
      INNER JOIN usuario u ON u.id_usuario = prt.id_usuario
@@ -199,7 +201,9 @@ const getAuthenticatedUserFromRequest = async (req) => {
   const [rows] = await db.query(
     `SELECT
       id_usuario,
-      nombre_completo,
+      nombres,
+      apellidos,
+      CONCAT(nombres, ' ', apellidos) AS nombre_completo,
       usuario,
       correo,
       estado
@@ -240,6 +244,8 @@ const getAuthenticatedUserFromRequest = async (req) => {
 
   return {
     id_usuario: user.id_usuario,
+    nombres: user.nombres,
+    apellidos: user.apellidos,
     nombre_completo: user.nombre_completo,
     usuario: user.usuario,
     correo: user.correo,
@@ -261,7 +267,12 @@ router.post("/login", async (req, res) => {
     }
 
     const [rows] = await db.query(
-      "SELECT * FROM usuario WHERE LOWER(correo) = ? LIMIT 1",
+      `SELECT
+        *,
+        CONCAT(nombres, ' ', apellidos) AS nombre_completo
+       FROM usuario
+       WHERE LOWER(correo) = ?
+       LIMIT 1`,
       [correo]
     );
 
@@ -313,6 +324,8 @@ router.post("/login", async (req, res) => {
 
     const userPayload = {
       id_usuario: user.id_usuario,
+      nombres: user.nombres,
+      apellidos: user.apellidos,
       nombre_completo: user.nombre_completo,
       usuario: user.usuario,
       correo: user.correo,
@@ -379,7 +392,13 @@ router.post("/forgot-password", async (req, res) => {
     }
 
     const [rows] = await db.query(
-      `SELECT id_usuario, nombre_completo, correo, estado
+      `SELECT
+         id_usuario,
+         nombres,
+         apellidos,
+         CONCAT(nombres, ' ', apellidos) AS nombre_completo,
+         correo,
+         estado
        FROM usuario
        WHERE LOWER(correo) = ?
        LIMIT 1`,

@@ -88,10 +88,10 @@ router.get("/", async (_req, res) => {
         co.observacion,
         co.fecha_registro,
         co.id_usuario_registro,
-        ur.nombre_completo AS usuario_registro,
+        CONCAT(ur.nombres, ' ', ur.apellidos) AS usuario_registro,
         co.fecha_modificacion,
         co.id_usuario_modificacion,
-        um.nombre_completo AS usuario_modificacion
+        CONCAT(um.nombres, ' ', um.apellidos) AS usuario_modificacion
       FROM costo_operacion co
       INNER JOIN operacion o ON o.id_operacion = co.id_operacion
       INNER JOIN tipo_costo tc ON tc.id_tipo_costo = co.id_tipo_costo

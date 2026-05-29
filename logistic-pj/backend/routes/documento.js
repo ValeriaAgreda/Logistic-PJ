@@ -115,10 +115,10 @@ router.get("/", async (_req, res) => {
         d.descripcion,
         d.fecha_registro,
         d.id_usuario_registro,
-        ur.nombre_completo AS usuario_registro,
+        CONCAT(ur.nombres, ' ', ur.apellidos) AS usuario_registro,
         d.fecha_modificacion,
         d.id_usuario_modificacion,
-        um.nombre_completo AS usuario_modificacion
+        CONCAT(um.nombres, ' ', um.apellidos) AS usuario_modificacion
       FROM documento d
       INNER JOIN tipo_documento td ON td.id_tipo_documento = d.id_tipo_documento
       INNER JOIN operacion o ON o.id_operacion = d.id_operacion

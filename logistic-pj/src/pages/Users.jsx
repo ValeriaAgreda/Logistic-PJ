@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import * as bootstrap from "bootstrap";
 
 const usuarioInicial = {
-  nombre_completo: "",
+  nombres: "",
+  apellidos: "",
   usuario: "",
   contrasena: "",
   correo: "",
@@ -39,10 +40,16 @@ const Users = () => {
   const validar = (usuario, { requiereContrasena = true } = {}) => {
     const e = {};
 
-    if (!usuario.nombre_completo || !usuario.nombre_completo.trim()) {
-      e.nombre_completo = "El nombre completo es obligatorio.";
-    } else if (usuario.nombre_completo.trim().length > 150) {
-      e.nombre_completo = "El nombre completo no puede superar 150 caracteres.";
+    if (!usuario.nombres || !usuario.nombres.trim()) {
+      e.nombres = "El nombre es obligatorio.";
+    } else if (usuario.nombres.trim().length > 75) {
+      e.nombres = "El nombre no puede superar 75 caracteres.";
+    }
+
+    if (!usuario.apellidos || !usuario.apellidos.trim()) {
+      e.apellidos = "Los apellidos son obligatorios.";
+    } else if (usuario.apellidos.trim().length > 75) {
+      e.apellidos = "Los apellidos no pueden superar 75 caracteres.";
     }
 
     if (!usuario.usuario || !usuario.usuario.trim()) {
@@ -144,7 +151,8 @@ const Users = () => {
         },
         credentials: "include",
         body: JSON.stringify({
-          nombre_completo: nuevoUsuario.nombre_completo.trim(),
+          nombres: nuevoUsuario.nombres.trim(),
+          apellidos: nuevoUsuario.apellidos.trim(),
           usuario: nuevoUsuario.usuario.trim(),
           contrasena: nuevoUsuario.contrasena,
           correo: nuevoUsuario.correo.trim().toLowerCase(),
@@ -191,7 +199,8 @@ const Users = () => {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            nombre_completo: usuarioSeleccionado.nombre_completo.trim(),
+            nombres: usuarioSeleccionado.nombres.trim(),
+            apellidos: usuarioSeleccionado.apellidos.trim(),
             usuario: usuarioSeleccionado.usuario.trim(),
             contrasena: usuarioSeleccionado.contrasena,
             correo: usuarioSeleccionado.correo.trim().toLowerCase(),
@@ -260,6 +269,8 @@ const Users = () => {
     return usuarios.filter(
       (u) =>
         !q ||
+        String(u.nombres || "").toLowerCase().includes(q) ||
+        String(u.apellidos || "").toLowerCase().includes(q) ||
         String(u.nombre_completo || "").toLowerCase().includes(q) ||
         String(u.usuario || "").toLowerCase().includes(q) ||
         String(u.correo || "").toLowerCase().includes(q)
@@ -364,7 +375,8 @@ const Users = () => {
                 <th style={{ width: 48 }} className="text-center">
                   #
                 </th>
-                <th>Nombre Completo</th>
+                <th>Nombre(s)</th>
+                <th>Apellidos</th>
                 <th>Usuario</th>
                 <th>Correo</th>
                 <th>Registro</th>
@@ -382,7 +394,8 @@ const Users = () => {
                     style={{ cursor: "pointer" }}
                   >
                     <td className="text-center">{idx + 1}</td>
-                    <td>{u.nombre_completo}</td>
+                    <td>{u.nombres}</td>
+                    <td>{u.apellidos}</td>
                     <td>{u.usuario}</td>
                     <td>{u.correo}</td>
                     <td>{formatoFecha(u.fecha_registro)}</td>
@@ -392,7 +405,7 @@ const Users = () => {
 
               {usuariosFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center py-4 text-muted">
+                  <td colSpan={6} className="text-center py-4 text-muted">
                     No hay resultados con los filtros actuales.
                   </td>
                 </tr>
@@ -411,10 +424,11 @@ const Users = () => {
             </div>
             <div className="modal-body">
               {[
-                ["nombre_completo", "Nombre completo", "text"],
+                ["nombres", "Nombre(s)", "text"],
+                ["apellidos", "Apellidos", "text"],
                 ["usuario", "Usuario", "text"],
                 ["correo", "Correo", "email"],
-                ["contrasena", "Contrasena", "password"],
+                ["contrasena", "Contraseña", "password"],
               ].map(([campo, label, type]) => (
                 <div className="mb-3" key={campo}>
                   <label className="form-label">{label}</label>
@@ -462,7 +476,8 @@ const Users = () => {
               {usuarioSeleccionado && (
                 <>
                   {[
-                    ["nombre_completo", "Nombre completo", "text"],
+                    ["nombres", "Nombres", "text"],
+                    ["apellidos", "Apellidos", "text"],
                     ["usuario", "Usuario", "text"],
                     ["correo", "Correo", "email"],
                     ["contrasena", "Nueva contrasena", "password"],

@@ -32,7 +32,9 @@ router.get("/", async (_req, res) => {
     const [rows] = await db.query(
       `SELECT
         id_usuario,
-        nombre_completo,
+        nombres,
+        apellidos,
+        CONCAT(nombres, ' ', apellidos) AS nombre_completo,
         usuario,
         correo,
         id_usuario_registro,
@@ -58,7 +60,9 @@ router.get("/:id_usuario", async (req, res) => {
     const [rows] = await db.query(
       `SELECT
         id_usuario,
-        nombre_completo,
+        nombres,
+        apellidos,
+        CONCAT(nombres, ' ', apellidos) AS nombre_completo,
         usuario,
         correo,
         id_usuario_registro,
@@ -83,11 +87,15 @@ router.get("/:id_usuario", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { nombre_completo, usuario, contrasena, correo } = req.body;
+    const { nombres, apellidos, usuario, contrasena, correo } = req.body;
     const idUsuarioRegistro = obtenerIdUsuarioAutenticado(req);
 
-    if (!nombre_completo || !String(nombre_completo).trim()) {
-      return res.status(400).json({ error: "El nombre completo es obligatorio." });
+    if (!nombres || !String(nombres).trim()) {
+      return res.status(400).json({ error: "Los nombres son obligatorios." });
+    }
+
+    if (!apellidos || !String(apellidos).trim()) {
+      return res.status(400).json({ error: "Los apellidos son obligatorios." });
     }
 
     if (!usuario || !String(usuario).trim()) {
@@ -121,6 +129,8 @@ router.post("/", async (req, res) => {
 
     const correoNormalizado = String(correo).trim().toLowerCase();
     const usuarioNormalizado = String(usuario).trim();
+    const nombresNormalizados = String(nombres).trim();
+    const apellidosNormalizados = String(apellidos).trim();
 
     const [duplicados] = await db.query(
       `SELECT id_usuario
@@ -139,7 +149,8 @@ router.post("/", async (req, res) => {
 
     const [result] = await db.query(
       `INSERT INTO usuario (
-        nombre_completo,
+        nombres,
+        apellidos,
         usuario,
         contrasena,
         correo,
@@ -147,9 +158,10 @@ router.post("/", async (req, res) => {
         fecha_registro,
         fecha_inactivo,
         estado
-      ) VALUES (?, ?, ?, ?, ?, NOW(), NULL, 1)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NULL, 1)`,
       [
-        String(nombre_completo).trim(),
+        nombresNormalizados,
+        apellidosNormalizados,
         usuarioNormalizado,
         passwordHash,
         correoNormalizado,
@@ -174,14 +186,19 @@ router.put("/:id_usuario", async (req, res) => {
   try {
     const { id_usuario } = req.params;
     const {
-      nombre_completo,
+      nombres,
+      apellidos,
       usuario,
       contrasena,
       correo,
     } = req.body;
 
-    if (!nombre_completo || !String(nombre_completo).trim()) {
-      return res.status(400).json({ error: "El nombre completo es obligatorio." });
+    if (!nombres || !String(nombres).trim()) {
+      return res.status(400).json({ error: "Los nombres son obligatorios." });
+    }
+
+    if (!apellidos || !String(apellidos).trim()) {
+      return res.status(400).json({ error: "Los apellidos son obligatorios." });
     }
 
     if (!usuario || !String(usuario).trim()) {
@@ -198,6 +215,8 @@ router.put("/:id_usuario", async (req, res) => {
 
     const correoNormalizado = String(correo).trim().toLowerCase();
     const usuarioNormalizado = String(usuario).trim();
+    const nombresNormalizados = String(nombres).trim();
+    const apellidosNormalizados = String(apellidos).trim();
 
     const [duplicados] = await db.query(
       `SELECT id_usuario
@@ -238,13 +257,15 @@ router.put("/:id_usuario", async (req, res) => {
 
     const [result] = await db.query(
       `UPDATE usuario
-       SET nombre_completo = ?,
+       SET nombres = ?,
+           apellidos = ?,
            usuario = ?,
            contrasena = ?,
            correo = ?
        WHERE id_usuario = ?`,
       [
-        String(nombre_completo).trim(),
+        nombresNormalizados,
+        apellidosNormalizados,
         usuarioNormalizado,
         passwordHash,
         correoNormalizado,

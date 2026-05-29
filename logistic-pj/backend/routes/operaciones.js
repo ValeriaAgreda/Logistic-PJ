@@ -126,10 +126,10 @@ router.get("/", async (_req, res) => {
         eo.descripcion AS estado_operacion,
         o.fecha_registro,
         o.id_usuario_registro,
-        ur.nombre_completo AS usuario_registro,
+        CONCAT(ur.nombres, ' ', ur.apellidos) AS usuario_registro,
         o.fecha_modificacion,
         o.id_usuario_modificacion,
-        um.nombre_completo AS usuario_modificacion
+        CONCAT(um.nombres, ' ', um.apellidos) AS usuario_modificacion
       FROM operacion o
       INNER JOIN cliente c ON c.id_cliente = o.id_cliente
       INNER JOIN proveedor p ON p.id_proveedor = o.id_proveedor
