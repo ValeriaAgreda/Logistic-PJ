@@ -35,10 +35,6 @@ const normalizarTexto = (valor) => {
 const validarOperacion = (body) => {
   const errores = [];
 
-  if (!normalizarTexto(body.codigo_operacion)) {
-    errores.push("El codigo de operacion es obligatorio.");
-  }
-
   if (!normalizarTexto(body.fecha_asignacion)) {
     errores.push("La fecha de asignacion es obligatoria.");
   }
@@ -86,6 +82,26 @@ const validarOperacion = (body) => {
   }
 
   return errores;
+};
+
+const generarCodigoOperacion = async (connection = db) => {
+  const anio = new Date().getFullYear().toString();
+
+  const [rows] = await connection.query(
+    `SELECT codigo_operacion
+     FROM operacion
+     WHERE codigo_operacion LIKE ?
+     ORDER BY CAST(SUBSTRING(codigo_operacion, ?) AS UNSIGNED) DESC
+     LIMIT 1`,
+    [`${anio}%`, anio.length + 1]
+  );
+
+  const ultimoCodigo = rows[0]?.codigo_operacion;
+  const ultimoCorrelativo = ultimoCodigo
+    ? Number(String(ultimoCodigo).slice(anio.length)) || 0
+    : 0;
+
+  return `${anio}${ultimoCorrelativo + 1}`;
 };
 
 const validarRelacionActiva = async (tabla, idCampo, valor) => {
@@ -149,6 +165,16 @@ router.get("/", async (_req, res) => {
   }
 });
 
+router.get("/siguiente-codigo", async (_req, res) => {
+  try {
+    const codigoOperacion = await generarCodigoOperacion();
+    res.json({ codigo_operacion: codigoOperacion });
+  } catch (err) {
+    console.error("Error al generar siguiente codigo de operacion:", err);
+    res.status(500).json({ error: "Error al generar siguiente codigo de operacion" });
+  }
+});
+
 router.post("/", async (req, res) => {
   try {
     const errores = validarOperacion(req.body);
@@ -187,16 +213,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const [duplicados] = await db.query(
-      `SELECT id_operacion
-       FROM operacion
-       WHERE codigo_operacion = ? AND estado = 1`,
-      [String(req.body.codigo_operacion).trim()]
-    );
-
-    if (duplicados.length > 0) {
-      return res.status(400).json({ error: "Ya existe una operacion con ese codigo." });
-    }
+    const codigoOperacion = await generarCodigoOperacion();
 
     const [result] = await db.query(
       `INSERT INTO operacion (
@@ -222,7 +239,7 @@ router.post("/", async (req, res) => {
         estado
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NULL, NULL, 1)`,
       [
-        String(req.body.codigo_operacion).trim(),
+        codigoOperacion,
         req.body.fecha_asignacion,
         Number(req.body.id_cliente),
         Number(req.body.id_proveedor),
@@ -243,6 +260,7 @@ router.post("/", async (req, res) => {
 
     res.status(201).json({
       id_operacion: result.insertId,
+      codigo_operacion: codigoOperacion,
       mensaje: "Operacion creada correctamente.",
     });
   } catch (err) {
@@ -293,23 +311,9 @@ router.put("/:id_operacion", async (req, res) => {
       });
     }
 
-    const [duplicados] = await db.query(
-      `SELECT id_operacion
-       FROM operacion
-       WHERE codigo_operacion = ?
-         AND estado = 1
-         AND id_operacion <> ?`,
-      [String(req.body.codigo_operacion).trim(), Number(id_operacion)]
-    );
-
-    if (duplicados.length > 0) {
-      return res.status(400).json({ error: "Ya existe una operacion con ese codigo." });
-    }
-
     const [result] = await db.query(
       `UPDATE operacion
-       SET codigo_operacion = ?,
-           fecha_asignacion = ?,
+       SET fecha_asignacion = ?,
            id_cliente = ?,
            id_proveedor = ?,
            id_tipo_servicio = ?,
@@ -328,7 +332,6 @@ router.put("/:id_operacion", async (req, res) => {
        WHERE id_operacion = ?
          AND estado = 1`,
       [
-        String(req.body.codigo_operacion).trim(),
         req.body.fecha_asignacion,
         Number(req.body.id_cliente),
         Number(req.body.id_proveedor),

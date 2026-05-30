@@ -3,7 +3,7 @@ import * as bootstrap from "bootstrap";
 import "../styles/operations.css";
 
 const API = "http://localhost:3001/api";
-const opInit = { codigo_operacion: "", fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", cantidad: "", nro_madre: "", nro_hijo: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
+const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", cantidad: "", nro_madre: "", nro_hijo: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
 const clientInit = { razon_social: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", observacion: "" };
 const supplierInit = { empresa: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", lugar_origen: "", id_tipo_servicio: "" };
 const itemInit = { descripcion: "" };
@@ -37,6 +37,16 @@ const parse = async (res) => {
 };
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString("es-BO") : "-");
 const fmtDateTime = (v) => (v ? new Date(v).toLocaleString("es-BO") : "-");
+const calcularSiguienteCodigo = (operaciones) => {
+  const anio = String(new Date().getFullYear());
+  const correlativos = operaciones
+    .map((operacion) => String(operacion.codigo_operacion || ""))
+    .filter((codigo) => codigo.startsWith(anio))
+    .map((codigo) => Number(codigo.slice(anio.length)))
+    .filter((correlativo) => Number.isFinite(correlativo));
+
+  return `${anio}${Math.max(0, ...correlativos) + 1}`;
+};
 
 const Operations = () => {
   const [rows, setRows] = useState([]);
@@ -58,6 +68,7 @@ const Operations = () => {
   const [quickNationalization, setQuickNationalization] = useState(itemInit);
   const [quickStatus, setQuickStatus] = useState(itemInit);
   const [quickServiceTarget, setQuickServiceTarget] = useState("operation");
+  const [nextCode, setNextCode] = useState("");
 
   const request = async (url, options = {}) =>
     parse(
@@ -98,7 +109,6 @@ const Operations = () => {
 
   const validateOp = (v) => {
     const e = {};
-    if (!v.codigo_operacion.trim()) e.codigo_operacion = "Codigo obligatorio.";
     if (!v.fecha_asignacion) e.fecha_asignacion = "Fecha obligatoria.";
     if (!v.id_cliente) e.id_cliente = "Selecciona un cliente.";
     if (!v.id_proveedor) e.id_proveedor = "Selecciona un proveedor.";
@@ -140,7 +150,6 @@ const Operations = () => {
 
   const payload = (v) => ({
     ...v,
-    codigo_operacion: v.codigo_operacion.trim(),
     porducto: v.porducto.trim(),
     origen: v.origen.trim(),
     destino: v.destino.trim(),
@@ -159,7 +168,22 @@ const Operations = () => {
   const selected = useMemo(() => rows.find((r) => r.id_operacion === selectedId) || null, [rows, selectedId]);
   const filtered = useMemo(() => rows.filter((r) => [r.codigo_operacion, r.cliente, r.proveedor, r.tipo_servicio, r.porducto, r.origen, r.destino, r.estado_operacion].some((x) => String(x || "").toLowerCase().includes(search.trim().toLowerCase()))), [rows, search]);
 
-  const openNew = () => { setEditForm(null); setForm(opInit); setErrors({}); modal("addOperationModal"); };
+  const loadNextCode = async () => {
+    const data = await request(`${API}/operaciones/siguiente-codigo`);
+    setNextCode(data.codigo_operacion || "");
+  };
+  const openNew = () => {
+    setEditForm(null);
+    setForm(opInit);
+    setErrors({});
+    const codigoEstimado = calcularSiguienteCodigo(rows);
+    setNextCode(codigoEstimado);
+    loadNextCode().catch((error) => {
+      console.error("Error al obtener siguiente codigo:", error);
+      setNextCode(codigoEstimado);
+    });
+    modal("addOperationModal");
+  };
   const openEdit = (row) => {
     if (!row) return;
     setEditForm({ ...opInit, ...row, fecha_asignacion: row.fecha_asignacion?.slice(0, 10) || "", etd: row.etd?.slice(0, 10) || "", eta: row.eta?.slice(0, 10) || "", cantidad: row.cantidad ?? "", id_cliente: String(row.id_cliente || ""), id_proveedor: String(row.id_proveedor || ""), id_tipo_servicio: String(row.id_tipo_servicio || ""), id_tipo_nacionalizacion: String(row.id_tipo_nacionalizacion || ""), id_estado_operacion: String(row.id_estado_operacion || "") });
@@ -261,7 +285,12 @@ const Operations = () => {
   );
   const opForm = (state, setter) => (
     <form><div className="row g-3">
-      <div className="col-md-6">{field(state, setter, "codigo_operacion", "Codigo de operacion")}</div>
+      <div className="col-md-6">
+        <div className="mb-3">
+          <label className="form-label">Codigo de operacion</label>
+          <input className="form-control" value={state.id_operacion ? state.codigo_operacion || "" : nextCode} readOnly disabled />
+        </div>
+      </div>
       <div className="col-md-6">{field(state, setter, "fecha_asignacion", "Fecha de asignacion", "date")}</div>
       <div className="col-md-6">{selectField(state, setter, "id_cliente", "Cliente", clients, "id_cliente", "razon_social", "client")}</div>
       <div className="col-md-6">{selectField(state, setter, "id_proveedor", "Proveedor", suppliers, "id_proveedor", "empresa", "supplier")}</div>
@@ -304,4 +333,3 @@ const Operations = () => {
 };
 
 export default Operations;
-

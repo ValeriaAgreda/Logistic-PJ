@@ -10,6 +10,8 @@ const cuentaInicial = {
   observacion: "",
 };
 
+const NUMERO_CUENTA_REGEX = /^[A-Za-z0-9\s-]{5,34}$/;
+
 const SupplierAccounts = () => {
   const [cuentas, setCuentas] = useState([]);
   const [proveedores, setProveedores] = useState([]);
@@ -36,8 +38,9 @@ const SupplierAccounts = () => {
 
     if (!cuenta.nro_cuenta || !cuenta.nro_cuenta.trim()) {
       e.nro_cuenta = "El numero de cuenta es obligatorio.";
-    } else if (cuenta.nro_cuenta.trim().length > 50) {
-      e.nro_cuenta = "El numero de cuenta no puede superar 50 caracteres.";
+    } else if (!NUMERO_CUENTA_REGEX.test(cuenta.nro_cuenta.trim())) {
+      e.nro_cuenta =
+        "El numero de cuenta debe tener entre 5 y 34 caracteres y solo puede contener letras, numeros, espacios o guiones.";
     }
 
     if (!cuenta.moneda || !cuenta.moneda.trim()) {

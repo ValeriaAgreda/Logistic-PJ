@@ -2,6 +2,11 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 
+const NUMERO_CUENTA_REGEX = /^[A-Za-z0-9\s-]{5,34}$/;
+
+const validarNumeroCuenta = (nroCuenta) =>
+  NUMERO_CUENTA_REGEX.test(String(nroCuenta || "").trim());
+
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
@@ -83,6 +88,13 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "El numero de cuenta es obligatorio." });
     }
 
+    if (!validarNumeroCuenta(nro_cuenta)) {
+      return res.status(400).json({
+        error:
+          "El numero de cuenta debe tener entre 5 y 34 caracteres y solo puede contener letras, numeros, espacios o guiones.",
+      });
+    }
+
     if (!moneda || !String(moneda).trim()) {
       return res.status(400).json({ error: "La moneda es obligatoria." });
     }
@@ -154,6 +166,13 @@ router.put("/:id_cuenta", async (req, res) => {
 
     if (!nro_cuenta || !String(nro_cuenta).trim()) {
       return res.status(400).json({ error: "El numero de cuenta es obligatorio." });
+    }
+
+    if (!validarNumeroCuenta(nro_cuenta)) {
+      return res.status(400).json({
+        error:
+          "El numero de cuenta debe tener entre 5 y 34 caracteres y solo puede contener letras, numeros, espacios o guiones.",
+      });
     }
 
     if (!moneda || !String(moneda).trim()) {
