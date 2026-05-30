@@ -3,7 +3,7 @@ import * as bootstrap from "bootstrap";
 import "../styles/operations.css";
 
 const API = "http://localhost:3001/api";
-const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", cantidad: "", nro_madre: "", nro_hijo: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
+const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", cantidad: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
 const clientInit = { razon_social: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", observacion: "" };
 const supplierInit = { empresa: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", lugar_origen: "", id_tipo_servicio: "" };
 const itemInit = { descripcion: "" };
@@ -37,6 +37,21 @@ const parse = async (res) => {
 };
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString("es-BO") : "-");
 const fmtDateTime = (v) => (v ? new Date(v).toLocaleString("es-BO") : "-");
+const text = (value) => String(value ?? "").trim();
+const toDateInputValue = (value) => {
+  if (!value) return "";
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 const calcularSiguienteCodigo = (operaciones) => {
   const anio = String(new Date().getFullYear());
   const correlativos = operaciones
@@ -47,11 +62,31 @@ const calcularSiguienteCodigo = (operaciones) => {
 
   return `${anio}${Math.max(0, ...correlativos) + 1}`;
 };
+const normalizeOperationForm = (value) => ({
+  ...opInit,
+  ...(value || {}),
+  porducto: value?.porducto ?? "",
+  origen: value?.origen ?? "",
+  destino: value?.destino ?? "",
+  nro_madre: value?.nro_madre ?? "",
+  nro_hijo: value?.nro_hijo ?? "",
+  observacion: value?.observacion ?? "",
+  etd: toDateInputValue(value?.etd),
+  eta: toDateInputValue(value?.eta),
+  fecha_asignacion: toDateInputValue(value?.fecha_asignacion),
+  cantidad: value?.cantidad ?? "",
+  id_cliente: value?.id_cliente ? String(value.id_cliente) : "",
+  id_proveedor: value?.id_proveedor ? String(value.id_proveedor) : "",
+  id_tipo_servicio: value?.id_tipo_servicio ? String(value.id_tipo_servicio) : "",
+  id_tipo_nacionalizacion: value?.id_tipo_nacionalizacion ? String(value.id_tipo_nacionalizacion) : "",
+  id_estado_operacion: value?.id_estado_operacion ? String(value.id_estado_operacion) : "",
+});
 
 const Operations = () => {
   const [rows, setRows] = useState([]);
   const [clients, setClients] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [supplierRoutes, setSupplierRoutes] = useState([]);
   const [services, setServices] = useState([]);
   const [nationalizations, setNationalizations] = useState([]);
   const [statuses, setStatuses] = useState([]);
@@ -84,10 +119,11 @@ const Operations = () => {
     );
 
   const loadAll = useCallback(async () => {
-    const [ops, c, p, s, n, st] = await Promise.all([
+    const [ops, c, p, pr, s, n, st] = await Promise.all([
       request(`${API}/operaciones`),
       request(`${API}/clientes`),
       request(`${API}/proveedores`),
+      request(`${API}/proveedor-ruta`),
       request(`${API}/tipo-servicio`),
       request(`${API}/tipo-nacionalizacion`),
       request(`${API}/estado-operacion`),
@@ -95,6 +131,7 @@ const Operations = () => {
     setRows(Array.isArray(ops) ? ops : []);
     setClients(Array.isArray(c) ? c : []);
     setSuppliers(Array.isArray(p) ? p : []);
+    setSupplierRoutes(Array.isArray(pr) ? pr : []);
     setServices(Array.isArray(s) ? s : []);
     setNationalizations(Array.isArray(n) ? n : []);
     setStatuses(Array.isArray(st) ? st : []);
@@ -113,20 +150,24 @@ const Operations = () => {
     if (!v.id_cliente) e.id_cliente = "Selecciona un cliente.";
     if (!v.id_proveedor) e.id_proveedor = "Selecciona un proveedor.";
     if (!v.id_tipo_servicio) e.id_tipo_servicio = "Selecciona un tipo de servicio.";
-    if (!v.porducto.trim()) e.porducto = "Producto obligatorio.";
-    if (!v.origen.trim()) e.origen = "Origen obligatorio.";
-    if (!v.destino.trim()) e.destino = "Destino obligatorio.";
+    if (!text(v.porducto)) e.porducto = "Producto obligatorio.";
+    if (!text(v.origen)) e.origen = "Origen obligatorio.";
+    if (!text(v.destino)) e.destino = "Destino obligatorio.";
     if (!v.cantidad || Number(v.cantidad) <= 0) e.cantidad = "Cantidad invalida.";
     if (!v.id_tipo_nacionalizacion) e.id_tipo_nacionalizacion = "Selecciona un tipo.";
-    if (!v.id_estado_operacion) e.id_estado_operacion = "Selecciona un estado.";
-    if (v.etd && v.eta && v.etd > v.eta) e.eta = "ETA no puede ser menor a ETD.";
+    if (!v.omitir_validacion_estado && !v.id_estado_operacion) {
+      e.id_estado_operacion = "Selecciona un estado.";
+    }
+    if (v.etd && v.eta && v.eta < v.etd) {
+      e.eta = "La fecha de llegada ETA no puede ser anterior a la fecha de salida ETD.";
+    }
     return e;
   };
   const validateClient = (v) => {
     const e = {};
-    if (!v.razon_social.trim()) e.razon_social = "Razon social obligatoria.";
+    if (!text(v.razon_social)) e.razon_social = "Razon social obligatoria.";
     if (!NIT.test(String(v.nit).trim())) e.nit = "NIT invalido.";
-    if (!v.contacto.trim()) e.contacto = "Contacto obligatorio.";
+    if (!text(v.contacto)) e.contacto = "Contacto obligatorio.";
     if (String(v.telefono || "").trim() && !PHONE.test(String(v.telefono).trim())) e.telefono = "Telefono invalido.";
     if (String(v.correo || "").trim() && !EMAIL.test(String(v.correo).trim())) e.correo = "Correo invalido.";
     return e;
@@ -134,27 +175,28 @@ const Operations = () => {
   const validateSupplier = (v) => {
     const e = validateClient({ ...v, razon_social: v.empresa });
     delete e.razon_social;
-    if (!v.empresa.trim()) e.empresa = "Empresa obligatoria.";
+    if (!text(v.empresa)) e.empresa = "Empresa obligatoria.";
     if (!SUPPLIER_PHONE.test(String(v.telefono).trim())) e.telefono = "Incluye codigo de pais. Ej: +59171234567.";
     if (!EMAIL.test(String(v.correo).trim())) e.correo = "Correo invalido.";
-    if (!v.direccion.trim()) e.direccion = "Direccion obligatoria.";
-    if (!v.lugar_origen.trim()) e.lugar_origen = "Lugar de origen obligatorio.";
+    if (!text(v.direccion)) e.direccion = "Direccion obligatoria.";
+    if (!text(v.lugar_origen)) e.lugar_origen = "Lugar de origen obligatorio.";
     if (!v.id_tipo_servicio) e.id_tipo_servicio = "Selecciona un tipo de servicio.";
     return e;
   };
   const validateItem = (v) => {
     const e = {};
-    if (!v.descripcion.trim()) e.descripcion = "Descripcion obligatoria.";
+    if (!text(v.descripcion)) e.descripcion = "Descripcion obligatoria.";
     return e;
   };
 
   const payload = (v) => ({
     ...v,
-    porducto: v.porducto.trim(),
-    origen: v.origen.trim(),
-    destino: v.destino.trim(),
-    nro_madre: v.nro_madre.trim(),
-    nro_hijo: v.nro_hijo.trim(),
+    porducto: text(v.porducto),
+    origen: text(v.origen),
+    destino: text(v.destino),
+    nro_madre: text(v.nro_madre),
+    nro_hijo: text(v.nro_hijo),
+    observacion: text(v.observacion),
     cantidad: Number(v.cantidad),
     id_cliente: Number(v.id_cliente),
     id_proveedor: Number(v.id_proveedor),
@@ -166,7 +208,7 @@ const Operations = () => {
   });
 
   const selected = useMemo(() => rows.find((r) => r.id_operacion === selectedId) || null, [rows, selectedId]);
-  const filtered = useMemo(() => rows.filter((r) => [r.codigo_operacion, r.cliente, r.proveedor, r.tipo_servicio, r.porducto, r.origen, r.destino, r.estado_operacion].some((x) => String(x || "").toLowerCase().includes(search.trim().toLowerCase()))), [rows, search]);
+  const filtered = useMemo(() => rows.filter((r) => [r.codigo_operacion, r.cliente, r.proveedor, r.tipo_servicio, r.porducto, r.origen, r.destino, r.observacion, r.estado_operacion].some((x) => String(x || "").toLowerCase().includes(search.trim().toLowerCase()))), [rows, search]);
 
   const loadNextCode = async () => {
     const data = await request(`${API}/operaciones/siguiente-codigo`);
@@ -186,14 +228,14 @@ const Operations = () => {
   };
   const openEdit = (row) => {
     if (!row) return;
-    setEditForm({ ...opInit, ...row, fecha_asignacion: row.fecha_asignacion?.slice(0, 10) || "", etd: row.etd?.slice(0, 10) || "", eta: row.eta?.slice(0, 10) || "", cantidad: row.cantidad ?? "", id_cliente: String(row.id_cliente || ""), id_proveedor: String(row.id_proveedor || ""), id_tipo_servicio: String(row.id_tipo_servicio || ""), id_tipo_nacionalizacion: String(row.id_tipo_nacionalizacion || ""), id_estado_operacion: String(row.id_estado_operacion || "") });
+    setEditForm(normalizeOperationForm(row));
     setErrors({});
     modal("editOperationModal");
   };
   const openDelete = (row) => { if (row) { setToDelete(row); modal("deleteOperationModal"); } };
 
   const saveNew = async () => {
-    const e = validateOp(form);
+    const e = validateOp({ ...form, omitir_validacion_estado: true });
     if (Object.keys(e).length) return setErrors(e);
     try { await request(`${API}/operaciones`, { method: "POST", body: JSON.stringify(payload(form)) }); await loadAll(); hideModal("addOperationModal"); } catch (error) { alert(error.message); }
   };
@@ -221,7 +263,7 @@ const Operations = () => {
     const e = validateClient(quickClient);
     if (Object.keys(e).length) return setQuickErrors(e);
     try {
-      const data = await request(`${API}/clientes`, { method: "POST", body: JSON.stringify({ ...quickClient, telefono: quickClient.telefono.trim(), correo: quickClient.correo.trim().toLowerCase(), direccion: quickClient.direccion.trim(), observacion: quickClient.observacion.trim() }) });
+      const data = await request(`${API}/clientes`, { method: "POST", body: JSON.stringify({ ...quickClient, telefono: text(quickClient.telefono), correo: text(quickClient.correo).toLowerCase(), direccion: text(quickClient.direccion), observacion: text(quickClient.observacion) }) });
       await loadAll(); activeSetter((c) => ({ ...c, id_cliente: String(data.id_cliente) })); hideModal("quickClientModal");
     } catch (error) { alert(error.message); }
   };
@@ -229,7 +271,7 @@ const Operations = () => {
     const e = validateItem(quickService);
     if (Object.keys(e).length) return setQuickErrors(e);
     try {
-      const data = await request(`${API}/tipo-servicio`, { method: "POST", body: JSON.stringify({ descripcion: quickService.descripcion.trim() }) });
+      const data = await request(`${API}/tipo-servicio`, { method: "POST", body: JSON.stringify({ descripcion: text(quickService.descripcion) }) });
       await loadAll();
       if (quickServiceTarget === "supplier") setQuickSupplier((c) => ({ ...c, id_tipo_servicio: String(data.id_tipo_servicio) }));
       else activeSetter((c) => ({ ...c, id_tipo_servicio: String(data.id_tipo_servicio) }));
@@ -240,7 +282,7 @@ const Operations = () => {
     const e = validateSupplier(quickSupplier);
     if (Object.keys(e).length) return setQuickErrors(e);
     try {
-      const data = await request(`${API}/proveedores`, { method: "POST", body: JSON.stringify({ ...quickSupplier, telefono: quickSupplier.telefono.trim(), correo: quickSupplier.correo.trim().toLowerCase(), id_tipo_servicio: Number(quickSupplier.id_tipo_servicio) }) });
+      const data = await request(`${API}/proveedores`, { method: "POST", body: JSON.stringify({ ...quickSupplier, telefono: text(quickSupplier.telefono), correo: text(quickSupplier.correo).toLowerCase(), id_tipo_servicio: Number(quickSupplier.id_tipo_servicio) }) });
       await loadAll(); activeSetter((c) => ({ ...c, id_proveedor: String(data.id_proveedor) })); hideModal("quickSupplierModal");
     } catch (error) { alert(error.message); }
   };
@@ -248,7 +290,7 @@ const Operations = () => {
     const e = validateItem(quickNationalization);
     if (Object.keys(e).length) return setQuickErrors(e);
     try {
-      const data = await request(`${API}/tipo-nacionalizacion`, { method: "POST", body: JSON.stringify({ descripcion: quickNationalization.descripcion.trim() }) });
+      const data = await request(`${API}/tipo-nacionalizacion`, { method: "POST", body: JSON.stringify({ descripcion: text(quickNationalization.descripcion) }) });
       await loadAll(); activeSetter((c) => ({ ...c, id_tipo_nacionalizacion: String(data.id_tipo_nacionalizacion) })); hideModal("quickNationalizationModal");
     } catch (error) { alert(error.message); }
   };
@@ -256,7 +298,7 @@ const Operations = () => {
     const e = validateItem(quickStatus);
     if (Object.keys(e).length) return setQuickErrors(e);
     try {
-      const data = await request(`${API}/estado-operacion`, { method: "POST", body: JSON.stringify({ descripcion: quickStatus.descripcion.trim() }) });
+      const data = await request(`${API}/estado-operacion`, { method: "POST", body: JSON.stringify({ descripcion: text(quickStatus.descripcion) }) });
       await loadAll(); activeSetter((c) => ({ ...c, id_estado_operacion: String(data.id_estado_operacion) })); hideModal("quickStatusModal");
     } catch (error) { alert(error.message); }
   };
@@ -265,6 +307,13 @@ const Operations = () => {
     <div className="mb-3">
       <label className="form-label">{label}</label>
       <input type={type} className={`form-control ${errs[name] ? "is-invalid" : ""}`} value={state[name] || ""} onChange={(e) => setter({ ...state, [name]: e.target.value })} />
+      {errs[name] ? <div className="invalid-feedback">{errs[name]}</div> : null}
+    </div>
+  );
+  const textareaField = (state, setter, name, label, errs = errors) => (
+    <div className="mb-3">
+      <label className="form-label">{label}</label>
+      <textarea className={`form-control ${errs[name] ? "is-invalid" : ""}`} rows="3" value={state[name] || ""} onChange={(e) => setter({ ...state, [name]: e.target.value })} />
       {errs[name] ? <div className="invalid-feedback">{errs[name]}</div> : null}
     </div>
   );
@@ -283,7 +332,67 @@ const Operations = () => {
       {errs[name] ? <div className="invalid-feedback d-block">{errs[name]}</div> : null}
     </div>
   );
-  const opForm = (state, setter) => (
+  const routeKey = (route) => `${route.origen}|||${route.destino}`;
+  const currentRouteKey = (state) => {
+    const match = supplierRoutes.find(
+      (route) =>
+        String(route.id_proveedor) === String(state.id_proveedor) &&
+        String(route.origen || "").trim().toLowerCase() === String(state.origen || "").trim().toLowerCase() &&
+        String(route.destino || "").trim().toLowerCase() === String(state.destino || "").trim().toLowerCase()
+    );
+
+    return match ? routeKey(match) : "";
+  };
+  const supplierRouteField = (state, setter) => {
+    const routes = supplierRoutes.filter(
+      (route) => String(route.id_proveedor) === String(state.id_proveedor)
+    );
+
+    return (
+      <div className="mb-3">
+        <label className="form-label">Rutas sugeridas del proveedor</label>
+        <select
+          className="form-select"
+          value={currentRouteKey(state)}
+          onChange={(e) => {
+            const selectedRoute = routes.find((route) => routeKey(route) === e.target.value);
+            if (!selectedRoute) return;
+            setter({
+              ...state,
+              origen: selectedRoute.origen,
+              destino: selectedRoute.destino,
+            });
+          }}
+          disabled={!state.id_proveedor || routes.length === 0}
+        >
+          <option value="">
+            {state.id_proveedor
+              ? "Seleccionar ruta sugerida"
+              : "Selecciona un proveedor primero"}
+          </option>
+          {routes.map((route) => (
+            <option key={`${route.id_proveedor}-${route.id_ruta}`} value={routeKey(route)}>
+              {route.origen} - {route.destino}
+            </option>
+          ))}
+        </select>
+        {state.id_proveedor && routes.length === 0 ? (
+          <small className="text-muted">
+            Este proveedor aun no tiene rutas registradas. Al guardar, se creara la ruta ingresada.
+          </small>
+        ) : (
+          <small className="text-muted">
+            Si escribes un origen y destino distinto, se guardara como nueva ruta del proveedor.
+          </small>
+        )}
+      </div>
+    );
+  };
+  const estadoAsignado = useMemo(
+    () => statuses.find((status) => String(status.descripcion || "").trim().toLowerCase() === "asignado") || null,
+    [statuses]
+  );
+  const opForm = (state, setter, { isNew = false } = {}) => (
     <form><div className="row g-3">
       <div className="col-md-6">
         <div className="mb-3">
@@ -294,6 +403,7 @@ const Operations = () => {
       <div className="col-md-6">{field(state, setter, "fecha_asignacion", "Fecha de asignacion", "date")}</div>
       <div className="col-md-6">{selectField(state, setter, "id_cliente", "Cliente", clients, "id_cliente", "razon_social", "client")}</div>
       <div className="col-md-6">{selectField(state, setter, "id_proveedor", "Proveedor", suppliers, "id_proveedor", "empresa", "supplier")}</div>
+      <div className="col-12">{supplierRouteField(state, setter)}</div>
       <div className="col-md-6">{selectField(state, setter, "id_tipo_servicio", "Tipo de servicio", services, "id_tipo_servicio", "descripcion", "service")}</div>
       <div className="col-md-6">{field(state, setter, "porducto", "Producto")}</div>
       <div className="col-md-6">{field(state, setter, "origen", "Origen")}</div>
@@ -301,10 +411,20 @@ const Operations = () => {
       <div className="col-md-4">{field(state, setter, "cantidad", "Cantidad", "number")}</div>
       <div className="col-md-4">{field(state, setter, "nro_madre", "Nro. madre")}</div>
       <div className="col-md-4">{field(state, setter, "nro_hijo", "Nro. hijo")}</div>
+      <div className="col-12">{textareaField(state, setter, "observacion", "Observaciones")}</div>
       <div className="col-md-4">{field(state, setter, "etd", "ETD", "date")}</div>
       <div className="col-md-4">{field(state, setter, "eta", "ETA", "date")}</div>
       <div className="col-md-4">{selectField(state, setter, "id_tipo_nacionalizacion", "Tipo de nacionalizacion", nationalizations, "id_tipo_nacionalizacion", "descripcion", "nationalization")}</div>
-      <div className="col-12">{selectField(state, setter, "id_estado_operacion", "Estado de operacion", statuses, "id_estado_operacion", "descripcion", "status")}</div>
+      <div className="col-12">
+        {isNew ? (
+          <div className="mb-3">
+            <label className="form-label">Estado de operacion</label>
+            <input className="form-control" value={estadoAsignado?.descripcion || "Asignado"} readOnly disabled />
+          </div>
+        ) : (
+          selectField(state, setter, "id_estado_operacion", "Estado de operacion", statuses, "id_estado_operacion", "descripcion", "status")
+        )}
+      </div>
     </div></form>
   );
 
@@ -317,10 +437,10 @@ const Operations = () => {
         </div>
         <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-outline-light" type="button" onClick={() => loadAll().catch((e) => alert(e.message))}>Refrescar</button></div></div>
         <div className="ui-card mb-3"><div className="row g-2 align-items-end"><div className="col-md-9"><label className="form-label">Buscar</label><input className="form-control" placeholder="Codigo, cliente, proveedor, servicio, producto, origen, destino..." value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="col-md-3 d-flex gap-2"><button className="btn btn-secondary w-100" type="button" onClick={() => setSearch("")}>Limpiar</button></div></div></div>
-        <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>Cantidad</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{r.cantidad}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={12} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
+        <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>Cantidad</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{r.cantidad}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={18} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
       </div>
 
-      <div className="modal fade" id="addOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Nueva operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{opForm(form, setForm)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveNew}>Guardar</button></div></div></div></div>
+      <div className="modal fade" id="addOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Nueva operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{opForm(form, setForm, { isNew: true })}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveNew}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="editOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Editar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{editForm ? opForm(editForm, setEditForm) : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-primary" onClick={saveEdit}>Guardar cambios</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>
       <div className="modal fade" id="quickClientModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear cliente rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickClient, setQuickClient, "razon_social", "Razon social", "text", quickErrors)}{field(quickClient, setQuickClient, "nit", "NIT", "text", quickErrors)}{field(quickClient, setQuickClient, "contacto", "Contacto", "text", quickErrors)}{field(quickClient, setQuickClient, "telefono", "Telefono", "text", quickErrors)}{field(quickClient, setQuickClient, "correo", "Correo", "email", quickErrors)}{field(quickClient, setQuickClient, "direccion", "Direccion", "text", quickErrors)}<div className="mb-3"><label className="form-label">Observacion</label><textarea className="form-control" rows="3" value={quickClient.observacion} onChange={(e) => setQuickClient({ ...quickClient, observacion: e.target.value })} /></div></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickClient}>Guardar</button></div></div></div></div>

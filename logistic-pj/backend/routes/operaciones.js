@@ -77,8 +77,15 @@ const validarOperacion = (body) => {
     errores.push("Selecciona un tipo de nacionalizacion valido.");
   }
 
-  if (!body.id_estado_operacion || Number.isNaN(Number(body.id_estado_operacion))) {
+  if (
+    !body.omitir_validacion_estado &&
+    (!body.id_estado_operacion || Number.isNaN(Number(body.id_estado_operacion)))
+  ) {
     errores.push("Selecciona un estado de operacion valido.");
+  }
+
+  if (normalizarTexto(body.etd) && normalizarTexto(body.eta) && body.eta < body.etd) {
+    errores.push("La fecha de llegada ETA no puede ser anterior a la fecha de salida ETD.");
   }
 
   return errores;
@@ -104,6 +111,57 @@ const generarCodigoOperacion = async (connection = db) => {
   return `${anio}${ultimoCorrelativo + 1}`;
 };
 
+const normalizarRutaTexto = (valor) => String(valor || "").trim();
+
+const asegurarRutaProveedor = async (connection, idProveedor, origen, destino) => {
+  const origenNormalizado = normalizarRutaTexto(origen);
+  const destinoNormalizado = normalizarRutaTexto(destino);
+
+  if (!idProveedor || !origenNormalizado || !destinoNormalizado) {
+    return null;
+  }
+
+  const [rutas] = await connection.query(
+    `SELECT id_ruta
+     FROM ruta
+     WHERE LOWER(origen) = LOWER(?)
+       AND LOWER(destino) = LOWER(?)
+       AND estado = 1
+     LIMIT 1`,
+    [origenNormalizado, destinoNormalizado]
+  );
+
+  let idRuta = rutas[0]?.id_ruta;
+
+  if (!idRuta) {
+    const [rutaResult] = await connection.query(
+      `INSERT INTO ruta (origen, destino, estado)
+       VALUES (?, ?, 1)`,
+      [origenNormalizado, destinoNormalizado]
+    );
+    idRuta = rutaResult.insertId;
+  }
+
+  const [relaciones] = await connection.query(
+    `SELECT id_proveedor, id_ruta
+     FROM proveedor_ruta
+     WHERE id_proveedor = ?
+       AND id_ruta = ?
+     LIMIT 1`,
+    [Number(idProveedor), Number(idRuta)]
+  );
+
+  if (relaciones.length === 0) {
+    await connection.query(
+      `INSERT INTO proveedor_ruta (id_proveedor, id_ruta)
+       VALUES (?, ?)`,
+      [Number(idProveedor), Number(idRuta)]
+    );
+  }
+
+  return idRuta;
+};
+
 const validarRelacionActiva = async (tabla, idCampo, valor) => {
   const [rows] = await db.query(
     `SELECT ${idCampo}
@@ -115,13 +173,25 @@ const validarRelacionActiva = async (tabla, idCampo, valor) => {
   return rows.length > 0;
 };
 
+const obtenerEstadoAsignado = async () => {
+  const [rows] = await db.query(
+    `SELECT id_estado_operacion
+     FROM estado_operacion
+     WHERE LOWER(descripcion) = 'asignado'
+       AND estado = 1
+     LIMIT 1`
+  );
+
+  return rows[0]?.id_estado_operacion || null;
+};
+
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
       `SELECT
         o.id_operacion,
         o.codigo_operacion,
-        o.fecha_asignacion,
+        DATE_FORMAT(o.fecha_asignacion, '%Y-%m-%d') AS fecha_asignacion,
         o.id_cliente,
         c.razon_social AS cliente,
         o.id_proveedor,
@@ -134,8 +204,9 @@ router.get("/", async (_req, res) => {
         o.cantidad,
         o.nro_madre,
         o.nro_hijo,
-        o.etd,
-        o.eta,
+        o.observacion,
+        DATE_FORMAT(o.etd, '%Y-%m-%d') AS etd,
+        DATE_FORMAT(o.eta, '%Y-%m-%d') AS eta,
         o.id_tipo_nacionalizacion,
         tn.descripcion AS tipo_nacionalizacion,
         o.id_estado_operacion,
@@ -176,8 +247,10 @@ router.get("/siguiente-codigo", async (_req, res) => {
 });
 
 router.post("/", async (req, res) => {
+  const connection = await db.getConnection();
+
   try {
-    const errores = validarOperacion(req.body);
+    const errores = validarOperacion({ ...req.body, omitir_validacion_estado: true });
 
     if (errores.length > 0) {
       return res.status(400).json({ error: errores[0] });
@@ -191,6 +264,14 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const idEstadoAsignado = await obtenerEstadoAsignado();
+
+    if (!idEstadoAsignado) {
+      return res.status(400).json({
+        error: "No existe un estado activo llamado Asignado.",
+      });
+    }
+
     const relaciones = await Promise.all([
       validarRelacionActiva("cliente", "id_cliente", req.body.id_cliente),
       validarRelacionActiva("proveedor", "id_proveedor", req.body.id_proveedor),
@@ -200,11 +281,6 @@ router.post("/", async (req, res) => {
         "id_tipo_nacionalizacion",
         req.body.id_tipo_nacionalizacion
       ),
-      validarRelacionActiva(
-        "estado_operacion",
-        "id_estado_operacion",
-        req.body.id_estado_operacion
-      ),
     ]);
 
     if (relaciones.includes(false)) {
@@ -213,9 +289,11 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const codigoOperacion = await generarCodigoOperacion();
+    await connection.beginTransaction();
 
-    const [result] = await db.query(
+    const codigoOperacion = await generarCodigoOperacion(connection);
+
+    const [result] = await connection.query(
       `INSERT INTO operacion (
         codigo_operacion,
         fecha_asignacion,
@@ -228,6 +306,7 @@ router.post("/", async (req, res) => {
         cantidad,
         nro_madre,
         nro_hijo,
+        observacion,
         etd,
         eta,
         id_tipo_nacionalizacion,
@@ -237,7 +316,7 @@ router.post("/", async (req, res) => {
         fecha_modificacion,
         id_usuario_modificacion,
         estado
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NULL, NULL, 1)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NULL, NULL, 1)`,
       [
         codigoOperacion,
         req.body.fecha_asignacion,
@@ -250,13 +329,23 @@ router.post("/", async (req, res) => {
         Number(req.body.cantidad),
         normalizarTexto(req.body.nro_madre),
         normalizarTexto(req.body.nro_hijo),
+        normalizarTexto(req.body.observacion),
         normalizarTexto(req.body.etd),
         normalizarTexto(req.body.eta),
         Number(req.body.id_tipo_nacionalizacion),
-        Number(req.body.id_estado_operacion),
+        Number(idEstadoAsignado),
         Number(idUsuarioRegistro),
       ]
     );
+
+    await asegurarRutaProveedor(
+      connection,
+      req.body.id_proveedor,
+      req.body.origen,
+      req.body.destino
+    );
+
+    await connection.commit();
 
     res.status(201).json({
       id_operacion: result.insertId,
@@ -264,15 +353,20 @@ router.post("/", async (req, res) => {
       mensaje: "Operacion creada correctamente.",
     });
   } catch (err) {
+    await connection.rollback();
     console.error("Error al crear operacion:", err);
     res.status(500).json({
       error: "Error al crear operacion",
       detalle: err.message,
     });
+  } finally {
+    connection.release();
   }
 });
 
 router.put("/:id_operacion", async (req, res) => {
+  const connection = await db.getConnection();
+
   try {
     const { id_operacion } = req.params;
     const errores = validarOperacion(req.body);
@@ -311,7 +405,9 @@ router.put("/:id_operacion", async (req, res) => {
       });
     }
 
-    const [result] = await db.query(
+    await connection.beginTransaction();
+
+    const [result] = await connection.query(
       `UPDATE operacion
        SET fecha_asignacion = ?,
            id_cliente = ?,
@@ -323,6 +419,7 @@ router.put("/:id_operacion", async (req, res) => {
            cantidad = ?,
            nro_madre = ?,
            nro_hijo = ?,
+           observacion = ?,
            etd = ?,
            eta = ?,
            id_tipo_nacionalizacion = ?,
@@ -342,6 +439,7 @@ router.put("/:id_operacion", async (req, res) => {
         Number(req.body.cantidad),
         normalizarTexto(req.body.nro_madre),
         normalizarTexto(req.body.nro_hijo),
+        normalizarTexto(req.body.observacion),
         normalizarTexto(req.body.etd),
         normalizarTexto(req.body.eta),
         Number(req.body.id_tipo_nacionalizacion),
@@ -352,16 +450,29 @@ router.put("/:id_operacion", async (req, res) => {
     );
 
     if (result.affectedRows === 0) {
+      await connection.rollback();
       return res.status(404).json({ error: "Operacion no encontrada." });
     }
 
+    await asegurarRutaProveedor(
+      connection,
+      req.body.id_proveedor,
+      req.body.origen,
+      req.body.destino
+    );
+
+    await connection.commit();
+
     res.json({ mensaje: "Operacion actualizada correctamente." });
   } catch (err) {
+    await connection.rollback();
     console.error("Error al actualizar operacion:", err);
     res.status(500).json({
       error: "Error al actualizar operacion",
       detalle: err.message,
     });
+  } finally {
+    connection.release();
   }
 });
 
