@@ -35,3 +35,42 @@
 .btn-orange:hover {
   background-color: #c8461f;
 }
+
+.btn-orange.btn-sm,
+.btn-costs.btn-sm,
+.btn-sales.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.875rem;
+}
+
+.btn-costs {
+  background-color: #6f42c1 !important;
+  border-color: #6f42c1 !important;
+  color: #fff !important;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px !important;
+}
+
+.btn-costs:hover,
+.btn-costs:focus {
+  background-color: #59359a !important;
+  border-color: #59359a !important;
+  color: #fff !important;
+}
+
+.btn-sales {
+  background-color: #0f766e !important;
+  border-color: #0f766e !important;
+  color: #fff !important;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px !important;
+}
+
+.btn-sales:hover,
+.btn-sales:focus {
+  background-color: #115e59 !important;
+  border-color: #115e59 !important;
+  color: #fff !important;
+}

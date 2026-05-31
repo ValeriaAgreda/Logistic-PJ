@@ -164,6 +164,8 @@ const Operations = () => {
   const [containers, setContainers] = useState([]);
   const [containerAssignments, setContainerAssignments] = useState([]);
   const [containerTypes, setContainerTypes] = useState([]);
+  const [operationCosts, setOperationCosts] = useState([]);
+  const [operationSales, setOperationSales] = useState([]);
   const [tiposCosto, setTiposCosto] = useState([]);
   const [monedas, setMonedas] = useState([]);
   const [clients, setClients] = useState([]);
@@ -193,10 +195,15 @@ const Operations = () => {
   const [pendingContainerAssignments, setPendingContainerAssignments] = useState([]);
   const [quickContainer, setQuickContainer] = useState(contenedorInit);
   const [quickContainerErrors, setQuickContainerErrors] = useState({});
+  const [pendingOperationCosts, setPendingOperationCosts] = useState([]);
+  const [pendingOperationSales, setPendingOperationSales] = useState([]);
   const [costForm, setCostForm] = useState(movimientoInit);
   const [saleForm, setSaleForm] = useState(movimientoInit);
   const [costErrors, setCostErrors] = useState({});
   const [saleErrors, setSaleErrors] = useState({});
+  const [costMode, setCostMode] = useState("create");
+  const [saleMode, setSaleMode] = useState("create");
+  const [movementView, setMovementView] = useState("costs");
 
   const request = async (url, options = {}) =>
     parse(
@@ -212,11 +219,13 @@ const Operations = () => {
     );
 
   const loadAll = useCallback(async () => {
-    const [ops, cont, asg, cty, tc, mon, c, p, pr, s, n, st] = await Promise.all([
+    const [ops, cont, asg, cty, costsData, salesData, tc, mon, c, p, pr, s, n, st] = await Promise.all([
       request(`${API}/operaciones`),
       request(`${API}/contenedores`),
       request(`${API}/operacion-contenedor`),
       request(`${API}/tipo-contenedor`),
+      request(`${API}/costo-operacion`),
+      request(`${API}/venta-operacion`),
       request(`${API}/tipo-costo`),
       request(`${API}/moneda`),
       request(`${API}/clientes`),
@@ -230,6 +239,8 @@ const Operations = () => {
     setContainers(Array.isArray(cont) ? cont : []);
     setContainerAssignments(Array.isArray(asg) ? asg : []);
     setContainerTypes(Array.isArray(cty) ? cty : []);
+    setOperationCosts(Array.isArray(costsData) ? costsData : []);
+    setOperationSales(Array.isArray(salesData) ? salesData : []);
     setTiposCosto(Array.isArray(tc) ? tc : []);
     setMonedas(Array.isArray(mon) ? mon : []);
     setClients(Array.isArray(c) ? c : []);
@@ -403,6 +414,8 @@ const Operations = () => {
     setAssignmentForm(asignacionInit);
     setAssignmentContext("new");
     setPendingContainerAssignments([]);
+    setPendingOperationCosts([]);
+    setPendingOperationSales([]);
     setErrors({});
     const codigoEstimado = calcularSiguienteCodigo(rows);
     setNextCode(codigoEstimado);
@@ -426,14 +439,81 @@ const Operations = () => {
   const openDelete = (row) => { if (row) { setToDelete(row); modal("deleteOperationModal"); } };
   const openCostForSelected = () => {
     if (!selected) return;
-    setCostForm({ ...movimientoInit, id_operacion: String(selected.id_operacion) });
-    setCostErrors({});
-    modal("addCostFromOperationModal");
+    setMovementView("costs");
+    modal("operationMovementsModal");
   };
   const openSaleForSelected = () => {
     if (!selected) return;
-    setSaleForm({ ...movimientoInit, id_operacion: String(selected.id_operacion) });
+    setMovementView("sales");
+    modal("operationMovementsModal");
+  };
+  const openCostForOperation = (operationState) => {
+    setCostForm({ ...movimientoInit, id_operacion: operationState.id_operacion ? String(operationState.id_operacion) : "" });
+    setCostErrors({});
+    setCostMode(operationState.id_operacion ? "create" : "create-pending");
+    modal("addCostFromOperationModal");
+  };
+  const openSaleForOperation = (operationState) => {
+    setSaleForm({ ...movimientoInit, id_operacion: operationState.id_operacion ? String(operationState.id_operacion) : "" });
     setSaleErrors({});
+    setSaleMode(operationState.id_operacion ? "create" : "create-pending");
+    modal("addSaleFromOperationModal");
+  };
+  const buildPendingMovement = (movement, tempId = null) => {
+    const tipoCosto = tiposCosto.find((tipo) => String(tipo.id_tipo_costo) === String(movement.id_tipo_costo));
+    const moneda = monedas.find((item) => String(item.id_moneda) === String(movement.id_moneda));
+    return {
+      ...movement,
+      tempId: tempId || `${movement.id_tipo_costo}-${movement.id_moneda}-${Date.now()}`,
+      tipo_costo: tipoCosto?.descripcion || "",
+      moneda: moneda?.descripcion || "",
+      codigo_moneda: moneda?.codigo || "",
+    };
+  };
+  const editPendingCost = (cost) => {
+    setCostForm({ ...cost });
+    setCostErrors({});
+    setCostMode("edit-pending");
+    modal("addCostFromOperationModal");
+  };
+  const editPendingSale = (sale) => {
+    setSaleForm({ ...sale });
+    setSaleErrors({});
+    setSaleMode("edit-pending");
+    modal("addSaleFromOperationModal");
+  };
+  const deletePendingCost = (tempId) => {
+    setPendingOperationCosts((items) => items.filter((item) => item.tempId !== tempId));
+  };
+  const deletePendingSale = (tempId) => {
+    setPendingOperationSales((items) => items.filter((item) => item.tempId !== tempId));
+  };
+  const editOperationCost = (cost) => {
+    setCostForm({
+      ...movimientoInit,
+      ...cost,
+      id_operacion: String(cost.id_operacion ?? ""),
+      id_tipo_costo: String(cost.id_tipo_costo ?? ""),
+      id_moneda: String(cost.id_moneda ?? ""),
+      monto: cost.monto ?? "",
+      observacion: cost.observacion || "",
+    });
+    setCostErrors({});
+    setCostMode("edit");
+    modal("addCostFromOperationModal");
+  };
+  const editOperationSale = (sale) => {
+    setSaleForm({
+      ...movimientoInit,
+      ...sale,
+      id_operacion: String(sale.id_operacion ?? ""),
+      id_tipo_costo: String(sale.id_tipo_costo ?? ""),
+      id_moneda: String(sale.id_moneda ?? ""),
+      monto: sale.monto ?? "",
+      observacion: sale.observacion || "",
+    });
+    setSaleErrors({});
+    setSaleMode("edit");
     modal("addSaleFromOperationModal");
   };
   const openAssignContainer = (state) => {
@@ -559,35 +639,87 @@ const Operations = () => {
     }
   };
   const saveCostFromOperation = async () => {
-    const e = validateMovimiento(costForm);
+    const isPending = costMode === "create-pending" || costMode === "edit-pending";
+    const e = validateMovimiento(isPending ? { ...costForm, id_operacion: "pendiente" } : costForm);
     if (Object.keys(e).length) return setCostErrors(e);
 
-    try {
-      await request(`${API}/costo-operacion`, {
-        method: "POST",
-        body: JSON.stringify(movimientoPayload(costForm)),
-      });
+    if (isPending) {
+      if (costMode === "edit-pending") {
+        setPendingOperationCosts((items) =>
+          items.map((item) => item.tempId === costForm.tempId ? buildPendingMovement(costForm, costForm.tempId) : item)
+        );
+      } else {
+        setPendingOperationCosts((items) => [...items, buildPendingMovement(costForm)]);
+      }
       hideModal("addCostFromOperationModal");
       setCostForm(movimientoInit);
       setCostErrors({});
+      setCostMode("create");
+      return;
+    }
+
+    try {
+      await request(`${API}/costo-operacion${costMode === "edit" ? `/${costForm.id_costo}` : ""}`, {
+        method: costMode === "edit" ? "PUT" : "POST",
+        body: JSON.stringify(movimientoPayload(costForm)),
+      });
+      await loadAll();
+      hideModal("addCostFromOperationModal");
+      setCostForm(movimientoInit);
+      setCostErrors({});
+      setCostMode("create");
     } catch (error) {
       alert(error.message || "Error al registrar costo");
     }
   };
   const saveSaleFromOperation = async () => {
-    const e = validateMovimiento(saleForm);
+    const isPending = saleMode === "create-pending" || saleMode === "edit-pending";
+    const e = validateMovimiento(isPending ? { ...saleForm, id_operacion: "pendiente" } : saleForm);
     if (Object.keys(e).length) return setSaleErrors(e);
 
-    try {
-      await request(`${API}/venta-operacion`, {
-        method: "POST",
-        body: JSON.stringify(movimientoPayload(saleForm)),
-      });
+    if (isPending) {
+      if (saleMode === "edit-pending") {
+        setPendingOperationSales((items) =>
+          items.map((item) => item.tempId === saleForm.tempId ? buildPendingMovement(saleForm, saleForm.tempId) : item)
+        );
+      } else {
+        setPendingOperationSales((items) => [...items, buildPendingMovement(saleForm)]);
+      }
       hideModal("addSaleFromOperationModal");
       setSaleForm(movimientoInit);
       setSaleErrors({});
+      setSaleMode("create");
+      return;
+    }
+
+    try {
+      await request(`${API}/venta-operacion${saleMode === "edit" ? `/${saleForm.id_venta}` : ""}`, {
+        method: saleMode === "edit" ? "PUT" : "POST",
+        body: JSON.stringify(movimientoPayload(saleForm)),
+      });
+      await loadAll();
+      hideModal("addSaleFromOperationModal");
+      setSaleForm(movimientoInit);
+      setSaleErrors({});
+      setSaleMode("create");
     } catch (error) {
       alert(error.message || "Error al registrar venta");
+    }
+  };
+  const deleteOperationCost = async (idCosto) => {
+    try {
+      await request(`${API}/costo-operacion/${idCosto}`, { method: "DELETE" });
+      await loadAll();
+    } catch (error) {
+      alert(error.message || "Error al eliminar costo");
+    }
+  };
+  const deleteOperationSale = async (idVenta) => {
+    try {
+      await request(`${API}/venta-operacion/${idVenta}`, { method: "DELETE" });
+      await loadAll();
+    } catch (error) {
+      alert(error.message || "Error al eliminar venta");
     }
   };
 
@@ -621,11 +753,41 @@ const Operations = () => {
         );
       }
 
+      if (pendingOperationCosts.length > 0) {
+        await Promise.all(
+          pendingOperationCosts.map((cost) =>
+            request(`${API}/costo-operacion`, {
+              method: "POST",
+              body: JSON.stringify({
+                ...movimientoPayload(cost),
+                id_operacion: Number(operacionCreada.id_operacion),
+              }),
+            })
+          )
+        );
+      }
+
+      if (pendingOperationSales.length > 0) {
+        await Promise.all(
+          pendingOperationSales.map((sale) =>
+            request(`${API}/venta-operacion`, {
+              method: "POST",
+              body: JSON.stringify({
+                ...movimientoPayload(sale),
+                id_operacion: Number(operacionCreada.id_operacion),
+              }),
+            })
+          )
+        );
+      }
+
       await loadAll();
       hideModal("addOperationModal");
       setForm(opInit);
       setAssignmentForm(asignacionInit);
       setPendingContainerAssignments([]);
+      setPendingOperationCosts([]);
+      setPendingOperationSales([]);
       setAssignmentErrors({});
     } catch (error) { alert(error.message); }
   };
@@ -813,7 +975,7 @@ const Operations = () => {
       <>
         <div className="mb-3">
           <label className="form-label">Operacion</label>
-          <input className="form-control" value={operacion?.codigo_operacion || selected?.codigo_operacion || ""} readOnly disabled />
+          <input className="form-control" value={operacion?.codigo_operacion || selected?.codigo_operacion || nextCode || ""} readOnly disabled />
           {errs.id_operacion ? <div className="invalid-feedback d-block">{errs.id_operacion}</div> : null}
         </div>
         {selectSimple(state, setter, "id_tipo_costo", "Tipo de costo", tiposCosto, "id_tipo_costo", "descripcion", errs)}
@@ -832,6 +994,10 @@ const Operations = () => {
     containerAssignments.filter(
       (assignment) => String(assignment.id_operacion) === String(idOperacion)
     );
+  const costsByOperation = (idOperacion) =>
+    operationCosts.filter((cost) => String(cost.id_operacion) === String(idOperacion));
+  const salesByOperation = (idOperacion) =>
+    operationSales.filter((sale) => String(sale.id_operacion) === String(idOperacion));
   const deleteOperationContainerAssignment = async (idAsignacion) => {
     try {
       await request(`${API}/operacion-contenedor/${idAsignacion}`, { method: "DELETE" });
@@ -941,6 +1107,80 @@ const Operations = () => {
             ))}
           </tbody>
         </table>
+      </div>
+    );
+  };
+  const movementTable = (title, newLabel, rowsData, onNew, onEdit, onDelete, idKey) => (
+    <div className="mt-4">
+      <div className="d-flex align-items-center gap-2 mb-2">
+        <h6 className="m-0">{title}</h6>
+        <button type="button" className="btn btn-sm btn-orange" onClick={onNew}>
+          {newLabel}
+        </button>
+      </div>
+      <div className="table-responsive">
+        <table className="table table-sm table-bordered align-middle m-0">
+          <thead className="table-light">
+            <tr>
+              <th style={{ width: 48 }} className="text-center">#</th>
+              <th>Tipo de costo</th>
+              <th>Moneda</th>
+              <th>Monto</th>
+              <th>Observacion</th>
+              <th style={{ width: 150 }} className="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rowsData.map((item, index) => (
+              <tr key={item[idKey]}>
+                <td className="text-center">{index + 1}</td>
+                <td>{item.tipo_costo || "-"}</td>
+                <td>{item.moneda ? `${item.moneda} (${item.codigo_moneda})` : "-"}</td>
+                <td>{Number(item.monto || 0).toFixed(2)}</td>
+                <td>{item.observacion || "-"}</td>
+                <td className="text-center">
+                  <button type="button" className="btn btn-sm btn-outline-primary me-2" onClick={() => onEdit(item)}>
+                    Editar
+                  </button>
+                  <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => onDelete(item[idKey])}>
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {rowsData.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-3 text-muted">No hay registros asociados.</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+  const operationMovementsSection = (state) => {
+    const isExisting = Boolean(state.id_operacion);
+
+    return (
+      <div className="col-12">
+        {movementTable(
+          isExisting ? "Costos asociados" : "Costos por registrar",
+          "Nuevo costo",
+          isExisting ? costsByOperation(state.id_operacion) : pendingOperationCosts,
+          () => openCostForOperation(state),
+          isExisting ? editOperationCost : editPendingCost,
+          isExisting ? deleteOperationCost : deletePendingCost,
+          isExisting ? "id_costo" : "tempId"
+        )}
+        {movementTable(
+          isExisting ? "Ventas asociadas" : "Ventas por registrar",
+          "Nueva venta",
+          isExisting ? salesByOperation(state.id_operacion) : pendingOperationSales,
+          () => openSaleForOperation(state),
+          isExisting ? editOperationSale : editPendingSale,
+          isExisting ? deleteOperationSale : deletePendingSale,
+          isExisting ? "id_venta" : "tempId"
+        )}
       </div>
     );
   };
@@ -1098,6 +1338,7 @@ const Operations = () => {
           <small className="text-muted">La asignacion de contenedores solo aplica para servicios Maritimo o Terrestre.</small>
         </div>
       ) : null}
+      {operationMovementsSection(state)}
     </div></form>
     );
   };
@@ -1109,7 +1350,7 @@ const Operations = () => {
           <h1 className="page-title m-0">Gestión de Operaciones</h1>
           <small className="text-muted">{selected ? <>Seleccionado: <strong>{selected.codigo_operacion}</strong></> : "Selecciona una operacion para Editar o Eliminar"}</small>
         </div>
-        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-outline-primary" type="button" onClick={openCostForSelected} disabled={!selected}>Costos</button><button className="btn btn-outline-success" type="button" onClick={openSaleForSelected} disabled={!selected}>Ventas</button></div></div>
+        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-costs" type="button" onClick={openCostForSelected} disabled={!selected}>Costos</button><button className="btn btn-sales" type="button" onClick={openSaleForSelected} disabled={!selected}>Ventas</button></div></div>
         <div className="ui-card mb-3"><div className="row g-2 align-items-end"><div className="col-md-9"><label className="form-label">Buscar</label><input className="form-control" placeholder="Codigo, cliente, proveedor, servicio, producto, origen, destino..." value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="col-md-3 d-flex gap-2"><button className="btn btn-secondary w-100" type="button" onClick={() => setSearch("")}>Limpiar</button></div></div></div>
         <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>LCL</th><th>Cantidad</th><th>Volumen</th><th>Peso</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{Number(r.lcl) === 1 ? "Si" : "No"}</td><td>{r.cantidad || "-"}</td><td>{r.volumen ?? "-"}</td><td>{r.peso ?? "-"}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={21} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
       </div>
@@ -1163,8 +1404,9 @@ const Operations = () => {
           ) : null}
         </div>
       </div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveAssignment}>{assignmentMode === "create" ? (assignmentContext === "new" || assignmentContext === "edit-pending" ? "Aceptar" : "Guardar asignacion") : "Guardar cambios"}</button></div></div></div></div>
-      <div className="modal fade" id="addCostFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Agregar costo</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(costForm, setCostForm, costErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveCostFromOperation}>Guardar</button></div></div></div></div>
-      <div className="modal fade" id="addSaleFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Agregar venta</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(saleForm, setSaleForm, saleErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveSaleFromOperation}>Guardar</button></div></div></div></div>
+      <div className="modal fade" id="operationMovementsModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{movementView === "costs" ? "Costos" : "Ventas"} de operacion {selected?.codigo_operacion || ""}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{selected && movementView === "costs" ? movementTable("Costos asociados", "Nuevo costo", costsByOperation(selected.id_operacion), () => openCostForOperation(selected), editOperationCost, deleteOperationCost, "id_costo") : null}{selected && movementView === "sales" ? movementTable("Ventas asociadas", "Nueva venta", salesByOperation(selected.id_operacion), () => openSaleForOperation(selected), editOperationSale, deleteOperationSale, "id_venta") : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>
+      <div className="modal fade" id="addCostFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{costMode === "edit" ? "Editar costo" : "Agregar costo"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(costForm, setCostForm, costErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveCostFromOperation}>{costMode === "edit" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
+      <div className="modal fade" id="addSaleFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{saleMode === "edit" ? "Editar venta" : "Agregar venta"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(saleForm, setSaleForm, saleErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveSaleFromOperation}>{saleMode === "edit" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
       <div className="modal fade" id="quickContainerFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body"><ContainerFormFields contenedor={quickContainer} setContenedor={setQuickContainer} errores={quickContainerErrors} tiposContenedor={containerTypes} /></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickContainer}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>
       <div className="modal fade" id="quickClientModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear cliente rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickClient, setQuickClient, "razon_social", "Razon social", "text", quickErrors)}{field(quickClient, setQuickClient, "nit", "NIT", "text", quickErrors)}{field(quickClient, setQuickClient, "contacto", "Contacto", "text", quickErrors)}{field(quickClient, setQuickClient, "telefono", "Telefono", "text", quickErrors)}{field(quickClient, setQuickClient, "correo", "Correo", "email", quickErrors)}{field(quickClient, setQuickClient, "direccion", "Direccion", "text", quickErrors)}<div className="mb-3"><label className="form-label">Observacion</label><textarea className="form-control" rows="3" value={quickClient.observacion} onChange={(e) => setQuickClient({ ...quickClient, observacion: e.target.value })} /></div></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickClient}>Guardar</button></div></div></div></div>
