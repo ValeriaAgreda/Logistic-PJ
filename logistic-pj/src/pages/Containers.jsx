@@ -5,6 +5,7 @@ import ContainerFormFields from "../components/ContainerFormFields";
 const contenedorInicial = {
   numero_contenedor: "",
   id_tipo_contenedor: "",
+  naviera: "",
   peso_bruto: "",
 };
 
@@ -56,6 +57,10 @@ const Containers = () => {
 
     if (!contenedor.id_tipo_contenedor) {
       e.id_tipo_contenedor = "Selecciona el tipo de contenedor.";
+    }
+
+    if (contenedor.naviera && contenedor.naviera.trim().length > 50) {
+      e.naviera = "La naviera no puede superar 50 caracteres.";
     }
 
     if (
@@ -155,6 +160,7 @@ const Containers = () => {
         body: JSON.stringify({
           numero_contenedor: nuevoContenedor.numero_contenedor.trim().toUpperCase(),
           id_tipo_contenedor: Number(nuevoContenedor.id_tipo_contenedor),
+          naviera: nuevoContenedor.naviera.trim(),
           peso_bruto: nuevoContenedor.peso_bruto,
         }),
       });
@@ -197,6 +203,7 @@ const Containers = () => {
           body: JSON.stringify({
             numero_contenedor: contenedorSeleccionado.numero_contenedor.trim().toUpperCase(),
             id_tipo_contenedor: Number(contenedorSeleccionado.id_tipo_contenedor),
+            naviera: contenedorSeleccionado.naviera?.trim() || "",
             peso_bruto: contenedorSeleccionado.peso_bruto,
           }),
         }
@@ -266,7 +273,8 @@ const Containers = () => {
       (contenedor) =>
         !q ||
         String(contenedor.numero_contenedor || "").toLowerCase().includes(q) ||
-        String(contenedor.tipo_contenedor || "").toLowerCase().includes(q)
+        String(contenedor.tipo_contenedor || "").toLowerCase().includes(q) ||
+        String(contenedor.naviera || "").toLowerCase().includes(q)
     );
   }, [contenedores, search]);
 
@@ -363,6 +371,7 @@ const Containers = () => {
                 </th>
                 <th>Numero</th>
                 <th>Tipo</th>
+                <th>Naviera</th>
                 <th>Peso Bruto</th>
                 <th>Registro</th>
               </tr>
@@ -381,6 +390,7 @@ const Containers = () => {
                     <td className="text-center">{idx + 1}</td>
                     <td>{contenedor.numero_contenedor}</td>
                     <td>{contenedor.tipo_contenedor || "-"}</td>
+                    <td>{contenedor.naviera || "-"}</td>
                     <td>{contenedor.peso_bruto ?? "-"}</td>
                     <td>{formatoFecha(contenedor.fecha_registro)}</td>
                   </tr>
@@ -389,7 +399,7 @@ const Containers = () => {
 
               {contenedoresFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center py-4 text-muted">
+                  <td colSpan={6} className="text-center py-4 text-muted">
                     No hay resultados con los filtros actuales.
                   </td>
                 </tr>

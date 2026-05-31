@@ -41,6 +41,18 @@ const ContainerFormFields = ({ contenedor, setContenedor, errores = {}, tiposCon
         )}
       </div>
 
+      <div className="mb-3">
+        <label className="form-label">Naviera</label>
+        <input
+          className={`form-control ${errores.naviera ? "is-invalid" : ""}`}
+          value={contenedor.naviera || ""}
+          onChange={(e) => update("naviera", e.target.value)}
+        />
+        {errores.naviera && (
+          <div className="invalid-feedback">{errores.naviera}</div>
+        )}
+      </div>
+
       <div className="row g-3">
         <div className="col-md-12">
           <label className="form-label">Peso bruto</label>

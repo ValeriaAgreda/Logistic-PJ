@@ -58,6 +58,7 @@ router.get("/", async (_req, res) => {
         c.numero_contenedor,
         c.id_tipo_contenedor,
         tc.descripcion AS tipo_contenedor,
+        c.naviera,
         c.peso_bruto,
         c.fecha_registro,
         c.id_usuario_registro,
@@ -86,6 +87,7 @@ router.get("/:id_contenedor", async (req, res) => {
         c.numero_contenedor,
         c.id_tipo_contenedor,
         tc.descripcion AS tipo_contenedor,
+        c.naviera,
         c.peso_bruto,
         c.fecha_registro,
         c.id_usuario_registro,
@@ -113,6 +115,7 @@ router.post("/", async (req, res) => {
     const {
       numero_contenedor,
       id_tipo_contenedor,
+      naviera,
       peso_bruto,
     } = req.body;
 
@@ -128,6 +131,10 @@ router.post("/", async (req, res) => {
 
     if (!id_tipo_contenedor || Number.isNaN(Number(id_tipo_contenedor))) {
       return res.status(400).json({ error: "El tipo de contenedor es obligatorio." });
+    }
+
+    if (String(naviera || "").trim().length > 50) {
+      return res.status(400).json({ error: "La naviera no puede superar 50 caracteres." });
     }
 
     const idUsuarioRegistro = obtenerIdUsuarioAutenticado(req);
@@ -153,14 +160,16 @@ router.post("/", async (req, res) => {
       `INSERT INTO contenedor (
         numero_contenedor,
         id_tipo_contenedor,
+        naviera,
         peso_bruto,
         fecha_registro,
         id_usuario_registro,
         estado
-      ) VALUES (?, ?, ?, NOW(), ?, 1)`,
+      ) VALUES (?, ?, ?, ?, NOW(), ?, 1)`,
       [
         normalizarNumeroContenedor(numero_contenedor),
         Number(id_tipo_contenedor),
+        String(naviera || "").trim() || null,
         peso_bruto === "" || peso_bruto === null || peso_bruto === undefined
           ? null
           : Number(peso_bruto),
@@ -184,6 +193,7 @@ router.put("/:id_contenedor", async (req, res) => {
     const {
       numero_contenedor,
       id_tipo_contenedor,
+      naviera,
       peso_bruto,
     } = req.body;
 
@@ -201,6 +211,10 @@ router.put("/:id_contenedor", async (req, res) => {
       return res.status(400).json({ error: "El tipo de contenedor es obligatorio." });
     }
 
+    if (String(naviera || "").trim().length > 50) {
+      return res.status(400).json({ error: "La naviera no puede superar 50 caracteres." });
+    }
+
     const [tipos] = await db.query(
       `SELECT id_tipo_contenedor
        FROM tipo_contenedor
@@ -216,11 +230,13 @@ router.put("/:id_contenedor", async (req, res) => {
       `UPDATE contenedor
        SET numero_contenedor = ?,
            id_tipo_contenedor = ?,
+           naviera = ?,
            peso_bruto = ?
        WHERE id_contenedor = ?`,
       [
         normalizarNumeroContenedor(numero_contenedor),
         Number(id_tipo_contenedor),
+        String(naviera || "").trim() || null,
         peso_bruto === "" || peso_bruto === null || peso_bruto === undefined
           ? null
           : Number(peso_bruto),

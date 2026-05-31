@@ -48,6 +48,46 @@ const permiteAsignarContenedor = (operacion, servicios = []) => {
   const tipo = String(descripcion).trim().toLowerCase();
   return tipo === "maritimo" || tipo === "terrestre";
 };
+const obtenerTipoServicioOperacion = (operacion, servicios = []) => {
+  const descripcion =
+    operacion?.tipo_servicio ||
+    servicios.find((servicio) => String(servicio.id_tipo_servicio) === String(operacion?.id_tipo_servicio))?.descripcion ||
+    "";
+  return String(descripcion).trim().toLowerCase();
+};
+const obtenerEtiquetasDocumentoTransporte = (operacion, servicios = []) => {
+  const tipo = obtenerTipoServicioOperacion(operacion, servicios);
+
+  if (tipo === "maritimo" || tipo === "bimodal") {
+    return {
+      madre: "MBL (Master Bill of Lading)",
+      hijo: "HBL (House Bill of Lading)",
+      mostrarHijo: true,
+    };
+  }
+
+  if (tipo === "aereo") {
+    return {
+      madre: "AWBL (Air Way Bill)",
+      hijo: "",
+      mostrarHijo: false,
+    };
+  }
+
+  if (tipo === "terrestre") {
+    return {
+      madre: "CRT (Carta porte)",
+      hijo: "",
+      mostrarHijo: false,
+    };
+  }
+
+  return {
+    madre: "Nro. madre",
+    hijo: "Nro. hijo",
+    mostrarHijo: true,
+  };
+};
 const operacionCerrada = (asignacion) =>
   String(asignacion?.estado_operacion || "").trim().toLowerCase() === "cerrado";
 const calcularFechaLimite = (fechaLlegadaPuerto) => {
@@ -275,7 +315,7 @@ const Operations = () => {
     origen: text(v.origen),
     destino: text(v.destino),
     nro_madre: text(v.nro_madre),
-    nro_hijo: text(v.nro_hijo),
+    nro_hijo: obtenerEtiquetasDocumentoTransporte(v, services).mostrarHijo ? text(v.nro_hijo) : "",
     observacion: text(v.observacion),
     cantidad: Number(v.lcl) === 1 || v.lcl === true ? text(v.cantidad) : "",
     volumen: Number(v.lcl) === 1 || v.lcl === true ? v.volumen || null : null,
@@ -617,7 +657,18 @@ const Operations = () => {
     () => statuses.find((status) => String(status.descripcion || "").trim().toLowerCase() === "asignado") || null,
     [statuses]
   );
-  const opForm = (state, setter, { isNew = false } = {}) => (
+  const opForm = (state, setter, { isNew = false } = {}) => {
+    const etiquetasDocumento = obtenerEtiquetasDocumentoTransporte(state, services);
+    const actualizarServicio = (idTipoServicio) => {
+      const siguienteEstado = { ...state, id_tipo_servicio: idTipoServicio };
+      const siguientesEtiquetas = obtenerEtiquetasDocumentoTransporte(siguienteEstado, services);
+      setter({
+        ...siguienteEstado,
+        ...(siguientesEtiquetas.mostrarHijo ? {} : { nro_hijo: "" }),
+      });
+    };
+
+    return (
     <form><div className="row g-3">
       <div className="col-md-6">
         <div className="mb-3">
@@ -629,11 +680,25 @@ const Operations = () => {
       <div className="col-md-6">{selectField(state, setter, "id_cliente", "Cliente", clients, "id_cliente", "razon_social", "client")}</div>
       <div className="col-md-6">{selectField(state, setter, "id_proveedor", "Proveedor", suppliers, "id_proveedor", "empresa", "supplier")}</div>
       <div className="col-12">{supplierRouteField(state, setter)}</div>
-      <div className="col-md-6">{selectField(state, setter, "id_tipo_servicio", "Tipo de servicio", services, "id_tipo_servicio", "descripcion", "service")}</div>
+      <div className="col-md-6">
+        <div className="mb-3">
+          <label className="form-label">Tipo de servicio</label>
+          <div className="d-flex gap-2 align-items-start">
+            <select className={`form-select ${errors.id_tipo_servicio ? "is-invalid" : ""}`} value={state.id_tipo_servicio || ""} onChange={(e) => actualizarServicio(e.target.value)}>
+              <option value="">Seleccionar</option>
+              {services.map((item) => <option key={item.id_tipo_servicio} value={item.id_tipo_servicio}>{item.descripcion}</option>)}
+            </select>
+            <button type="button" className="btn btn-outline-primary quick-add-button" onClick={() => openQuick("service")} title="Crear Tipo de servicio" aria-label="Crear Tipo de servicio">
+              <i className={quickIcons.service} aria-hidden="true" />
+            </button>
+          </div>
+          {errors.id_tipo_servicio ? <div className="invalid-feedback d-block">{errors.id_tipo_servicio}</div> : null}
+        </div>
+      </div>
       <div className="col-md-6">{field(state, setter, "porducto", "Producto")}</div>
       <div className="col-md-6">{field(state, setter, "origen", "Origen")}</div>
       <div className="col-md-6">{field(state, setter, "destino", "Destino")}</div>
-      <div className="col-12">{checkboxField(state, setter, "lcl", "LCL (Low Container Loaded)")}</div>
+      <div className="col-12">{checkboxField(state, setter, "lcl", "LCL (Less than Container Load)")}</div>
       {(Number(state.lcl) === 1 || state.lcl === true) ? (
         <>
           <div className="col-md-4">{field(state, setter, "cantidad", "Cantidad")}</div>
@@ -641,8 +706,10 @@ const Operations = () => {
           <div className="col-md-4">{field(state, setter, "peso", "Peso", "number")}</div>
         </>
       ) : null}
-      <div className="col-md-6">{field(state, setter, "nro_madre", "Nro. madre")}</div>
-      <div className="col-md-6">{field(state, setter, "nro_hijo", "Nro. hijo")}</div>
+      <div className={etiquetasDocumento.mostrarHijo ? "col-md-6" : "col-12"}>{field(state, setter, "nro_madre", etiquetasDocumento.madre)}</div>
+      {etiquetasDocumento.mostrarHijo ? (
+        <div className="col-md-6">{field(state, setter, "nro_hijo", etiquetasDocumento.hijo)}</div>
+      ) : null}
       <div className="col-12">{textareaField(state, setter, "observacion", "Observaciones")}</div>
       <div className="col-md-4">{field(state, setter, "etd", "ETD", "date")}</div>
       <div className="col-md-4">{field(state, setter, "eta", "ETA", "date")}</div>
@@ -678,7 +745,8 @@ const Operations = () => {
         </div>
       ) : null}
     </div></form>
-  );
+    );
+  };
 
   return (
     <>

@@ -13,6 +13,7 @@ const asignacionInicial = {
 const contenedorInicial = {
   numero_contenedor: "",
   id_tipo_contenedor: "",
+  naviera: "",
   peso_bruto: "",
 };
 
@@ -158,6 +159,10 @@ const OperationContainerAssignments = () => {
 
     if (!contenedor.id_tipo_contenedor) {
       e.id_tipo_contenedor = "Selecciona el tipo de contenedor.";
+    }
+
+    if (contenedor.naviera && contenedor.naviera.trim().length > 50) {
+      e.naviera = "La naviera no puede superar 50 caracteres.";
     }
 
     if (contenedor.peso_bruto !== "" && Number.isNaN(Number(contenedor.peso_bruto))) {
@@ -338,6 +343,7 @@ const OperationContainerAssignments = () => {
         body: JSON.stringify({
           numero_contenedor: nuevoContenedor.numero_contenedor.trim().toUpperCase(),
           id_tipo_contenedor: Number(nuevoContenedor.id_tipo_contenedor),
+          naviera: nuevoContenedor.naviera.trim(),
           peso_bruto: nuevoContenedor.peso_bruto,
         }),
       });

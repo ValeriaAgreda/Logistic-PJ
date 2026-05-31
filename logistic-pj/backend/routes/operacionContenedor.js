@@ -121,6 +121,7 @@ router.get("/", async (_req, res) => {
         oc.id_contenedor,
         c.numero_contenedor,
         tc.descripcion AS tipo_contenedor,
+        c.naviera,
         c.peso_bruto,
         oc.id_operacion,
         o.codigo_operacion,
