@@ -8,6 +8,7 @@ const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo
 const asignacionInit = { id_contenedor: "", id_operacion: "", fecha_llegada_puerto: "", fecha_devolucion_limite: "", fecha_devolucion: "" };
 const contenedorInit = { numero_contenedor: "", id_tipo_contenedor: "", naviera: "", peso_bruto: "" };
 const movimientoInit = { id_operacion: "", id_tipo_costo: "", id_moneda: "", monto: "", observacion: "" };
+const documentoInit = { id_tipo_documento: "", id_operacion: "", numero_documento: "", fecha_documento: "", ruta_documento: "", descripcion: "", archivo_nombre: "", archivo_base64: "" };
 const clientInit = { razon_social: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", observacion: "" };
 const supplierInit = { empresa: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", lugar_origen: "", id_tipo_servicio: "" };
 const itemInit = { descripcion: "" };
@@ -15,6 +16,9 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NIT = /^\d{5,15}$/;
 const PHONE = /^[67]\d{7}$/;
 const SUPPLIER_PHONE = /^\+\d{8,15}$/;
+const EXTENSIONES_DOCUMENTO_PERMITIDAS = [".doc", ".docx", ".xls", ".xlsx", ".pdf", ".jpg", ".jpeg", ".png"];
+const ACCEPT_DOCUMENTOS = EXTENSIONES_DOCUMENTO_PERMITIDAS.join(",");
+const MENSAJE_ARCHIVO_INVALIDO = "Solo se permiten archivos Word, Excel, PDF o imagenes.";
 const quickIcons = {
   client: "pi pi-users",
   supplier: "pi pi-briefcase",
@@ -42,6 +46,21 @@ const parse = async (res) => {
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString("es-BO") : "-");
 const fmtDateTime = (v) => (v ? new Date(v).toLocaleString("es-BO") : "-");
 const text = (value) => String(value ?? "").trim();
+const obtenerNombreDocumento = (ruta = "") => {
+  const partes = String(ruta || "").split(/[\\/]/);
+  const nombre = partes[partes.length - 1] || "";
+  try {
+    return decodeURIComponent(nombre).replace(/^\d+[_-]+/, "");
+  } catch {
+    return nombre.replace(/^\d+[_-]+/, "");
+  }
+};
+const obtenerExtensionArchivo = (nombre = "") => {
+  const limpio = String(nombre || "").toLowerCase().split("?")[0].split("#")[0];
+  const indice = limpio.lastIndexOf(".");
+  return indice >= 0 ? limpio.slice(indice) : "";
+};
+const esArchivoPermitido = (nombre = "") => EXTENSIONES_DOCUMENTO_PERMITIDAS.includes(obtenerExtensionArchivo(nombre));
 const permiteAsignarContenedor = (operacion, servicios = [], estados = []) => {
   const descripcion =
     servicios.find((servicio) => String(servicio.id_tipo_servicio) === String(operacion?.id_tipo_servicio))?.descripcion ||
@@ -174,7 +193,9 @@ const Operations = () => {
   const [containerTypes, setContainerTypes] = useState([]);
   const [operationCosts, setOperationCosts] = useState([]);
   const [operationSales, setOperationSales] = useState([]);
+  const [operationDocuments, setOperationDocuments] = useState([]);
   const [tiposCosto, setTiposCosto] = useState([]);
+  const [tiposDocumento, setTiposDocumento] = useState([]);
   const [monedas, setMonedas] = useState([]);
   const [clients, setClients] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -205,12 +226,17 @@ const Operations = () => {
   const [quickContainerErrors, setQuickContainerErrors] = useState({});
   const [pendingOperationCosts, setPendingOperationCosts] = useState([]);
   const [pendingOperationSales, setPendingOperationSales] = useState([]);
+  const [pendingOperationDocuments, setPendingOperationDocuments] = useState([]);
   const [costForm, setCostForm] = useState(movimientoInit);
   const [saleForm, setSaleForm] = useState(movimientoInit);
+  const [documentForm, setDocumentForm] = useState(documentoInit);
   const [costErrors, setCostErrors] = useState({});
   const [saleErrors, setSaleErrors] = useState({});
+  const [documentErrors, setDocumentErrors] = useState({});
   const [costMode, setCostMode] = useState("create");
   const [saleMode, setSaleMode] = useState("create");
+  const [documentMode, setDocumentMode] = useState("create");
+  const [documentFileInputKey, setDocumentFileInputKey] = useState(0);
   const [movementView, setMovementView] = useState("costs");
 
   const request = async (url, options = {}) =>
@@ -226,15 +252,25 @@ const Operations = () => {
       })
     );
 
+  const leerArchivoComoBase64 = (archivo) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+      reader.readAsDataURL(archivo);
+    });
+
   const loadAll = useCallback(async () => {
-    const [ops, cont, asg, cty, costsData, salesData, tc, mon, c, p, pr, s, n, st] = await Promise.all([
+    const [ops, cont, asg, cty, costsData, salesData, docsData, tc, td, mon, c, p, pr, s, n, st] = await Promise.all([
       request(`${API}/operaciones`),
       request(`${API}/contenedores`),
       request(`${API}/operacion-contenedor`),
       request(`${API}/tipo-contenedor`),
       request(`${API}/costo-operacion`),
       request(`${API}/venta-operacion`),
+      request(`${API}/documento`),
       request(`${API}/tipo-costo`),
+      request(`${API}/tipo-documento`),
       request(`${API}/moneda`),
       request(`${API}/clientes`),
       request(`${API}/proveedores`),
@@ -249,7 +285,9 @@ const Operations = () => {
     setContainerTypes(Array.isArray(cty) ? cty : []);
     setOperationCosts(Array.isArray(costsData) ? costsData : []);
     setOperationSales(Array.isArray(salesData) ? salesData : []);
+    setOperationDocuments(Array.isArray(docsData) ? docsData : []);
     setTiposCosto(Array.isArray(tc) ? tc : []);
+    setTiposDocumento(Array.isArray(td) ? td : []);
     setMonedas(Array.isArray(mon) ? mon : []);
     setClients(Array.isArray(c) ? c : []);
     setSuppliers(Array.isArray(p) ? p : []);
@@ -365,6 +403,19 @@ const Operations = () => {
     }
     return e;
   };
+  const validateDocumento = (v, isPending = false) => {
+    const e = {};
+    if (!v.id_tipo_documento) e.id_tipo_documento = "Selecciona un tipo de documento.";
+    if (!isPending && !v.id_operacion) e.id_operacion = "Selecciona una operacion.";
+    if (!text(v.numero_documento)) e.numero_documento = "El numero de documento es obligatorio.";
+    else if (text(v.numero_documento).length > 50) e.numero_documento = "El numero de documento no puede superar 50 caracteres.";
+    if (!v.fecha_documento) e.fecha_documento = "La fecha del documento es obligatoria.";
+    if (!text(v.ruta_documento) && !v.archivo_base64) e.ruta_documento = "Selecciona un archivo.";
+    if (v.archivo_nombre && !esArchivoPermitido(v.archivo_nombre)) e.ruta_documento = MENSAJE_ARCHIVO_INVALIDO;
+    if (!text(v.descripcion)) e.descripcion = "La descripcion es obligatoria.";
+    else if (text(v.descripcion).length > 50) e.descripcion = "La descripcion no puede superar 50 caracteres.";
+    return e;
+  };
 
   const payload = (v) => ({
     ...v,
@@ -392,6 +443,16 @@ const Operations = () => {
     id_moneda: Number(v.id_moneda),
     monto: Number(v.monto),
     observacion: text(v.observacion),
+  });
+  const documentoPayload = (v) => ({
+    id_tipo_documento: Number(v.id_tipo_documento),
+    id_operacion: Number(v.id_operacion),
+    numero_documento: text(v.numero_documento),
+    fecha_documento: v.fecha_documento,
+    ruta_documento: text(v.ruta_documento),
+    descripcion: text(v.descripcion),
+    archivo_nombre: v.archivo_nombre || null,
+    archivo_base64: v.archivo_base64 || null,
   });
 
   const selected = useMemo(() => rows.find((r) => r.id_operacion === selectedId) || null, [rows, selectedId]);
@@ -424,6 +485,7 @@ const Operations = () => {
     setPendingContainerAssignments([]);
     setPendingOperationCosts([]);
     setPendingOperationSales([]);
+    setPendingOperationDocuments([]);
     setErrors({});
     const codigoEstimado = calcularSiguienteCodigo(rows);
     setNextCode(codigoEstimado);
@@ -441,6 +503,7 @@ const Operations = () => {
     setAssignmentForm(asignacionInit);
     setAssignmentErrors({});
     setPendingContainerAssignments([]);
+    setPendingOperationDocuments([]);
     setErrors({});
     modal("editOperationModal");
   };
@@ -482,6 +545,40 @@ const Operations = () => {
       codigo_moneda: moneda?.codigo || "",
     };
   };
+  const buildPendingDocument = (documento, tempId = null) => {
+    const tipoDocumento = tiposDocumento.find((tipo) => String(tipo.id_tipo_documento) === String(documento.id_tipo_documento));
+    return {
+      ...documento,
+      tempId: tempId || `${documento.id_tipo_documento}-${Date.now()}`,
+      tipo_documento: tipoDocumento?.descripcion || "",
+    };
+  };
+  const seleccionarArchivoDocumento = async (archivo) => {
+    if (!archivo) return;
+
+    if (!esArchivoPermitido(archivo.name)) {
+      setDocumentForm((actual) => ({
+        ...actual,
+        archivo_nombre: "",
+        archivo_base64: "",
+      }));
+      setDocumentErrors((prev) => ({ ...prev, ruta_documento: MENSAJE_ARCHIVO_INVALIDO }));
+      return;
+    }
+
+    try {
+      const archivoBase64 = await leerArchivoComoBase64(archivo);
+      setDocumentForm((actual) => ({
+        ...actual,
+        archivo_nombre: archivo.name,
+        archivo_base64: archivoBase64,
+        ruta_documento: `/uploads/documentos/${archivo.name}`,
+      }));
+      setDocumentErrors((prev) => ({ ...prev, ruta_documento: undefined }));
+    } catch (error) {
+      alert(error.message || "No se pudo leer el archivo");
+    }
+  };
   const editPendingCost = (cost) => {
     setCostForm({ ...cost });
     setCostErrors({});
@@ -499,6 +596,16 @@ const Operations = () => {
   };
   const deletePendingSale = (tempId) => {
     setPendingOperationSales((items) => items.filter((item) => item.tempId !== tempId));
+  };
+  const editPendingDocument = (documento) => {
+    setDocumentForm({ ...documento });
+    setDocumentErrors({});
+    setDocumentMode("edit-pending");
+    setDocumentFileInputKey((key) => key + 1);
+    modal("addDocumentFromOperationModal");
+  };
+  const deletePendingDocument = (tempId) => {
+    setPendingOperationDocuments((items) => items.filter((item) => item.tempId !== tempId));
   };
   const editOperationCost = (cost) => {
     setCostForm({
@@ -527,6 +634,28 @@ const Operations = () => {
     setSaleErrors({});
     setSaleMode("edit");
     modal("addSaleFromOperationModal");
+  };
+  const editOperationDocument = (documento) => {
+    setDocumentForm({
+      ...documentoInit,
+      ...documento,
+      id_operacion: String(documento.id_operacion ?? ""),
+      id_tipo_documento: String(documento.id_tipo_documento ?? ""),
+      fecha_documento: documento.fecha_documento?.slice(0, 10) || "",
+      archivo_nombre: "",
+      archivo_base64: "",
+    });
+    setDocumentErrors({});
+    setDocumentMode("edit");
+    setDocumentFileInputKey((key) => key + 1);
+    modal("addDocumentFromOperationModal");
+  };
+  const openDocumentForOperation = (operationState) => {
+    setDocumentForm({ ...documentoInit, id_operacion: operationState.id_operacion ? String(operationState.id_operacion) : "" });
+    setDocumentErrors({});
+    setDocumentMode(operationState.id_operacion ? "create" : "create-pending");
+    setDocumentFileInputKey((key) => key + 1);
+    modal("addDocumentFromOperationModal");
   };
   const openAssignContainer = (state) => {
     if (!permiteAsignarContenedor(state, services, statuses)) return;
@@ -726,6 +855,42 @@ const Operations = () => {
       alert(error.message || "Error al registrar venta");
     }
   };
+  const saveDocumentFromOperation = async () => {
+    const isPending = documentMode === "create-pending" || documentMode === "edit-pending";
+    const e = validateDocumento(documentForm, isPending);
+    if (Object.keys(e).length) return setDocumentErrors(e);
+
+    if (isPending) {
+      if (documentMode === "edit-pending") {
+        setPendingOperationDocuments((items) =>
+          items.map((item) => item.tempId === documentForm.tempId ? buildPendingDocument(documentForm, documentForm.tempId) : item)
+        );
+      } else {
+        setPendingOperationDocuments((items) => [...items, buildPendingDocument(documentForm)]);
+      }
+      hideModal("addDocumentFromOperationModal");
+      setDocumentForm(documentoInit);
+      setDocumentErrors({});
+      setDocumentMode("create");
+      setDocumentFileInputKey((key) => key + 1);
+      return;
+    }
+
+    try {
+      await request(`${API}/documento${documentMode === "edit" ? `/${documentForm.id_documento}` : ""}`, {
+        method: documentMode === "edit" ? "PUT" : "POST",
+        body: JSON.stringify(documentoPayload(documentForm)),
+      });
+      await loadAll();
+      hideModal("addDocumentFromOperationModal");
+      setDocumentForm(documentoInit);
+      setDocumentErrors({});
+      setDocumentMode("create");
+      setDocumentFileInputKey((key) => key + 1);
+    } catch (error) {
+      alert(error.message || "Error al registrar documento");
+    }
+  };
   const deleteOperationCost = async (idCosto) => {
     try {
       await request(`${API}/costo-operacion/${idCosto}`, { method: "DELETE" });
@@ -740,6 +905,14 @@ const Operations = () => {
       await loadAll();
     } catch (error) {
       alert(error.message || "Error al eliminar venta");
+    }
+  };
+  const deleteOperationDocument = async (idDocumento) => {
+    try {
+      await request(`${API}/documento/${idDocumento}`, { method: "DELETE" });
+      await loadAll();
+    } catch (error) {
+      alert(error.message || "Error al eliminar documento");
     }
   };
 
@@ -801,6 +974,20 @@ const Operations = () => {
         );
       }
 
+      if (pendingOperationDocuments.length > 0) {
+        await Promise.all(
+          pendingOperationDocuments.map((documento) =>
+            request(`${API}/documento`, {
+              method: "POST",
+              body: JSON.stringify({
+                ...documentoPayload(documento),
+                id_operacion: Number(operacionCreada.id_operacion),
+              }),
+            })
+          )
+        );
+      }
+
       await loadAll();
       hideModal("addOperationModal");
       setForm(opInit);
@@ -808,6 +995,7 @@ const Operations = () => {
       setPendingContainerAssignments([]);
       setPendingOperationCosts([]);
       setPendingOperationSales([]);
+      setPendingOperationDocuments([]);
       setAssignmentErrors({});
     } catch (error) { alert(error.message); }
   };
@@ -840,9 +1028,24 @@ const Operations = () => {
         );
       }
 
+      if (pendingOperationDocuments.length > 0) {
+        await Promise.all(
+          pendingOperationDocuments.map((documento) =>
+            request(`${API}/documento`, {
+              method: "POST",
+              body: JSON.stringify({
+                ...documentoPayload(documento),
+                id_operacion: Number(editForm.id_operacion),
+              }),
+            })
+          )
+        );
+      }
+
       await loadAll();
       hideModal("editOperationModal");
       setPendingContainerAssignments([]);
+      setPendingOperationDocuments([]);
     } catch (error) { alert(error.message); }
   };
   const remove = async () => {
@@ -1009,6 +1212,47 @@ const Operations = () => {
       </>
     );
   };
+  const renderDocumentoActual = (documento) => {
+    if (documento?.archivo_base64) return null;
+    const nombre = documento?.archivo_base64 ? documento.archivo_nombre : obtenerNombreDocumento(documento?.ruta_documento);
+    if (!nombre) return null;
+
+    return (
+      <div className="mb-3">
+        <label className="form-label">{documento?.archivo_base64 ? "Archivo seleccionado" : "Documento actual"}</label>
+        <div className="form-control bg-light">
+          {documento?.archivo_base64 || !documento?.ruta_documento || !documento?.id_documento ? (
+            <span>{nombre}</span>
+          ) : (
+            <a href={`http://localhost:3001${documento.ruta_documento}`} target="_blank" rel="noreferrer">{nombre}</a>
+          )}
+        </div>
+      </div>
+    );
+  };
+  const documentoFormView = (state, setter, errs) => {
+    const operacion = rows.find((row) => String(row.id_operacion) === String(state.id_operacion));
+
+    return (
+      <>
+        <div className="mb-3">
+          <label className="form-label">Operacion</label>
+          <input className="form-control" value={operacion?.codigo_operacion || selected?.codigo_operacion || nextCode || ""} readOnly disabled />
+          {errs.id_operacion ? <div className="invalid-feedback d-block">{errs.id_operacion}</div> : null}
+        </div>
+        {selectSimple(state, setter, "id_tipo_documento", "Tipo de documento", tiposDocumento, "id_tipo_documento", "descripcion", errs)}
+        {field(state, setter, "numero_documento", "Numero de documento", "text", errs)}
+        {field(state, setter, "fecha_documento", "Fecha del documento", "date", errs)}
+        <div className="mb-3">
+          <label className="form-label">{state.id_documento ? "Reemplazar archivo" : "Archivo"}</label>
+          <input key={documentFileInputKey} type="file" accept={ACCEPT_DOCUMENTOS} className={`form-control ${errs.ruta_documento ? "is-invalid" : ""}`} onChange={(e) => seleccionarArchivoDocumento(e.target.files?.[0])} />
+          {errs.ruta_documento ? <div className="invalid-feedback">{errs.ruta_documento}</div> : null}
+        </div>
+        {renderDocumentoActual(state)}
+        {field(state, setter, "descripcion", "Descripcion", "text", errs)}
+      </>
+    );
+  };
   const removePendingContainerAssignment = (tempId) => {
     setPendingContainerAssignments((actuales) =>
       actuales.filter((assignment) => assignment.tempId !== tempId)
@@ -1022,6 +1266,8 @@ const Operations = () => {
     operationCosts.filter((cost) => String(cost.id_operacion) === String(idOperacion));
   const salesByOperation = (idOperacion) =>
     operationSales.filter((sale) => String(sale.id_operacion) === String(idOperacion));
+  const documentsByOperation = (idOperacion) =>
+    operationDocuments.filter((documento) => String(documento.id_operacion) === String(idOperacion));
   const deleteOperationContainerAssignment = async (idAsignacion) => {
     try {
       await request(`${API}/operacion-contenedor/${idAsignacion}`, { method: "DELETE" });
@@ -1182,6 +1428,64 @@ const Operations = () => {
       </div>
     </div>
   );
+  const documentTable = (title, rowsData, onNew, onEdit, onDelete, idKey) => (
+    <div className="mt-4">
+      <div className="d-flex align-items-center gap-2 mb-2">
+        <h6 className="m-0">{title}</h6>
+        <button type="button" className="btn btn-sm btn-orange" onClick={onNew}>
+          Nuevo documento
+        </button>
+      </div>
+      <div className="table-responsive">
+        <table className="table table-sm table-bordered align-middle m-0">
+          <thead className="table-light">
+            <tr>
+              <th style={{ width: 48 }} className="text-center">#</th>
+              <th>Tipo</th>
+              <th>Numero</th>
+              <th>Fecha</th>
+              <th>Nombre</th>
+              <th>Descripcion</th>
+              <th style={{ width: 150 }} className="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rowsData.map((item, index) => (
+              <tr key={item[idKey]}>
+                <td className="text-center">{index + 1}</td>
+                <td>{item.tipo_documento || "-"}</td>
+                <td>{item.numero_documento || "-"}</td>
+                <td>{fmtDate(item.fecha_documento)}</td>
+                <td>
+                  {item.ruta_documento && item.id_documento ? (
+                    <a href={`http://localhost:3001${item.ruta_documento}`} target="_blank" rel="noreferrer">
+                      {obtenerNombreDocumento(item.ruta_documento)}
+                    </a>
+                  ) : (
+                    obtenerNombreDocumento(item.ruta_documento) || item.archivo_nombre || "-"
+                  )}
+                </td>
+                <td>{item.descripcion || "-"}</td>
+                <td className="text-center">
+                  <button type="button" className="btn btn-sm btn-outline-primary me-2" onClick={() => onEdit(item)}>
+                    Editar
+                  </button>
+                  <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => onDelete(item[idKey])}>
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {rowsData.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-3 text-muted">No hay documentos asociados.</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
   const operationMovementsSection = (state) => {
     const isExisting = Boolean(state.id_operacion);
 
@@ -1204,6 +1508,22 @@ const Operations = () => {
           isExisting ? editOperationSale : editPendingSale,
           isExisting ? deleteOperationSale : deletePendingSale,
           isExisting ? "id_venta" : "tempId"
+        )}
+      </div>
+    );
+  };
+  const operationDocumentsSection = (state) => {
+    const isExisting = Boolean(state.id_operacion);
+
+    return (
+      <div className="col-12">
+        {documentTable(
+          isExisting ? "Documentos asociados" : "Documentos por registrar",
+          isExisting ? documentsByOperation(state.id_operacion) : pendingOperationDocuments,
+          () => openDocumentForOperation(state),
+          isExisting ? editOperationDocument : editPendingDocument,
+          isExisting ? deleteOperationDocument : deletePendingDocument,
+          isExisting ? "id_documento" : "tempId"
         )}
       </div>
     );
@@ -1302,11 +1622,57 @@ const Operations = () => {
       ) : null}
     </div>
   );
+  const readonlyDocumentsTable = (items) => (
+    <div className="mt-4">
+      <div className="text-center mb-2">
+        <h6 className="m-0">Documentos asociados</h6>
+        <span className="text-muted small">{items.length} registro(s)</span>
+      </div>
+      <div className="table-responsive">
+        <table className="table table-sm table-bordered align-middle m-0">
+          <thead className="table-light">
+            <tr>
+              <th style={{ width: 48 }} className="text-center">#</th>
+              <th className="text-center">Tipo</th>
+              <th className="text-center">Numero</th>
+              <th className="text-center">Fecha</th>
+              <th className="text-center">Nombre</th>
+              <th className="text-center">Descripcion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((documento, index) => (
+              <tr key={documento.id_documento || documento.tempId}>
+                <td className="text-center">{index + 1}</td>
+                <td className="text-center">{documento.tipo_documento || "-"}</td>
+                <td className="text-center">{documento.numero_documento || "-"}</td>
+                <td className="text-center">{fmtDate(documento.fecha_documento)}</td>
+                <td className="text-center">
+                  {documento.ruta_documento ? (
+                    <a href={`http://localhost:3001${documento.ruta_documento}`} target="_blank" rel="noreferrer">
+                      {obtenerNombreDocumento(documento.ruta_documento)}
+                    </a>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+                <td className="text-center">{documento.descripcion || "-"}</td>
+              </tr>
+            ))}
+            {items.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-3 text-muted">No hay documentos asociados.</td></tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
   const operationInfoSection = (operation) => {
     if (!operation) return null;
     const containersInfo = operationContainerAssignments(operation.id_operacion);
     const costsInfo = costsByOperation(operation.id_operacion);
     const salesInfo = salesByOperation(operation.id_operacion);
+    const documentsInfo = documentsByOperation(operation.id_operacion);
     const isLcl = Number(operation.lcl) === 1;
     const showContainersInfo = !isLcl && permiteAsignarContenedor(operation, services, statuses);
 
@@ -1348,6 +1714,7 @@ const Operations = () => {
         ) : null}
         {readonlyMovementsTable("Costos asociados", costsInfo)}
         {readonlyMovementsTable("Ventas asociadas", salesInfo)}
+        {readonlyDocumentsTable(documentsInfo)}
       </div>
     );
   };
@@ -1506,6 +1873,7 @@ const Operations = () => {
         </div>
       ) : null}
       {operationMovementsSection(state)}
+      {operationDocumentsSection(state)}
     </div></form>
     );
   };
@@ -1576,6 +1944,7 @@ const Operations = () => {
       <div className="modal fade" id="operationMovementsModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{movementView === "costs" ? "Costos" : "Ventas"} de operacion {selected?.codigo_operacion || ""}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{selected && movementView === "costs" ? movementTable("Costos asociados", "Nuevo costo", costsByOperation(selected.id_operacion), () => openCostForOperation(selected), editOperationCost, deleteOperationCost, "id_costo") : null}{selected && movementView === "sales" ? movementTable("Ventas asociadas", "Nueva venta", salesByOperation(selected.id_operacion), () => openSaleForOperation(selected), editOperationSale, deleteOperationSale, "id_venta") : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>
       <div className="modal fade" id="addCostFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{costMode === "edit" ? "Editar costo" : "Agregar costo"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(costForm, setCostForm, costErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveCostFromOperation}>{costMode === "edit" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
       <div className="modal fade" id="addSaleFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{saleMode === "edit" ? "Editar venta" : "Agregar venta"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(saleForm, setSaleForm, saleErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveSaleFromOperation}>{saleMode === "edit" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
+      <div className="modal fade" id="addDocumentFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{documentMode === "edit" || documentMode === "edit-pending" ? "Editar documento" : "Agregar documento"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{documentoFormView(documentForm, setDocumentForm, documentErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className={documentMode === "edit" || documentMode === "edit-pending" ? "btn btn-primary" : "btn btn-success"} onClick={saveDocumentFromOperation}>{documentMode === "edit" || documentMode === "edit-pending" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
       <div className="modal fade" id="quickContainerFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body"><ContainerFormFields contenedor={quickContainer} setContenedor={setQuickContainer} errores={quickContainerErrors} tiposContenedor={containerTypes} /></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickContainer}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>
       <div className="modal fade" id="quickClientModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear cliente rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickClient, setQuickClient, "razon_social", "Razon social", "text", quickErrors)}{field(quickClient, setQuickClient, "nit", "NIT", "text", quickErrors)}{field(quickClient, setQuickClient, "contacto", "Contacto", "text", quickErrors)}{field(quickClient, setQuickClient, "telefono", "Telefono", "text", quickErrors)}{field(quickClient, setQuickClient, "correo", "Correo", "email", quickErrors)}{field(quickClient, setQuickClient, "direccion", "Direccion", "text", quickErrors)}<div className="mb-3"><label className="form-label">Observacion</label><textarea className="form-control" rows="3" value={quickClient.observacion} onChange={(e) => setQuickClient({ ...quickClient, observacion: e.target.value })} /></div></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickClient}>Guardar</button></div></div></div></div>
