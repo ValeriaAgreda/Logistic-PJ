@@ -90,3 +90,19 @@
   border-color: #334155 !important;
   color: #fff !important;
 }
+
+.btn-documents {
+  background-color: #b45309 !important;
+  border-color: #b45309 !important;
+  color: #fff !important;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px !important;
+}
+
+.btn-documents:hover,
+.btn-documents:focus {
+  background-color: #92400e !important;
+  border-color: #92400e !important;
+  color: #fff !important;
+}
