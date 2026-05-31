@@ -214,13 +214,6 @@ const NationalizationType = () => {
       onClick: () => abrirEliminar(tipoSeleccionadoTabla),
       disabled: !tipoSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarTiposNacionalizacion,
-      disabled: false,
-    },
   ];
 
   return (

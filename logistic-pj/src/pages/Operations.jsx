@@ -4,7 +4,7 @@ import "../styles/operations.css";
 
 const API = "http://localhost:3001/api";
 const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", lcl: false, cantidad: "", volumen: "", peso: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
-const asignacionInit = { id_contenedor: "", id_operacion: "", fecha_asignacion: "", fecha_devolucion_limite: "", fecha_devolucion: "" };
+const asignacionInit = { id_contenedor: "", id_operacion: "", fecha_llegada_puerto: "", fecha_devolucion_limite: "", fecha_devolucion: "" };
 const clientInit = { razon_social: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", observacion: "" };
 const supplierInit = { empresa: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", lugar_origen: "", id_tipo_servicio: "" };
 const itemInit = { descripcion: "" };
@@ -46,6 +46,13 @@ const permiteAsignarContenedor = (operacion, servicios = []) => {
     "";
   const tipo = String(descripcion).trim().toLowerCase();
   return tipo === "maritimo" || tipo === "terrestre";
+};
+const calcularFechaLimite = (fechaLlegadaPuerto) => {
+  if (!fechaLlegadaPuerto) return "";
+  const fecha = new Date(`${fechaLlegadaPuerto}T00:00:00`);
+  if (Number.isNaN(fecha.getTime())) return "";
+  fecha.setDate(fecha.getDate() + 21);
+  return fecha.toISOString().slice(0, 10);
 };
 const toDateInputValue = (value) => {
   if (!value) return "";
@@ -215,12 +222,9 @@ const Operations = () => {
     if (!permiteAsignarContenedor(operacion, services)) {
       e.id_operacion = "Solo se puede asignar contenedor a operaciones Maritimo o Terrestre.";
     }
-    if (!v.fecha_asignacion) e.fecha_asignacion = "Fecha de asignacion obligatoria.";
-    if (v.fecha_devolucion_limite && v.fecha_devolucion_limite < v.fecha_asignacion) {
-      e.fecha_devolucion_limite = "La fecha limite no puede ser menor a la fecha de asignacion.";
-    }
-    if (v.fecha_devolucion && v.fecha_devolucion < v.fecha_asignacion) {
-      e.fecha_devolucion = "La fecha de devolucion no puede ser menor a la fecha de asignacion.";
+    if (!v.fecha_llegada_puerto) e.fecha_llegada_puerto = "Fecha de llegada al puerto obligatoria.";
+    if (v.fecha_devolucion && v.fecha_devolucion < v.fecha_llegada_puerto) {
+      e.fecha_devolucion = "La fecha de devolucion no puede ser menor a la fecha de llegada al puerto.";
     }
     return e;
   };
@@ -278,7 +282,8 @@ const Operations = () => {
     setAssignmentForm({
       ...asignacionInit,
       id_operacion: String(state.id_operacion),
-      fecha_asignacion: state.fecha_asignacion || "",
+      fecha_llegada_puerto: state.fecha_asignacion || "",
+      fecha_devolucion_limite: calcularFechaLimite(state.fecha_asignacion || ""),
     });
     setAssignmentErrors({});
     modal("assignContainerModal");
@@ -293,8 +298,7 @@ const Operations = () => {
         body: JSON.stringify({
           id_contenedor: Number(assignmentForm.id_contenedor),
           id_operacion: Number(assignmentForm.id_operacion),
-          fecha_asignacion: assignmentForm.fecha_asignacion,
-          fecha_devolucion_limite: assignmentForm.fecha_devolucion_limite || null,
+          fecha_llegada_puerto: assignmentForm.fecha_llegada_puerto,
           fecha_devolucion: assignmentForm.fecha_devolucion || null,
         }),
       });
@@ -554,7 +558,7 @@ const Operations = () => {
           <h1 className="page-title m-0">Gestión de Operaciones</h1>
           <small className="text-muted">{selected ? <>Seleccionado: <strong>{selected.codigo_operacion}</strong></> : "Selecciona una operacion para Editar o Eliminar"}</small>
         </div>
-        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-outline-light" type="button" onClick={() => loadAll().catch((e) => alert(e.message))}>Refrescar</button></div></div>
+        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button></div></div>
         <div className="ui-card mb-3"><div className="row g-2 align-items-end"><div className="col-md-9"><label className="form-label">Buscar</label><input className="form-control" placeholder="Codigo, cliente, proveedor, servicio, producto, origen, destino..." value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="col-md-3 d-flex gap-2"><button className="btn btn-secondary w-100" type="button" onClick={() => setSearch("")}>Limpiar</button></div></div></div>
         <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>LCL</th><th>Cantidad</th><th>Volumen</th><th>Peso</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{Number(r.lcl) === 1 ? "Si" : "No"}</td><td>{r.cantidad || "-"}</td><td>{r.volumen ?? "-"}</td><td>{r.peso ?? "-"}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={21} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
       </div>
@@ -573,14 +577,13 @@ const Operations = () => {
           {assignmentErrors.id_contenedor ? <div className="invalid-feedback">{assignmentErrors.id_contenedor}</div> : null}
         </div>
         <div className="mb-3">
-          <label className="form-label">Fecha de asignacion</label>
-          <input type="date" className={`form-control ${assignmentErrors.fecha_asignacion ? "is-invalid" : ""}`} value={assignmentForm.fecha_asignacion} onChange={(e) => setAssignmentForm({ ...assignmentForm, fecha_asignacion: e.target.value })} />
-          {assignmentErrors.fecha_asignacion ? <div className="invalid-feedback">{assignmentErrors.fecha_asignacion}</div> : null}
+          <label className="form-label">Fecha de llegada al puerto</label>
+          <input type="date" className={`form-control ${assignmentErrors.fecha_llegada_puerto ? "is-invalid" : ""}`} value={assignmentForm.fecha_llegada_puerto} onChange={(e) => setAssignmentForm({ ...assignmentForm, fecha_llegada_puerto: e.target.value, fecha_devolucion_limite: calcularFechaLimite(e.target.value) })} />
+          {assignmentErrors.fecha_llegada_puerto ? <div className="invalid-feedback">{assignmentErrors.fecha_llegada_puerto}</div> : null}
         </div>
         <div className="mb-3">
           <label className="form-label">Fecha de devolucion limite</label>
-          <input type="date" className={`form-control ${assignmentErrors.fecha_devolucion_limite ? "is-invalid" : ""}`} value={assignmentForm.fecha_devolucion_limite} onChange={(e) => setAssignmentForm({ ...assignmentForm, fecha_devolucion_limite: e.target.value })} />
-          {assignmentErrors.fecha_devolucion_limite ? <div className="invalid-feedback">{assignmentErrors.fecha_devolucion_limite}</div> : null}
+          <input type="date" className="form-control" value={calcularFechaLimite(assignmentForm.fecha_llegada_puerto)} readOnly disabled />
         </div>
         <div className="mb-3">
           <label className="form-label">Fecha de devolucion</label>

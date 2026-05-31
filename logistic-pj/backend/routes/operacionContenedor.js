@@ -32,8 +32,15 @@ const normalizarTexto = (valor) => {
   return texto || null;
 };
 
+const sumarDias = (fecha, dias) => {
+  const date = new Date(`${fecha}T00:00:00`);
+  date.setDate(date.getDate() + dias);
+  return date.toISOString().slice(0, 10);
+};
+
 const validarAsignacion = (body) => {
   const errores = [];
+  const fechaLlegadaPuerto = normalizarTexto(body.fecha_llegada_puerto);
 
   if (!body.id_contenedor || Number.isNaN(Number(body.id_contenedor))) {
     errores.push("Selecciona un contenedor valido.");
@@ -43,16 +50,12 @@ const validarAsignacion = (body) => {
     errores.push("Selecciona una operacion valida.");
   }
 
-  if (!normalizarTexto(body.fecha_asignacion)) {
-    errores.push("La fecha de asignacion es obligatoria.");
+  if (!fechaLlegadaPuerto) {
+    errores.push("La fecha de llegada al puerto es obligatoria.");
   }
 
-  if (body.fecha_devolucion_limite && body.fecha_devolucion_limite < body.fecha_asignacion) {
-    errores.push("La fecha de devolucion limite no puede ser menor a la fecha de asignacion.");
-  }
-
-  if (body.fecha_devolucion && body.fecha_devolucion < body.fecha_asignacion) {
-    errores.push("La fecha de devolucion no puede ser menor a la fecha de asignacion.");
+  if (body.fecha_devolucion && fechaLlegadaPuerto && body.fecha_devolucion < fechaLlegadaPuerto) {
+    errores.push("La fecha de devolucion no puede ser menor a la fecha de llegada al puerto.");
   }
 
   return errores;
@@ -95,9 +98,9 @@ router.get("/", async (_req, res) => {
         c.peso_bruto,
         oc.id_operacion,
         o.codigo_operacion,
-        oc.fecha_asignacion,
-        oc.fecha_devolucion_limite,
-        oc.fecha_devolucion,
+        DATE_FORMAT(oc.fecha_llegada_puerto, '%Y-%m-%d') AS fecha_llegada_puerto,
+        DATE_FORMAT(oc.fecha_devolucion_limite, '%Y-%m-%d') AS fecha_devolucion_limite,
+        DATE_FORMAT(oc.fecha_devolucion, '%Y-%m-%d') AS fecha_devolucion,
         oc.fecha_registro,
         oc.id_usuario_registro,
         CONCAT(u.nombres, ' ', u.apellidos) AS usuario_registro
@@ -164,11 +167,14 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const fechaLlegadaPuerto = normalizarTexto(req.body.fecha_llegada_puerto);
+    const fechaDevolucionLimite = sumarDias(fechaLlegadaPuerto, 21);
+
     const [result] = await db.query(
       `INSERT INTO operacion_contenedor (
         id_contenedor,
         id_operacion,
-        fecha_asignacion,
+        fecha_llegada_puerto,
         fecha_devolucion_limite,
         fecha_devolucion,
         fecha_registro,
@@ -178,8 +184,8 @@ router.post("/", async (req, res) => {
       [
         Number(req.body.id_contenedor),
         Number(req.body.id_operacion),
-        req.body.fecha_asignacion,
-        normalizarTexto(req.body.fecha_devolucion_limite),
+        fechaLlegadaPuerto,
+        fechaDevolucionLimite,
         normalizarTexto(req.body.fecha_devolucion),
         Number(idUsuarioRegistro),
       ]
@@ -239,11 +245,14 @@ router.put("/:id_asignacion", async (req, res) => {
       });
     }
 
+    const fechaLlegadaPuerto = normalizarTexto(req.body.fecha_llegada_puerto);
+    const fechaDevolucionLimite = sumarDias(fechaLlegadaPuerto, 21);
+
     const [result] = await db.query(
       `UPDATE operacion_contenedor
        SET id_contenedor = ?,
            id_operacion = ?,
-           fecha_asignacion = ?,
+           fecha_llegada_puerto = ?,
            fecha_devolucion_limite = ?,
            fecha_devolucion = ?
        WHERE id_asignacion = ?
@@ -251,8 +260,8 @@ router.put("/:id_asignacion", async (req, res) => {
       [
         Number(req.body.id_contenedor),
         Number(req.body.id_operacion),
-        req.body.fecha_asignacion,
-        normalizarTexto(req.body.fecha_devolucion_limite),
+        fechaLlegadaPuerto,
+        fechaDevolucionLimite,
         normalizarTexto(req.body.fecha_devolucion),
         Number(id_asignacion),
       ]

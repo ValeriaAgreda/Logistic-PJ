@@ -260,13 +260,6 @@ const Costs = () => {
       onClick: () => abrirEliminar(costoSeleccionadoTabla),
       disabled: !costoSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarDatos,
-      disabled: false,
-    },
   ];
 
   const renderSelect = (label, field, state, setState, opciones, valueKey, labelKey) => (

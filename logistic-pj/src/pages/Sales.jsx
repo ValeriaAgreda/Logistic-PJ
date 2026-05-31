@@ -277,9 +277,6 @@ const Sales = () => {
             >
               Eliminar
             </button>
-            <button className="btn btn-outline-light" onClick={cargarDatos} type="button">
-              Refrescar
-            </button>
           </div>
         </div>
 
@@ -515,4 +512,3 @@ const Sales = () => {
 };
 
 export default Sales;
-

@@ -214,13 +214,6 @@ const OperationStatus = () => {
       onClick: () => abrirEliminar(estadoSeleccionadoTabla),
       disabled: !estadoSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarEstadosOperacion,
-      disabled: false,
-    },
   ];
 
   return (

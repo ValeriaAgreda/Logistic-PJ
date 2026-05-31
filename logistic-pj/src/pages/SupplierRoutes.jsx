@@ -267,16 +267,6 @@ const SupplierRoutes = () => {
       onClick: () => abrirEliminar(relacionSeleccionadaTabla),
       disabled: !relacionSeleccionadaTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: async () => {
-        await cargarRelaciones();
-        await cargarCatalogos();
-      },
-      disabled: false,
-    },
   ];
 
   return (

@@ -271,13 +271,6 @@ const Clients = () => {
       onClick: () => abrirModalEliminar(selectedClient),
       disabled: !selectedClient,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: fetchClients,
-      disabled: false,
-    },
   ];
 
   return (

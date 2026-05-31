@@ -292,16 +292,6 @@ const Containers = () => {
       onClick: () => abrirEliminar(contenedorSeleccionadoTabla),
       disabled: !contenedorSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: async () => {
-        await cargarContenedores();
-        await cargarTiposContenedor();
-      },
-      disabled: false,
-    },
   ];
 
   return (

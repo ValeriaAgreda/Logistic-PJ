@@ -214,13 +214,6 @@ const RouteCatalog = () => {
       onClick: () => abrirEliminar(rutaSeleccionadaTabla),
       disabled: !rutaSeleccionadaTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarRutas,
-      disabled: false,
-    },
   ];
 
   return (

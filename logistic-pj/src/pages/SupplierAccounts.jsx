@@ -300,16 +300,6 @@ const SupplierAccounts = () => {
       onClick: () => abrirEliminar(cuentaSeleccionadaTabla),
       disabled: !cuentaSeleccionadaTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: async () => {
-        await cargarCuentas();
-        await cargarCatalogos();
-      },
-      disabled: false,
-    },
   ];
 
   return (

@@ -202,13 +202,6 @@ const Roles = () => {
       onClick: () => abrirEliminar(rolSeleccionadoTabla),
       disabled: !rolSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarRoles,
-      disabled: false,
-    },
   ];
 
   return (

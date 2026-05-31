@@ -217,13 +217,6 @@ const Currency = () => {
       onClick: () => abrirEliminar(monedaSeleccionadaTabla),
       disabled: !monedaSeleccionadaTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarMonedas,
-      disabled: false,
-    },
   ];
 
   return (

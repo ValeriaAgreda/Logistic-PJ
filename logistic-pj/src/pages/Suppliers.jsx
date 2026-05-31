@@ -605,16 +605,6 @@ const Suppliers = () => {
       onClick: () => abrirEliminar(proveedorSeleccionadoTabla),
       disabled: !proveedorSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: async () => {
-        await cargarProveedores();
-        await cargarTiposServicio();
-      },
-      disabled: false,
-    },
   ];
 
   return (

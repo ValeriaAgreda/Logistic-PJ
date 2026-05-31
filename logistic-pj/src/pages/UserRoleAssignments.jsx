@@ -283,15 +283,6 @@ const UserRoleAssignments = () => {
       onClick: () => abrirEliminar(asignacionSeleccionadaTabla),
       disabled: !asignacionSeleccionadaTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: async () => {
-        await Promise.all([cargarAsignaciones(), cargarCatalogos()]);
-      },
-      disabled: false,
-    },
   ];
 
   return (

@@ -6,7 +6,7 @@ import ContainerFormFields from "../components/ContainerFormFields";
 const asignacionInicial = {
   id_contenedor: "",
   id_operacion: "",
-  fecha_asignacion: "",
+  fecha_llegada_puerto: "",
   fecha_devolucion_limite: "",
   fecha_devolucion: "",
 };
@@ -37,6 +37,14 @@ const formatearFechaHora = (valor) => {
   const fecha = new Date(valor);
   if (Number.isNaN(fecha.getTime())) return valor;
   return fecha.toLocaleString("es-BO");
+};
+
+const calcularFechaLimite = (fechaLlegadaPuerto) => {
+  if (!fechaLlegadaPuerto) return "";
+  const fecha = new Date(`${fechaLlegadaPuerto}T00:00:00`);
+  if (Number.isNaN(fecha.getTime())) return "";
+  fecha.setDate(fecha.getDate() + 21);
+  return fecha.toISOString().slice(0, 10);
 };
 
 const permiteAsignarContenedor = (operacion) => {
@@ -97,24 +105,16 @@ const OperationContainerAssignments = () => {
       e.id_operacion = "Solo se puede asignar contenedor a operaciones Maritimo o Terrestre.";
     }
 
-    if (!asignacion.fecha_asignacion) {
-      e.fecha_asignacion = "La fecha de asignación es obligatoria.";
-    }
-
-    if (
-      asignacion.fecha_devolucion_limite &&
-      asignacion.fecha_devolucion_limite < asignacion.fecha_asignacion
-    ) {
-      e.fecha_devolucion_limite =
-        "La fecha límite no puede ser menor a la fecha de asignación.";
+    if (!asignacion.fecha_llegada_puerto) {
+      e.fecha_llegada_puerto = "La fecha de llegada al puerto es obligatoria.";
     }
 
     if (
       asignacion.fecha_devolucion &&
-      asignacion.fecha_devolucion < asignacion.fecha_asignacion
+      asignacion.fecha_devolucion < asignacion.fecha_llegada_puerto
     ) {
       e.fecha_devolucion =
-        "La fecha de devolución no puede ser menor a la fecha de asignación.";
+        "La fecha de devolución no puede ser antes de la fecha de llegada al puerto.";
     }
 
     return e;
@@ -200,7 +200,7 @@ const OperationContainerAssignments = () => {
       ...asignacion,
       id_contenedor: String(asignacion.id_contenedor ?? ""),
       id_operacion: String(asignacion.id_operacion ?? ""),
-      fecha_asignacion: asignacion.fecha_asignacion?.slice(0, 10) || "",
+      fecha_llegada_puerto: asignacion.fecha_llegada_puerto?.slice(0, 10) || "",
       fecha_devolucion_limite: asignacion.fecha_devolucion_limite?.slice(0, 10) || "",
       fecha_devolucion: asignacion.fecha_devolucion?.slice(0, 10) || "",
     });
@@ -217,8 +217,7 @@ const OperationContainerAssignments = () => {
   const normalizarPayload = (asignacion) => ({
     id_contenedor: Number(asignacion.id_contenedor),
     id_operacion: Number(asignacion.id_operacion),
-    fecha_asignacion: asignacion.fecha_asignacion,
-    fecha_devolucion_limite: asignacion.fecha_devolucion_limite || null,
+    fecha_llegada_puerto: asignacion.fecha_llegada_puerto,
     fecha_devolucion: asignacion.fecha_devolucion || null,
   });
 
@@ -390,13 +389,6 @@ const OperationContainerAssignments = () => {
       onClick: () => abrirEliminar(asignacionSeleccionadaTabla),
       disabled: !asignacionSeleccionadaTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarDatos,
-      disabled: false,
-    },
   ];
 
   const renderSelect = (label, field, state, setState, opciones, valueKey, labelBuilder, extraAction = null) => (
@@ -503,8 +495,8 @@ const OperationContainerAssignments = () => {
                 <th>Operacion</th>
                 <th>Contenedor</th>
                 <th>Tipo</th>
-                <th>Fecha Asignacion</th>
-                <th>Fecha Limite</th>
+                <th>Llegada a puerto</th>
+                <th>Fecha limite</th>
                 <th>Fecha Devolucion</th>
                 <th>Registro</th>
               </tr>
@@ -524,7 +516,7 @@ const OperationContainerAssignments = () => {
                     <td>{asignacion.codigo_operacion}</td>
                     <td>{asignacion.numero_contenedor}</td>
                     <td>{asignacion.tipo_contenedor || "-"}</td>
-                    <td>{formatearFecha(asignacion.fecha_asignacion)}</td>
+                    <td>{formatearFecha(asignacion.fecha_llegada_puerto)}</td>
                     <td>{formatearFecha(asignacion.fecha_devolucion_limite)}</td>
                     <td>{formatearFecha(asignacion.fecha_devolucion)}</td>
                     <td>{formatearFechaHora(asignacion.fecha_registro)}</td>
@@ -579,20 +571,21 @@ const OperationContainerAssignments = () => {
               )}
 
               <div className="mb-3">
-                <label className="form-label">Fecha de asignacion</label>
+                <label className="form-label">Fecha de llegada al puerto</label>
                 <input
                   type="date"
-                  className={`form-control ${errores.fecha_asignacion ? "is-invalid" : ""}`}
-                  value={nuevaAsignacion.fecha_asignacion}
+                  className={`form-control ${errores.fecha_llegada_puerto ? "is-invalid" : ""}`}
+                  value={nuevaAsignacion.fecha_llegada_puerto}
                   onChange={(e) =>
                     setNuevaAsignacion({
                       ...nuevaAsignacion,
-                      fecha_asignacion: e.target.value,
+                      fecha_llegada_puerto: e.target.value,
+                      fecha_devolucion_limite: calcularFechaLimite(e.target.value),
                     })
                   }
                 />
-                {errores.fecha_asignacion && (
-                  <div className="invalid-feedback">{errores.fecha_asignacion}</div>
+                {errores.fecha_llegada_puerto && (
+                  <div className="invalid-feedback">{errores.fecha_llegada_puerto}</div>
                 )}
               </div>
 
@@ -600,18 +593,11 @@ const OperationContainerAssignments = () => {
                 <label className="form-label">Fecha de devolucion limite</label>
                 <input
                   type="date"
-                  className={`form-control ${errores.fecha_devolucion_limite ? "is-invalid" : ""}`}
-                  value={nuevaAsignacion.fecha_devolucion_limite}
-                  onChange={(e) =>
-                    setNuevaAsignacion({
-                      ...nuevaAsignacion,
-                      fecha_devolucion_limite: e.target.value,
-                    })
-                  }
+                  className="form-control"
+                  value={calcularFechaLimite(nuevaAsignacion.fecha_llegada_puerto)}
+                  readOnly
+                  disabled
                 />
-                {errores.fecha_devolucion_limite && (
-                  <div className="invalid-feedback">{errores.fecha_devolucion_limite}</div>
-                )}
               </div>
 
               <div className="mb-3">
@@ -682,20 +668,21 @@ const OperationContainerAssignments = () => {
                   )}
 
                   <div className="mb-3">
-                    <label className="form-label">Fecha de asignacion</label>
+                    <label className="form-label">Fecha de llegada al puerto</label>
                     <input
                       type="date"
-                      className={`form-control ${errores.fecha_asignacion ? "is-invalid" : ""}`}
-                      value={asignacionSeleccionada.fecha_asignacion || ""}
+                      className={`form-control ${errores.fecha_llegada_puerto ? "is-invalid" : ""}`}
+                      value={asignacionSeleccionada.fecha_llegada_puerto || ""}
                       onChange={(e) =>
                         setAsignacionSeleccionada({
                           ...asignacionSeleccionada,
-                          fecha_asignacion: e.target.value,
+                          fecha_llegada_puerto: e.target.value,
+                          fecha_devolucion_limite: calcularFechaLimite(e.target.value),
                         })
                       }
                     />
-                    {errores.fecha_asignacion && (
-                      <div className="invalid-feedback">{errores.fecha_asignacion}</div>
+                    {errores.fecha_llegada_puerto && (
+                      <div className="invalid-feedback">{errores.fecha_llegada_puerto}</div>
                     )}
                   </div>
 
@@ -703,18 +690,11 @@ const OperationContainerAssignments = () => {
                     <label className="form-label">Fecha de devolucion limite</label>
                     <input
                       type="date"
-                      className={`form-control ${errores.fecha_devolucion_limite ? "is-invalid" : ""}`}
-                      value={asignacionSeleccionada.fecha_devolucion_limite || ""}
-                      onChange={(e) =>
-                        setAsignacionSeleccionada({
-                          ...asignacionSeleccionada,
-                          fecha_devolucion_limite: e.target.value,
-                        })
-                      }
+                      className="form-control"
+                      value={calcularFechaLimite(asignacionSeleccionada.fecha_llegada_puerto || "")}
+                      readOnly
+                      disabled
                     />
-                    {errores.fecha_devolucion_limite && (
-                      <div className="invalid-feedback">{errores.fecha_devolucion_limite}</div>
-                    )}
                   </div>
 
                   <div className="mb-3">

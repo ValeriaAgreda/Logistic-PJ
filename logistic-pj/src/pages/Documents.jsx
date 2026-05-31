@@ -231,7 +231,7 @@ const Documents = () => {
           {documentoSeleccionadoTabla ? <small className="text-muted">Seleccionado: <strong>{documentoSeleccionadoTabla.numero_documento}</strong></small> : <small className="text-muted">Selecciona un documento para Editar/Eliminar</small>}
         </div>
 
-        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" onClick={abrirNuevo} type="button">Nuevo</button><button className="btn btn-primary" onClick={() => abrirEditar(documentoSeleccionadoTabla)} disabled={!documentoSeleccionadoTabla} type="button">Editar</button><button className="btn btn-danger" onClick={() => abrirEliminar(documentoSeleccionadoTabla)} disabled={!documentoSeleccionadoTabla} type="button">Eliminar</button><button className="btn btn-outline-light" onClick={cargarDatos} type="button">Refrescar</button></div></div>
+        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" onClick={abrirNuevo} type="button">Nuevo</button><button className="btn btn-primary" onClick={() => abrirEditar(documentoSeleccionadoTabla)} disabled={!documentoSeleccionadoTabla} type="button">Editar</button><button className="btn btn-danger" onClick={() => abrirEliminar(documentoSeleccionadoTabla)} disabled={!documentoSeleccionadoTabla} type="button">Eliminar</button></div></div>
 
         <div className="ui-card mb-3"><div className="row g-2 align-items-end"><div className="col-12 col-md-9"><label className="form-label">Buscar</label><input className="form-control" placeholder="Tipo, operacion, numero, ruta o descripcion..." value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="col-12 col-md-3 d-flex gap-2"><button className="btn btn-secondary w-100" type="button" onClick={() => setSearch("")}>Limpiar</button></div></div></div>
 
@@ -246,4 +246,3 @@ const Documents = () => {
 };
 
 export default Documents;
-

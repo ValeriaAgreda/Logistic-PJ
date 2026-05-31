@@ -215,13 +215,6 @@ const TipoServicio = () => {
       onClick: () => abrirEliminar(tipoSeleccionadoTabla),
       disabled: !tipoSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarTiposServicio,
-      disabled: false,
-    },
   ];
 
   return (

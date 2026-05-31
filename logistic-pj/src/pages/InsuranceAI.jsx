@@ -129,14 +129,6 @@ const InsuranceAI = () => {
             Selecciona una operacion con contenedores asignados para generar la recomendacion.
           </small>
         </div>
-        <button
-          className="btn btn-outline-secondary"
-          type="button"
-          onClick={cargarDatos}
-          disabled={loadingData}
-        >
-          Refrescar
-        </button>
       </div>
 
       {error ? <div className="alert alert-danger">{error}</div> : null}

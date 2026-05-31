@@ -223,13 +223,6 @@ const CostType = () => {
       onClick: () => abrirEliminar(tipoSeleccionadoTabla),
       disabled: !tipoSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarTiposCosto,
-      disabled: false,
-    },
   ];
 
   return (

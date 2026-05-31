@@ -212,13 +212,6 @@ const DocumentType = () => {
       onClick: () => abrirEliminar(tipoSeleccionadoTabla),
       disabled: !tipoSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarTiposDocumento,
-      disabled: false,
-    },
   ];
 
   return (

@@ -299,13 +299,6 @@ const Users = () => {
       onClick: () => abrirEliminar(usuarioSeleccionadoTabla),
       disabled: !usuarioSeleccionadoTabla,
     },
-    {
-      id: "refresh",
-      label: "Refrescar",
-      className: "btn btn-outline-light",
-      onClick: cargarUsuarios,
-      disabled: false,
-    },
   ];
 
   return (
