@@ -35,15 +35,38 @@ const normalizarTexto = (valor) => {
 };
 
 const DIRECTORIO_DOCUMENTOS = path.join(__dirname, "..", "uploads", "documentos");
+const EXTENSIONES_DOCUMENTO_PERMITIDAS = new Set([
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".pdf",
+  ".jpg",
+  ".jpeg",
+  ".png",
+]);
+const MENSAJE_ARCHIVO_INVALIDO = "Solo se permiten archivos Word, Excel, PDF o imagenes.";
 
 const sanitizarNombreArchivo = (nombre) =>
   String(nombre || "documento")
     .replace(/[^\w.\-]+/g, "_")
     .replace(/_+/g, "_");
 
+const obtenerExtensionArchivo = (nombre) => {
+  const limpio = String(nombre || "").toLowerCase().split("?")[0].split("#")[0];
+  return path.extname(limpio);
+};
+
+const esArchivoPermitido = (nombre) =>
+  EXTENSIONES_DOCUMENTO_PERMITIDAS.has(obtenerExtensionArchivo(nombre));
+
 const guardarArchivoDocumento = async (archivoNombre, archivoBase64) => {
   if (!archivoNombre || !archivoBase64) {
     return null;
+  }
+
+  if (!esArchivoPermitido(archivoNombre)) {
+    throw new Error(MENSAJE_ARCHIVO_INVALIDO);
   }
 
   await fs.mkdir(DIRECTORIO_DOCUMENTOS, { recursive: true });
@@ -80,6 +103,14 @@ const validarDocumento = (body) => {
 
   if (!normalizarTexto(body.ruta_documento) && !normalizarTexto(body.archivo_base64)) {
     errores.push("La ruta del documento es obligatoria.");
+  }
+
+  if (normalizarTexto(body.archivo_base64) && !esArchivoPermitido(body.archivo_nombre)) {
+    errores.push(MENSAJE_ARCHIVO_INVALIDO);
+  }
+
+  if (!normalizarTexto(body.archivo_base64) && normalizarTexto(body.ruta_documento) && !esArchivoPermitido(body.ruta_documento)) {
+    errores.push(MENSAJE_ARCHIVO_INVALIDO);
   }
 
   if (!normalizarTexto(body.descripcion)) {
