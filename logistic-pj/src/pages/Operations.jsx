@@ -54,6 +54,19 @@ const calcularFechaLimite = (fechaLlegadaPuerto) => {
   fecha.setDate(fecha.getDate() + 21);
   return fecha.toISOString().slice(0, 10);
 };
+const calcularDiasDemora = (fechaDevolucion, fechaLimite) => {
+  if (!fechaDevolucion || !fechaLimite) return null;
+  const devolucion = new Date(`${fechaDevolucion}T00:00:00`);
+  const limite = new Date(`${fechaLimite}T00:00:00`);
+  if (Number.isNaN(devolucion.getTime()) || Number.isNaN(limite.getTime())) return null;
+  const diferencia = Math.ceil((devolucion - limite) / (1000 * 60 * 60 * 24));
+  return Math.max(0, diferencia);
+};
+const mensajeDemora = (fechaDevolucion, fechaLimite) => {
+  const diasDemora = calcularDiasDemora(fechaDevolucion, fechaLimite);
+  if (diasDemora === null) return "";
+  return diasDemora > 0 ? `Con demora: ${diasDemora} dia(s).` : "Sin demora.";
+};
 const toDateInputValue = (value) => {
   if (!value) return "";
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
@@ -589,6 +602,17 @@ const Operations = () => {
           <label className="form-label">Fecha de devolucion</label>
           <input type="date" className={`form-control ${assignmentErrors.fecha_devolucion ? "is-invalid" : ""}`} value={assignmentForm.fecha_devolucion} onChange={(e) => setAssignmentForm({ ...assignmentForm, fecha_devolucion: e.target.value })} />
           {assignmentErrors.fecha_devolucion ? <div className="invalid-feedback">{assignmentErrors.fecha_devolucion}</div> : null}
+          {mensajeDemora(
+            assignmentForm.fecha_devolucion,
+            calcularFechaLimite(assignmentForm.fecha_llegada_puerto)
+          ) ? (
+            <small className="text-muted">
+              {mensajeDemora(
+                assignmentForm.fecha_devolucion,
+                calcularFechaLimite(assignmentForm.fecha_llegada_puerto)
+              )}
+            </small>
+          ) : null}
         </div>
       </div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveAssignment}>Guardar asignacion</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>

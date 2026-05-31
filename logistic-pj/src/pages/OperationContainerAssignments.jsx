@@ -47,6 +47,21 @@ const calcularFechaLimite = (fechaLlegadaPuerto) => {
   return fecha.toISOString().slice(0, 10);
 };
 
+const calcularDiasDemora = (fechaDevolucion, fechaLimite) => {
+  if (!fechaDevolucion || !fechaLimite) return null;
+  const devolucion = new Date(`${fechaDevolucion}T00:00:00`);
+  const limite = new Date(`${fechaLimite}T00:00:00`);
+  if (Number.isNaN(devolucion.getTime()) || Number.isNaN(limite.getTime())) return null;
+  const diferencia = Math.ceil((devolucion - limite) / (1000 * 60 * 60 * 24));
+  return Math.max(0, diferencia);
+};
+
+const mensajeDemora = (fechaDevolucion, fechaLimite) => {
+  const diasDemora = calcularDiasDemora(fechaDevolucion, fechaLimite);
+  if (diasDemora === null) return "";
+  return diasDemora > 0 ? `Con demora: ${diasDemora} dia(s).` : "Sin demora.";
+};
+
 const permiteAsignarContenedor = (operacion) => {
   const tipoServicio = String(operacion?.tipo_servicio || "").trim().toLowerCase();
   return tipoServicio === "maritimo" || tipoServicio === "terrestre";
@@ -616,6 +631,17 @@ const OperationContainerAssignments = () => {
                 {errores.fecha_devolucion && (
                   <div className="invalid-feedback">{errores.fecha_devolucion}</div>
                 )}
+                {mensajeDemora(
+                  nuevaAsignacion.fecha_devolucion,
+                  calcularFechaLimite(nuevaAsignacion.fecha_llegada_puerto)
+                ) ? (
+                  <small className="text-muted">
+                    {mensajeDemora(
+                      nuevaAsignacion.fecha_devolucion,
+                      calcularFechaLimite(nuevaAsignacion.fecha_llegada_puerto)
+                    )}
+                  </small>
+                ) : null}
               </div>
             </div>
             <div className="modal-footer">
@@ -713,6 +739,17 @@ const OperationContainerAssignments = () => {
                     {errores.fecha_devolucion && (
                       <div className="invalid-feedback">{errores.fecha_devolucion}</div>
                     )}
+                    {mensajeDemora(
+                      asignacionSeleccionada.fecha_devolucion,
+                      calcularFechaLimite(asignacionSeleccionada.fecha_llegada_puerto || "")
+                    ) ? (
+                      <small className="text-muted">
+                        {mensajeDemora(
+                          asignacionSeleccionada.fecha_devolucion,
+                          calcularFechaLimite(asignacionSeleccionada.fecha_llegada_puerto || "")
+                        )}
+                      </small>
+                    ) : null}
                   </div>
                 </>
               )}
