@@ -42,13 +42,21 @@ const parse = async (res) => {
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString("es-BO") : "-");
 const fmtDateTime = (v) => (v ? new Date(v).toLocaleString("es-BO") : "-");
 const text = (value) => String(value ?? "").trim();
-const permiteAsignarContenedor = (operacion, servicios = []) => {
+const permiteAsignarContenedor = (operacion, servicios = [], estados = []) => {
   const descripcion =
     servicios.find((servicio) => String(servicio.id_tipo_servicio) === String(operacion?.id_tipo_servicio))?.descripcion ||
     operacion?.tipo_servicio ||
     "";
   const tipo = String(descripcion).trim().toLowerCase();
-  return tipo === "maritimo" || tipo === "terrestre" || tipo === "bimodal";
+  const estadoOperacion = String(
+    estados.find((estado) => String(estado.id_estado_operacion) === String(operacion?.id_estado_operacion))?.descripcion ||
+    operacion?.estado_operacion ||
+    ""
+  ).trim().toLowerCase();
+  const esLcl = Number(operacion?.lcl) === 1 || operacion?.lcl === true;
+  return !esLcl &&
+    estadoOperacion !== "cerrado" &&
+    (tipo === "maritimo" || tipo === "terrestre" || tipo === "bimodal");
 };
 const obtenerTipoServicioOperacion = (operacion, servicios = []) => {
   const descripcion =
@@ -338,8 +346,8 @@ const Operations = () => {
     if (!v.id_operacion && assignmentContext !== "new" && assignmentContext !== "edit-pending") {
       e.id_operacion = "Selecciona una operacion.";
     }
-    if (!permiteAsignarContenedor(operacion, services)) {
-      e.id_operacion = "Solo se puede asignar contenedor a operaciones Maritimo o Terrestre.";
+    if (!permiteAsignarContenedor(operacion, services, statuses)) {
+      e.id_operacion = "Solo se puede asignar contenedor a operaciones no LCL, no cerradas, con servicio Maritimo, Terrestre o Bimodal.";
     }
     if (!v.fecha_llegada_puerto) e.fecha_llegada_puerto = "Fecha de llegada al puerto obligatoria.";
     if (v.fecha_devolucion && v.fecha_devolucion < v.fecha_llegada_puerto) {
@@ -521,13 +529,21 @@ const Operations = () => {
     modal("addSaleFromOperationModal");
   };
   const openAssignContainer = (state) => {
-    if (!permiteAsignarContenedor(state, services)) return;
+    if (!permiteAsignarContenedor(state, services, statuses)) return;
     const esOperacionNueva = !state?.id_operacion;
     const operacionGuardada = rows.find((row) => String(row.id_operacion) === String(state.id_operacion));
     const cambioServicioPendiente =
       state?.id_operacion &&
       String(state.id_tipo_servicio || "") !== String(operacionGuardada?.id_tipo_servicio || "");
-    const context = esOperacionNueva ? "new" : cambioServicioPendiente ? "edit-pending" : "existing";
+    const cambioEstadoPendiente =
+      state?.id_operacion &&
+      String(state.id_estado_operacion || "") !== String(operacionGuardada?.id_estado_operacion || "");
+    const cambioLclPendiente =
+      state?.id_operacion &&
+      (Number(state.lcl) === 1 || state.lcl === true) !== (Number(operacionGuardada?.lcl) === 1);
+    const context = esOperacionNueva || cambioServicioPendiente || cambioEstadoPendiente || cambioLclPendiente
+      ? (esOperacionNueva ? "new" : "edit-pending")
+      : "existing";
     setAssignmentContext(context);
     setAssignmentMode("create");
     setAssignmentForm({
@@ -733,7 +749,7 @@ const Operations = () => {
     const debeAsignarContenedores =
       pendingContainerAssignments.length > 0 &&
       !(Number(form.lcl) === 1 || form.lcl === true) &&
-      permiteAsignarContenedor(form, services);
+      permiteAsignarContenedor(form, services, statuses);
 
     try {
       const operacionCreada = await request(`${API}/operaciones`, {
@@ -798,13 +814,17 @@ const Operations = () => {
   const saveEdit = async () => {
     const e = validateOp(editForm || opInit);
     if (Object.keys(e).length) return setErrors(e);
+    const debeConservarContenedores =
+      !(Number(editForm.lcl) === 1 || editForm.lcl === true) &&
+      permiteAsignarContenedor(editForm, services, statuses);
+
     try {
       await request(`${API}/operaciones/${editForm.id_operacion}`, {
         method: "PUT",
         body: JSON.stringify(payload(editForm)),
       });
 
-      if (pendingContainerAssignments.length > 0) {
+      if (debeConservarContenedores && pendingContainerAssignments.length > 0) {
         await Promise.all(
           pendingContainerAssignments.map((assignment) =>
             request(`${API}/operacion-contenedor`, {
@@ -1288,7 +1308,7 @@ const Operations = () => {
     const costsInfo = costsByOperation(operation.id_operacion);
     const salesInfo = salesByOperation(operation.id_operacion);
     const isLcl = Number(operation.lcl) === 1;
-    const showContainersInfo = !isLcl && permiteAsignarContenedor(operation, services);
+    const showContainersInfo = !isLcl && permiteAsignarContenedor(operation, services, statuses);
 
     return (
       <div>
@@ -1458,7 +1478,7 @@ const Operations = () => {
           selectField(state, setter, "id_estado_operacion", "Estado de operacion", statuses, "id_estado_operacion", "descripcion", "status")
         )}
       </div>
-      {!(Number(state.lcl) === 1 || state.lcl === true) && permiteAsignarContenedor(state, services) ? (
+      {!(Number(state.lcl) === 1 || state.lcl === true) && permiteAsignarContenedor(state, services, statuses) ? (
         <div className="col-12">
           <button
             type="button"
@@ -1480,7 +1500,7 @@ const Operations = () => {
           )}
         </div>
       ) : null}
-      {!(Number(state.lcl) === 1 || state.lcl === true) && !permiteAsignarContenedor(state, services) ? (
+      {!(Number(state.lcl) === 1 || state.lcl === true) && !permiteAsignarContenedor(state, services, statuses) ? (
         <div className="col-12">
           <small className="text-muted">La asignacion de contenedores solo aplica para servicios Maritimo o Terrestre.</small>
         </div>
@@ -1506,6 +1526,7 @@ const Operations = () => {
       <div className="modal fade" id="editOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Editar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{editForm ? opForm(editForm, setEditForm) : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-primary" onClick={saveEdit}>Guardar cambios</button></div></div></div></div>
       <div className="modal fade" id="operationInfoModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Informacion de operacion {selected?.codigo_operacion || ""}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{operationInfoSection(selected)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>
       <div className="modal fade" id="assignContainerModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Asignar contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">
+        {assignmentErrors.id_operacion ? <div className="alert alert-warning py-2">{assignmentErrors.id_operacion}</div> : null}
         <div className="mb-3">
           <label className="form-label">Contenedor</label>
           <div className="d-flex gap-2 align-items-start">

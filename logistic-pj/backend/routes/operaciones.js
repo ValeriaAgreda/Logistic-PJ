@@ -196,6 +196,56 @@ const obtenerEstadoAsignado = async () => {
   return rows[0]?.id_estado_operacion || null;
 };
 
+const tipoServicioPermiteContenedor = async (connection, idTipoServicio) => {
+  const [rows] = await connection.query(
+    `SELECT descripcion
+     FROM tipo_servicio
+     WHERE id_tipo_servicio = ?
+       AND estado = 1
+     LIMIT 1`,
+    [Number(idTipoServicio)]
+  );
+
+  const tipoServicio = String(rows[0]?.descripcion || "").trim().toLowerCase();
+  return tipoServicio === "maritimo" || tipoServicio === "terrestre" || tipoServicio === "bimodal";
+};
+
+const estadoOperacionCerrado = async (connection, idEstadoOperacion) => {
+  const [rows] = await connection.query(
+    `SELECT descripcion
+     FROM estado_operacion
+     WHERE id_estado_operacion = ?
+       AND estado = 1
+     LIMIT 1`,
+    [Number(idEstadoOperacion)]
+  );
+
+  return String(rows[0]?.descripcion || "").trim().toLowerCase() === "cerrado";
+};
+
+const contenedoresEnOtraOperacionNoCerrada = async (connection, idOperacion) => {
+  const [rows] = await connection.query(
+    `SELECT c.numero_contenedor,
+            o.codigo_operacion
+     FROM operacion_contenedor actual
+     INNER JOIN operacion_contenedor otra
+       ON otra.id_contenedor = actual.id_contenedor
+      AND otra.id_operacion <> actual.id_operacion
+     INNER JOIN operacion o ON o.id_operacion = otra.id_operacion
+     INNER JOIN estado_operacion eo ON eo.id_estado_operacion = o.id_estado_operacion
+     INNER JOIN contenedor c ON c.id_contenedor = actual.id_contenedor
+     WHERE actual.id_operacion = ?
+       AND actual.estado = 1
+       AND otra.estado = 1
+       AND o.estado = 1
+       AND LOWER(eo.descripcion) <> 'cerrado'
+     LIMIT 1`,
+    [Number(idOperacion)]
+  );
+
+  return rows[0] || null;
+};
+
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
@@ -486,6 +536,31 @@ router.put("/:id_operacion", async (req, res) => {
       req.body.origen,
       req.body.destino
     );
+
+    const esLcl = Number(req.body.lcl) === 1 || req.body.lcl === true;
+    const permiteContenedor = await tipoServicioPermiteContenedor(connection, req.body.id_tipo_servicio);
+    const estaCerrado = await estadoOperacionCerrado(connection, req.body.id_estado_operacion);
+
+    if (esLcl || !permiteContenedor || estaCerrado) {
+      await connection.query(
+        `UPDATE operacion_contenedor
+         SET estado = 0
+         WHERE id_operacion = ?
+           AND estado = 1`,
+        [Number(id_operacion)]
+      );
+    }
+
+    if (!esLcl && permiteContenedor && !estaCerrado) {
+      const contenedorOcupado = await contenedoresEnOtraOperacionNoCerrada(connection, id_operacion);
+
+      if (contenedorOcupado) {
+        await connection.rollback();
+        return res.status(400).json({
+          error: `El contenedor ${contenedorOcupado.numero_contenedor} ya esta asignado a la operacion ${contenedorOcupado.codigo_operacion}.`,
+        });
+      }
+    }
 
     await connection.commit();
 

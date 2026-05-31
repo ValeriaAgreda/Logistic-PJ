@@ -65,7 +65,11 @@ const mensajeDemora = (fechaDevolucion, fechaLimite) => {
 
 const permiteAsignarContenedor = (operacion) => {
   const tipoServicio = String(operacion?.tipo_servicio || "").trim().toLowerCase();
-  return tipoServicio === "maritimo" || tipoServicio === "terrestre" || tipoServicio === "bimodal";
+  const estadoOperacion = String(operacion?.estado_operacion || "").trim().toLowerCase();
+  const esLcl = Number(operacion?.lcl) === 1;
+  return !esLcl &&
+    estadoOperacion !== "cerrado" &&
+    (tipoServicio === "maritimo" || tipoServicio === "terrestre" || tipoServicio === "bimodal");
 };
 
 const operacionCerrada = (asignacion) =>
@@ -121,7 +125,7 @@ const OperationContainerAssignments = () => {
     if (!asignacion.id_operacion) {
       e.id_operacion = "Selecciona una operacion.";
     } else if (!permiteAsignarContenedor(operacionSeleccionada)) {
-      e.id_operacion = "Solo se puede asignar contenedor a operaciones Maritimo o Terrestre.";
+      e.id_operacion = "Solo se puede asignar contenedor a operaciones no LCL, no cerradas, con servicio Maritimo, Terrestre o Bimodal.";
     }
 
     if (!asignacion.fecha_llegada_puerto) {

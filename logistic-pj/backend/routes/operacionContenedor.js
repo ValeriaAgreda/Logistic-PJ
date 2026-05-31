@@ -74,9 +74,12 @@ const validarRelacionActiva = async (tabla, idCampo, valor) => {
 
 const validarOperacionPermiteContenedor = async (idOperacion) => {
   const [rows] = await db.query(
-    `SELECT ts.descripcion AS tipo_servicio
+    `SELECT ts.descripcion AS tipo_servicio,
+            eo.descripcion AS estado_operacion,
+            o.lcl
      FROM operacion o
      INNER JOIN tipo_servicio ts ON ts.id_tipo_servicio = o.id_tipo_servicio
+     INNER JOIN estado_operacion eo ON eo.id_estado_operacion = o.id_estado_operacion
      WHERE o.id_operacion = ?
        AND o.estado = 1
      LIMIT 1`,
@@ -84,7 +87,11 @@ const validarOperacionPermiteContenedor = async (idOperacion) => {
   );
 
   const tipoServicio = String(rows[0]?.tipo_servicio || "").trim().toLowerCase();
-  return tipoServicio === "maritimo" || tipoServicio === "terrestre" || tipoServicio === "bimodal";
+  const estadoOperacion = String(rows[0]?.estado_operacion || "").trim().toLowerCase();
+  const esLcl = Number(rows[0]?.lcl) === 1;
+  return !esLcl &&
+    estadoOperacion !== "cerrado" &&
+    (tipoServicio === "maritimo" || tipoServicio === "terrestre" || tipoServicio === "bimodal");
 };
 
 const validarContenedorDisponible = async (idContenedor, idAsignacionExcluir = null) => {
@@ -179,7 +186,7 @@ router.post("/", async (req, res) => {
 
     if (!(await validarOperacionPermiteContenedor(req.body.id_operacion))) {
       return res.status(400).json({
-        error: "Solo se puede asignar contenedor a operaciones con servicio Maritimo o Terrestre.",
+        error: "Solo se puede asignar contenedor a operaciones no LCL, no cerradas, con servicio Maritimo, Terrestre o Bimodal.",
       });
     }
 
@@ -248,7 +255,7 @@ router.put("/:id_asignacion", async (req, res) => {
 
     if (!(await validarOperacionPermiteContenedor(req.body.id_operacion))) {
       return res.status(400).json({
-        error: "Solo se puede asignar contenedor a operaciones con servicio Maritimo o Terrestre.",
+        error: "Solo se puede asignar contenedor a operaciones no LCL, no cerradas, con servicio Maritimo, Terrestre o Bimodal.",
       });
     }
 
