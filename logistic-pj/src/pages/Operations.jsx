@@ -42,16 +42,16 @@ const fmtDateTime = (v) => (v ? new Date(v).toLocaleString("es-BO") : "-");
 const text = (value) => String(value ?? "").trim();
 const permiteAsignarContenedor = (operacion, servicios = []) => {
   const descripcion =
-    operacion?.tipo_servicio ||
     servicios.find((servicio) => String(servicio.id_tipo_servicio) === String(operacion?.id_tipo_servicio))?.descripcion ||
+    operacion?.tipo_servicio ||
     "";
   const tipo = String(descripcion).trim().toLowerCase();
-  return tipo === "maritimo" || tipo === "terrestre";
+  return tipo === "maritimo" || tipo === "terrestre" || tipo === "bimodal";
 };
 const obtenerTipoServicioOperacion = (operacion, servicios = []) => {
   const descripcion =
-    operacion?.tipo_servicio ||
     servicios.find((servicio) => String(servicio.id_tipo_servicio) === String(operacion?.id_tipo_servicio))?.descripcion ||
+    operacion?.tipo_servicio ||
     "";
   return String(descripcion).trim().toLowerCase();
 };
@@ -185,6 +185,9 @@ const Operations = () => {
   const [nextCode, setNextCode] = useState("");
   const [assignmentForm, setAssignmentForm] = useState(asignacionInit);
   const [assignmentErrors, setAssignmentErrors] = useState({});
+  const [assignmentContext, setAssignmentContext] = useState("existing");
+  const [assignmentMode, setAssignmentMode] = useState("create");
+  const [pendingContainerAssignments, setPendingContainerAssignments] = useState([]);
   const [costForm, setCostForm] = useState(movimientoInit);
   const [saleForm, setSaleForm] = useState(movimientoInit);
   const [costErrors, setCostErrors] = useState({});
@@ -286,8 +289,18 @@ const Operations = () => {
   };
   const validateAssignment = (v) => {
     const e = {};
-    const operacion = rows.find((row) => String(row.id_operacion) === String(v.id_operacion));
+    const operacion =
+      assignmentContext === "new"
+        ? form
+        : assignmentContext === "edit-pending"
+          ? editForm
+          : v.id_operacion
+            ? rows.find((row) => String(row.id_operacion) === String(v.id_operacion))
+            : null;
     if (!v.id_contenedor) e.id_contenedor = "Selecciona un contenedor.";
+    if (!v.id_operacion && assignmentContext !== "new" && assignmentContext !== "edit-pending") {
+      e.id_operacion = "Selecciona una operacion.";
+    }
     if (!permiteAsignarContenedor(operacion, services)) {
       e.id_operacion = "Solo se puede asignar contenedor a operaciones Maritimo o Terrestre.";
     }
@@ -341,13 +354,16 @@ const Operations = () => {
     () =>
       containers.filter(
         (container) =>
+          !pendingContainerAssignments.some(
+            (assignment) => String(assignment.id_contenedor) === String(container.id_contenedor)
+          ) &&
           !containerAssignments.some(
             (assignment) =>
               String(assignment.id_contenedor) === String(container.id_contenedor) &&
               !operacionCerrada(assignment)
           )
       ),
-    [containerAssignments, containers]
+    [containerAssignments, containers, pendingContainerAssignments]
   );
   const filtered = useMemo(() => rows.filter((r) => [r.codigo_operacion, r.cliente, r.proveedor, r.tipo_servicio, r.porducto, r.origen, r.destino, r.cantidad, r.observacion, r.estado_operacion].some((x) => String(x || "").toLowerCase().includes(search.trim().toLowerCase()))), [rows, search]);
 
@@ -358,6 +374,9 @@ const Operations = () => {
   const openNew = () => {
     setEditForm(null);
     setForm(opInit);
+    setAssignmentForm(asignacionInit);
+    setAssignmentContext("new");
+    setPendingContainerAssignments([]);
     setErrors({});
     const codigoEstimado = calcularSiguienteCodigo(rows);
     setNextCode(codigoEstimado);
@@ -370,6 +389,11 @@ const Operations = () => {
   const openEdit = (row) => {
     if (!row) return;
     setEditForm(normalizeOperationForm(row));
+    setAssignmentContext("existing");
+    setAssignmentMode("create");
+    setAssignmentForm(asignacionInit);
+    setAssignmentErrors({});
+    setPendingContainerAssignments([]);
     setErrors({});
     modal("editOperationModal");
   };
@@ -387,13 +411,42 @@ const Operations = () => {
     modal("addSaleFromOperationModal");
   };
   const openAssignContainer = (state) => {
-    if (!state?.id_operacion) return;
     if (!permiteAsignarContenedor(state, services)) return;
+    const esOperacionNueva = !state?.id_operacion;
+    const operacionGuardada = rows.find((row) => String(row.id_operacion) === String(state.id_operacion));
+    const cambioServicioPendiente =
+      state?.id_operacion &&
+      String(state.id_tipo_servicio || "") !== String(operacionGuardada?.id_tipo_servicio || "");
+    const context = esOperacionNueva ? "new" : cambioServicioPendiente ? "edit-pending" : "existing";
+    setAssignmentContext(context);
+    setAssignmentMode("create");
     setAssignmentForm({
       ...asignacionInit,
-      id_operacion: String(state.id_operacion),
-      fecha_llegada_puerto: state.fecha_asignacion || "",
-      fecha_devolucion_limite: calcularFechaLimite(state.fecha_asignacion || ""),
+      id_operacion: state.id_operacion ? String(state.id_operacion) : "",
+      fecha_llegada_puerto: "",
+      fecha_devolucion_limite: "",
+    });
+    setAssignmentErrors({});
+    modal("assignContainerModal");
+  };
+  const editPendingContainerAssignment = (assignment) => {
+    setAssignmentContext("new");
+    setAssignmentMode("edit-pending");
+    setAssignmentForm({ ...assignment });
+    setAssignmentErrors({});
+    modal("assignContainerModal");
+  };
+  const editExistingContainerAssignment = (assignment) => {
+    setAssignmentContext("existing");
+    setAssignmentMode("edit-existing");
+    setAssignmentForm({
+      ...asignacionInit,
+      ...assignment,
+      id_contenedor: String(assignment.id_contenedor ?? ""),
+      id_operacion: String(assignment.id_operacion ?? ""),
+      fecha_llegada_puerto: assignment.fecha_llegada_puerto || "",
+      fecha_devolucion_limite: assignment.fecha_devolucion_limite || "",
+      fecha_devolucion: assignment.fecha_devolucion || "",
     });
     setAssignmentErrors({});
     modal("assignContainerModal");
@@ -401,6 +454,64 @@ const Operations = () => {
   const saveAssignment = async () => {
     const e = validateAssignment(assignmentForm);
     if (Object.keys(e).length) return setAssignmentErrors(e);
+
+    if (assignmentContext === "new" || assignmentContext === "edit-pending") {
+      const container = containers.find((item) => String(item.id_contenedor) === String(assignmentForm.id_contenedor));
+      if (assignmentMode === "edit-pending") {
+        setPendingContainerAssignments((actuales) =>
+          actuales.map((assignment) =>
+            assignment.tempId === assignmentForm.tempId
+              ? {
+                  ...assignmentForm,
+                  numero_contenedor: container?.numero_contenedor || "",
+                  tipo_contenedor: container?.tipo_contenedor || "",
+                  naviera: container?.naviera || "",
+                  peso_bruto: container?.peso_bruto ?? "",
+                }
+              : assignment
+          )
+        );
+      } else {
+        setPendingContainerAssignments((actuales) => [
+          ...actuales,
+          {
+            ...assignmentForm,
+            tempId: `${assignmentForm.id_contenedor}-${Date.now()}`,
+            numero_contenedor: container?.numero_contenedor || "",
+            tipo_contenedor: container?.tipo_contenedor || "",
+            naviera: container?.naviera || "",
+            peso_bruto: container?.peso_bruto ?? "",
+          },
+        ]);
+      }
+      hideModal("assignContainerModal");
+      setAssignmentForm(asignacionInit);
+      setAssignmentMode("create");
+      setAssignmentErrors({});
+      return;
+    }
+
+    if (assignmentMode === "edit-existing") {
+      try {
+        await request(`${API}/operacion-contenedor/${assignmentForm.id_asignacion}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            id_contenedor: Number(assignmentForm.id_contenedor),
+            id_operacion: Number(assignmentForm.id_operacion),
+            fecha_llegada_puerto: assignmentForm.fecha_llegada_puerto,
+            fecha_devolucion: assignmentForm.fecha_devolucion || null,
+          }),
+        });
+        await loadAll();
+        hideModal("assignContainerModal");
+        setAssignmentForm(asignacionInit);
+        setAssignmentMode("create");
+        setAssignmentErrors({});
+      } catch (error) {
+        alert(error.message || "Error al actualizar asignacion");
+      }
+      return;
+    }
 
     try {
       await request(`${API}/operacion-contenedor`, {
@@ -412,8 +523,10 @@ const Operations = () => {
           fecha_devolucion: assignmentForm.fecha_devolucion || null,
         }),
       });
+      await loadAll();
       hideModal("assignContainerModal");
       setAssignmentForm(asignacionInit);
+      setAssignmentMode("create");
       setAssignmentErrors({});
     } catch (error) {
       alert(error.message || "Error al asignar contenedor");
@@ -455,12 +568,70 @@ const Operations = () => {
   const saveNew = async () => {
     const e = validateOp({ ...form, omitir_validacion_estado: true });
     if (Object.keys(e).length) return setErrors(e);
-    try { await request(`${API}/operaciones`, { method: "POST", body: JSON.stringify(payload(form)) }); await loadAll(); hideModal("addOperationModal"); } catch (error) { alert(error.message); }
+    const debeAsignarContenedores =
+      pendingContainerAssignments.length > 0 &&
+      !(Number(form.lcl) === 1 || form.lcl === true) &&
+      permiteAsignarContenedor(form, services);
+
+    try {
+      const operacionCreada = await request(`${API}/operaciones`, {
+        method: "POST",
+        body: JSON.stringify(payload(form)),
+      });
+
+      if (debeAsignarContenedores) {
+        await Promise.all(
+          pendingContainerAssignments.map((assignment) =>
+            request(`${API}/operacion-contenedor`, {
+              method: "POST",
+              body: JSON.stringify({
+                id_contenedor: Number(assignment.id_contenedor),
+                id_operacion: Number(operacionCreada.id_operacion),
+                fecha_llegada_puerto: assignment.fecha_llegada_puerto,
+                fecha_devolucion: assignment.fecha_devolucion || null,
+              }),
+            })
+          )
+        );
+      }
+
+      await loadAll();
+      hideModal("addOperationModal");
+      setForm(opInit);
+      setAssignmentForm(asignacionInit);
+      setPendingContainerAssignments([]);
+      setAssignmentErrors({});
+    } catch (error) { alert(error.message); }
   };
   const saveEdit = async () => {
     const e = validateOp(editForm || opInit);
     if (Object.keys(e).length) return setErrors(e);
-    try { await request(`${API}/operaciones/${editForm.id_operacion}`, { method: "PUT", body: JSON.stringify(payload(editForm)) }); await loadAll(); hideModal("editOperationModal"); } catch (error) { alert(error.message); }
+    try {
+      await request(`${API}/operaciones/${editForm.id_operacion}`, {
+        method: "PUT",
+        body: JSON.stringify(payload(editForm)),
+      });
+
+      if (pendingContainerAssignments.length > 0) {
+        await Promise.all(
+          pendingContainerAssignments.map((assignment) =>
+            request(`${API}/operacion-contenedor`, {
+              method: "POST",
+              body: JSON.stringify({
+                id_contenedor: Number(assignment.id_contenedor),
+                id_operacion: Number(editForm.id_operacion),
+                fecha_llegada_puerto: assignment.fecha_llegada_puerto,
+                fecha_devolucion: assignment.fecha_devolucion || null,
+              }),
+            })
+          )
+        );
+      }
+
+      await loadAll();
+      hideModal("editOperationModal");
+      setPendingContainerAssignments([]);
+    } catch (error) { alert(error.message); }
   };
   const remove = async () => {
     try { await request(`${API}/operaciones/${toDelete.id_operacion}`, { method: "DELETE" }); await loadAll(); hideModal("deleteOperationModal"); setSelectedId(null); } catch (error) { alert(error.message); }
@@ -597,6 +768,127 @@ const Operations = () => {
       </>
     );
   };
+  const removePendingContainerAssignment = (tempId) => {
+    setPendingContainerAssignments((actuales) =>
+      actuales.filter((assignment) => assignment.tempId !== tempId)
+    );
+  };
+  const operationContainerAssignments = (idOperacion) =>
+    containerAssignments.filter(
+      (assignment) => String(assignment.id_operacion) === String(idOperacion)
+    );
+  const deleteOperationContainerAssignment = async (idAsignacion) => {
+    try {
+      await request(`${API}/operacion-contenedor/${idAsignacion}`, { method: "DELETE" });
+      await loadAll();
+    } catch (error) {
+      alert(error.message || "Error al eliminar asignacion");
+    }
+  };
+  const pendingContainerAssignmentsTable = () => {
+    if (pendingContainerAssignments.length === 0) return null;
+
+    return (
+      <div className="table-responsive mt-3">
+        <table className="table table-sm table-bordered align-middle m-0">
+          <thead className="table-light">
+            <tr>
+              <th style={{ width: 48 }} className="text-center">#</th>
+              <th>Contenedor</th>
+              <th>Tipo</th>
+              <th>Naviera</th>
+              <th>Llegada puerto</th>
+              <th>Devolucion limite</th>
+              <th>Devolucion</th>
+              <th style={{ width: 150 }} className="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pendingContainerAssignments.map((assignment, index) => (
+              <tr key={assignment.tempId}>
+                <td className="text-center">{index + 1}</td>
+                <td>{assignment.numero_contenedor}</td>
+                <td>{assignment.tipo_contenedor || "-"}</td>
+                <td>{assignment.naviera || "-"}</td>
+                <td>{assignment.fecha_llegada_puerto || "-"}</td>
+                <td>{calcularFechaLimite(assignment.fecha_llegada_puerto) || "-"}</td>
+                <td>{assignment.fecha_devolucion || "-"}</td>
+                <td className="text-center">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-primary me-2"
+                    onClick={() => editPendingContainerAssignment(assignment)}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={() => removePendingContainerAssignment(assignment.tempId)}
+                  >
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+  const operationContainerAssignmentsTable = (state) => {
+    if (!state.id_operacion) return null;
+    const assignments = operationContainerAssignments(state.id_operacion);
+    if (assignments.length === 0) return null;
+
+    return (
+      <div className="table-responsive mt-3">
+        <table className="table table-sm table-bordered align-middle m-0">
+          <thead className="table-light">
+            <tr>
+              <th style={{ width: 48 }} className="text-center">#</th>
+              <th>Contenedor</th>
+              <th>Tipo</th>
+              <th>Naviera</th>
+              <th>Llegada puerto</th>
+              <th>Devolucion limite</th>
+              <th>Devolucion</th>
+              <th style={{ width: 150 }} className="text-center">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {assignments.map((assignment, index) => (
+              <tr key={assignment.id_asignacion}>
+                <td className="text-center">{index + 1}</td>
+                <td>{assignment.numero_contenedor}</td>
+                <td>{assignment.tipo_contenedor || "-"}</td>
+                <td>{assignment.naviera || "-"}</td>
+                <td>{assignment.fecha_llegada_puerto || "-"}</td>
+                <td>{assignment.fecha_devolucion_limite || "-"}</td>
+                <td>{assignment.fecha_devolucion || "-"}</td>
+                <td className="text-center">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-primary me-2"
+                    onClick={() => editExistingContainerAssignment(assignment)}
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={() => deleteOperationContainerAssignment(assignment.id_asignacion)}
+                  >
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
   const routeKey = (route) => `${route.origen}|||${route.destino}`;
   const currentRouteKey = (state) => {
     const match = supplierRoutes.find(
@@ -730,13 +1022,20 @@ const Operations = () => {
             type="button"
             className="btn btn-outline-primary"
             onClick={() => openAssignContainer(state)}
-            disabled={!state.id_operacion}
           >
             Asignar contenedor
           </button>
-          {!state.id_operacion ? (
-            <small className="text-muted ms-2">Guarda la operacion para asignar contenedores.</small>
+          {assignmentContext === "new" && pendingContainerAssignments.length > 0 && !state.id_operacion ? (
+            <small className="text-muted ms-2">Los contenedores se asignaran al guardar la operacion.</small>
           ) : null}
+          {!state.id_operacion ? (
+            pendingContainerAssignmentsTable()
+          ) : (
+            <>
+              {operationContainerAssignmentsTable(state)}
+              {pendingContainerAssignmentsTable()}
+            </>
+          )}
         </div>
       ) : null}
       {!(Number(state.lcl) === 1 || state.lcl === true) && !permiteAsignarContenedor(state, services) ? (
@@ -767,7 +1066,12 @@ const Operations = () => {
           <label className="form-label">Contenedor</label>
           <select className={`form-select ${assignmentErrors.id_contenedor ? "is-invalid" : ""}`} value={assignmentForm.id_contenedor} onChange={(e) => setAssignmentForm({ ...assignmentForm, id_contenedor: e.target.value })}>
             <option value="">Seleccionar</option>
-            {availableContainers.map((container) => (
+            {containers
+              .filter((container) =>
+                availableContainers.some((item) => String(item.id_contenedor) === String(container.id_contenedor)) ||
+                String(container.id_contenedor) === String(assignmentForm.id_contenedor)
+              )
+              .map((container) => (
               <option key={container.id_contenedor} value={container.id_contenedor}>{container.numero_contenedor} - {container.tipo_contenedor || "Sin tipo"}</option>
             ))}
           </select>
@@ -798,7 +1102,7 @@ const Operations = () => {
             </small>
           ) : null}
         </div>
-      </div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveAssignment}>Guardar asignacion</button></div></div></div></div>
+      </div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveAssignment}>{assignmentMode === "create" ? (assignmentContext === "new" || assignmentContext === "edit-pending" ? "Aceptar" : "Guardar asignacion") : "Guardar cambios"}</button></div></div></div></div>
       <div className="modal fade" id="addCostFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Agregar costo</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(costForm, setCostForm, costErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveCostFromOperation}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="addSaleFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Agregar venta</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(saleForm, setSaleForm, saleErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveSaleFromOperation}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>

@@ -65,7 +65,7 @@ const mensajeDemora = (fechaDevolucion, fechaLimite) => {
 
 const permiteAsignarContenedor = (operacion) => {
   const tipoServicio = String(operacion?.tipo_servicio || "").trim().toLowerCase();
-  return tipoServicio === "maritimo" || tipoServicio === "terrestre";
+  return tipoServicio === "maritimo" || tipoServicio === "terrestre" || tipoServicio === "bimodal";
 };
 
 const operacionCerrada = (asignacion) =>

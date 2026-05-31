@@ -84,7 +84,7 @@ const validarOperacionPermiteContenedor = async (idOperacion) => {
   );
 
   const tipoServicio = String(rows[0]?.tipo_servicio || "").trim().toLowerCase();
-  return tipoServicio === "maritimo" || tipoServicio === "terrestre";
+  return tipoServicio === "maritimo" || tipoServicio === "terrestre" || tipoServicio === "bimodal";
 };
 
 const validarContenedorDisponible = async (idContenedor, idAsignacionExcluir = null) => {
