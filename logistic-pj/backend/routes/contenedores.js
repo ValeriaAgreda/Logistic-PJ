@@ -26,6 +26,30 @@ const obtenerIdUsuarioAutenticado = (req) => {
   return null;
 };
 
+const normalizarNumeroContenedor = (numero) => String(numero || "").trim().toUpperCase();
+
+const existeNumeroContenedorActivo = async (numeroContenedor, idExcluir = null) => {
+  const params = [normalizarNumeroContenedor(numeroContenedor)];
+  let filtroExcluir = "";
+
+  if (idExcluir) {
+    filtroExcluir = "AND id_contenedor <> ?";
+    params.push(Number(idExcluir));
+  }
+
+  const [rows] = await db.query(
+    `SELECT id_contenedor
+     FROM contenedor
+     WHERE UPPER(numero_contenedor) = ?
+       AND estado = 1
+       ${filtroExcluir}
+     LIMIT 1`,
+    params
+  );
+
+  return rows.length > 0;
+};
+
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
@@ -108,6 +132,12 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "El numero de contenedor es obligatorio." });
     }
 
+    if (await existeNumeroContenedorActivo(numero_contenedor)) {
+      return res.status(400).json({
+        error: "Ya existe un contenedor registrado con ese numero.",
+      });
+    }
+
     if (!id_tipo_contenedor || Number.isNaN(Number(id_tipo_contenedor))) {
       return res.status(400).json({ error: "El tipo de contenedor es obligatorio." });
     }
@@ -149,7 +179,7 @@ router.post("/", async (req, res) => {
         estado
       ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, 1)`,
       [
-        String(numero_contenedor).trim().toUpperCase(),
+        normalizarNumeroContenedor(numero_contenedor),
         Number(id_tipo_contenedor),
         String(naviera).trim(),
         peso_neto === "" || peso_neto === null || peso_neto === undefined
@@ -191,6 +221,12 @@ router.put("/:id_contenedor", async (req, res) => {
       return res.status(400).json({ error: "El numero de contenedor es obligatorio." });
     }
 
+    if (await existeNumeroContenedorActivo(numero_contenedor, id_contenedor)) {
+      return res.status(400).json({
+        error: "Ya existe un contenedor registrado con ese numero.",
+      });
+    }
+
     if (!id_tipo_contenedor || Number.isNaN(Number(id_tipo_contenedor))) {
       return res.status(400).json({ error: "El tipo de contenedor es obligatorio." });
     }
@@ -221,7 +257,7 @@ router.put("/:id_contenedor", async (req, res) => {
            cbm = ?
        WHERE id_contenedor = ?`,
       [
-        String(numero_contenedor).trim().toUpperCase(),
+        normalizarNumeroContenedor(numero_contenedor),
         Number(id_tipo_contenedor),
         String(naviera).trim(),
         peso_neto === "" || peso_neto === null || peso_neto === undefined

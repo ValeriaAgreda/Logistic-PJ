@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as bootstrap from "bootstrap";
+import ContainerFormFields from "../components/ContainerFormFields";
 
 const asignacionInicial = {
   id_contenedor: "",
@@ -7,6 +8,15 @@ const asignacionInicial = {
   fecha_asignacion: "",
   fecha_devolucion_limite: "",
   fecha_devolucion: "",
+};
+const contenedorInicial = {
+  numero_contenedor: "",
+  id_tipo_contenedor: "",
+  naviera: "",
+  peso_neto: "",
+  peso_bruto: "",
+  dimensiones: "",
+  cbm: "",
 };
 
 const obtenerHeadersAuth = () => {
@@ -35,10 +45,14 @@ const formatearFechaHora = (valor) => {
 const OperationContainerAssignments = () => {
   const [asignaciones, setAsignaciones] = useState([]);
   const [contenedores, setContenedores] = useState([]);
+  const [tiposContenedor, setTiposContenedor] = useState([]);
   const [operaciones, setOperaciones] = useState([]);
   const [nuevaAsignacion, setNuevaAsignacion] = useState(asignacionInicial);
   const [asignacionSeleccionada, setAsignacionSeleccionada] = useState(null);
   const [asignacionAEliminar, setAsignacionAEliminar] = useState(null);
+  const [nuevoContenedor, setNuevoContenedor] = useState(contenedorInicial);
+  const [erroresContenedor, setErroresContenedor] = useState({});
+  const [contenedorTarget, setContenedorTarget] = useState("new");
   const [errores, setErrores] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
@@ -97,17 +111,66 @@ const OperationContainerAssignments = () => {
     return e;
   };
 
+  const validarContenedor = (contenedor) => {
+    const e = {};
+
+    if (!contenedor.numero_contenedor || !contenedor.numero_contenedor.trim()) {
+      e.numero_contenedor = "El numero de contenedor es obligatorio.";
+    } else if (contenedor.numero_contenedor.trim().length > 70) {
+      e.numero_contenedor = "El numero de contenedor no puede superar 70 caracteres.";
+    } else {
+      const numeroNormalizado = contenedor.numero_contenedor.trim().toUpperCase();
+      const numeroDuplicado = contenedores.some(
+        (item) => String(item.numero_contenedor || "").trim().toUpperCase() === numeroNormalizado
+      );
+
+      if (numeroDuplicado) {
+        e.numero_contenedor = "Ya existe un contenedor registrado con ese numero.";
+      }
+    }
+
+    if (!contenedor.id_tipo_contenedor) {
+      e.id_tipo_contenedor = "Selecciona el tipo de contenedor.";
+    }
+
+    if (!contenedor.naviera || !contenedor.naviera.trim()) {
+      e.naviera = "La naviera es obligatoria.";
+    } else if (contenedor.naviera.trim().length > 50) {
+      e.naviera = "La naviera no puede superar 50 caracteres.";
+    }
+
+    if (contenedor.peso_neto !== "" && Number.isNaN(Number(contenedor.peso_neto))) {
+      e.peso_neto = "El peso neto debe ser numerico.";
+    }
+
+    if (contenedor.peso_bruto !== "" && Number.isNaN(Number(contenedor.peso_bruto))) {
+      e.peso_bruto = "El peso bruto debe ser numerico.";
+    }
+
+    if (contenedor.dimensiones && contenedor.dimensiones.trim().length > 50) {
+      e.dimensiones = "Las dimensiones no pueden superar 50 caracteres.";
+    }
+
+    if (contenedor.cbm && contenedor.cbm.trim().length > 50) {
+      e.cbm = "El CBM no puede superar 50 caracteres.";
+    }
+
+    return e;
+  };
+
   const cargarDatos = useCallback(async () => {
     try {
-      const [asignacionesData, contenedoresData, operacionesData] = await Promise.all([
+      const [asignacionesData, contenedoresData, operacionesData, tiposContenedorData] = await Promise.all([
         request("http://localhost:3001/api/operacion-contenedor"),
         request("http://localhost:3001/api/contenedores"),
         request("http://localhost:3001/api/operaciones"),
+        request("http://localhost:3001/api/tipo-contenedor"),
       ]);
 
       setAsignaciones(Array.isArray(asignacionesData) ? asignacionesData : []);
       setContenedores(Array.isArray(contenedoresData) ? contenedoresData : []);
       setOperaciones(Array.isArray(operacionesData) ? operacionesData : []);
+      setTiposContenedor(Array.isArray(tiposContenedorData) ? tiposContenedorData : []);
     } catch (error) {
       console.error("Error al cargar asignaciones:", error);
       alert(error.message || "Error al cargar asignaciones");
@@ -231,6 +294,60 @@ const OperationContainerAssignments = () => {
     }
   };
 
+  const abrirFormularioContenedor = (target) => {
+    setContenedorTarget(target);
+    setNuevoContenedor(contenedorInicial);
+    setErroresContenedor({});
+    new bootstrap.Modal(document.getElementById("quickContainerModal")).show();
+  };
+
+  const guardarContenedorRapido = async () => {
+    const e = validarContenedor(nuevoContenedor);
+
+    if (Object.keys(e).length > 0) {
+      setErroresContenedor(e);
+      return;
+    }
+
+    try {
+      const data = await request("http://localhost:3001/api/contenedores", {
+        method: "POST",
+        body: JSON.stringify({
+          numero_contenedor: nuevoContenedor.numero_contenedor.trim().toUpperCase(),
+          id_tipo_contenedor: Number(nuevoContenedor.id_tipo_contenedor),
+          naviera: nuevoContenedor.naviera.trim(),
+          peso_neto: nuevoContenedor.peso_neto,
+          peso_bruto: nuevoContenedor.peso_bruto,
+          dimensiones: nuevoContenedor.dimensiones.trim(),
+          cbm: nuevoContenedor.cbm.trim(),
+        }),
+      });
+
+      const contenedoresData = await request("http://localhost:3001/api/contenedores");
+      setContenedores(Array.isArray(contenedoresData) ? contenedoresData : []);
+
+      const idContenedor = String(data.id_contenedor);
+      if (contenedorTarget === "edit") {
+        setAsignacionSeleccionada((actual) => ({
+          ...actual,
+          id_contenedor: idContenedor,
+        }));
+      } else {
+        setNuevaAsignacion((actual) => ({
+          ...actual,
+          id_contenedor: idContenedor,
+        }));
+      }
+
+      bootstrap.Modal.getInstance(document.getElementById("quickContainerModal"))?.hide();
+      setNuevoContenedor(contenedorInicial);
+      setErroresContenedor({});
+    } catch (error) {
+      console.error("Error al crear contenedor:", error);
+      alert(error.message || "Error al crear contenedor");
+    }
+  };
+
   const asignacionSeleccionadaTabla = useMemo(
     () => asignaciones.find((a) => a.id_asignacion === selectedId) || null,
     [asignaciones, selectedId]
@@ -281,28 +398,42 @@ const OperationContainerAssignments = () => {
     },
   ];
 
-  const renderSelect = (label, field, state, setState, opciones, valueKey, labelBuilder) => (
+  const renderSelect = (label, field, state, setState, opciones, valueKey, labelBuilder, extraAction = null) => (
     <div className="mb-3">
       <label className="form-label">{label}</label>
-      <select
-        className={`form-select ${errores[field] ? "is-invalid" : ""}`}
-        value={state[field] || ""}
-        onChange={(e) =>
-          setState({
-            ...state,
-            [field]: e.target.value,
-          })
-        }
-      >
-        <option value="">Seleccionar</option>
-        {opciones.map((opcion) => (
-          <option key={opcion[valueKey]} value={opcion[valueKey]}>
-            {labelBuilder(opcion)}
-          </option>
-        ))}
-      </select>
-      {errores[field] && <div className="invalid-feedback">{errores[field]}</div>}
+      <div className="d-flex gap-2 align-items-start">
+        <select
+          className={`form-select ${errores[field] ? "is-invalid" : ""}`}
+          value={state[field] || ""}
+          onChange={(e) =>
+            setState({
+              ...state,
+              [field]: e.target.value,
+            })
+          }
+        >
+          <option value="">Seleccionar</option>
+          {opciones.map((opcion) => (
+            <option key={opcion[valueKey]} value={opcion[valueKey]}>
+              {labelBuilder(opcion)}
+            </option>
+          ))}
+        </select>
+        {extraAction}
+      </div>
+      {errores[field] && <div className="invalid-feedback d-block">{errores[field]}</div>}
     </div>
+  );
+  const botonCrearContenedor = (target) => (
+    <button
+      type="button"
+      className="btn btn-outline-primary"
+      onClick={() => abrirFormularioContenedor(target)}
+      title="Crear contenedor"
+      aria-label="Crear contenedor"
+    >
+      <i className="pi pi-plus" aria-hidden="true" />
+    </button>
   );
 
   return (
@@ -444,7 +575,8 @@ const OperationContainerAssignments = () => {
                 setNuevaAsignacion,
                 contenedores,
                 "id_contenedor",
-                (opcion) => `${opcion.numero_contenedor} - ${opcion.naviera || "Sin naviera"}`
+                (opcion) => `${opcion.numero_contenedor} - ${opcion.naviera || "Sin naviera"}`,
+                botonCrearContenedor("new")
               )}
 
               <div className="mb-3">
@@ -546,7 +678,8 @@ const OperationContainerAssignments = () => {
                     contenedores,
                     "id_contenedor",
                     (opcion) =>
-                      `${opcion.numero_contenedor} - ${opcion.naviera || "Sin naviera"}`
+                      `${opcion.numero_contenedor} - ${opcion.naviera || "Sin naviera"}`,
+                    botonCrearContenedor("edit")
                   )}
 
                   <div className="mb-3">
@@ -619,6 +752,38 @@ const OperationContainerAssignments = () => {
 
       <div
         className="modal fade"
+        id="quickContainerModal"
+        tabIndex="-1"
+        aria-hidden="true"
+      >
+        <div className="modal-dialog modal-dialog-centered modal-lg">
+          <div className="modal-content shadow rounded-3">
+            <div className="modal-header">
+              <h5 className="modal-title">Crear contenedor</h5>
+              <button className="btn-close" data-bs-dismiss="modal" />
+            </div>
+            <div className="modal-body">
+              <ContainerFormFields
+                contenedor={nuevoContenedor}
+                setContenedor={setNuevoContenedor}
+                errores={erroresContenedor}
+                tiposContenedor={tiposContenedor}
+              />
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" data-bs-dismiss="modal">
+                Cancelar
+              </button>
+              <button className="btn btn-success" onClick={guardarContenedorRapido}>
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        className="modal fade"
         id="deleteAsignacionContenedorModal"
         tabIndex="-1"
         aria-hidden="true"
@@ -653,4 +818,3 @@ const OperationContainerAssignments = () => {
 };
 
 export default OperationContainerAssignments;
-

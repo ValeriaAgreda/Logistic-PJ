@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as bootstrap from "bootstrap";
+import ContainerFormFields from "../components/ContainerFormFields";
 
 const contenedorInicial = {
   numero_contenedor: "",
@@ -44,6 +45,17 @@ const Containers = () => {
       e.numero_contenedor = "El numero de contenedor es obligatorio.";
     } else if (contenedor.numero_contenedor.trim().length > 70) {
       e.numero_contenedor = "El numero de contenedor no puede superar 70 caracteres.";
+    } else {
+      const numeroNormalizado = contenedor.numero_contenedor.trim().toUpperCase();
+      const numeroDuplicado = contenedores.some(
+        (item) =>
+          String(item.numero_contenedor || "").trim().toUpperCase() === numeroNormalizado &&
+          Number(item.id_contenedor) !== Number(contenedor.id_contenedor || 0)
+      );
+
+      if (numeroDuplicado) {
+        e.numero_contenedor = "Ya existe un contenedor registrado con ese numero.";
+      }
     }
 
     if (!contenedor.id_tipo_contenedor) {
@@ -448,57 +460,12 @@ const Containers = () => {
               <button className="btn-close" data-bs-dismiss="modal" />
             </div>
             <div className="modal-body">
-              {[
-                ["numero_contenedor", "Numero de contenedor"],
-                ["naviera", "Naviera"],
-                ["peso_neto", "Peso neto"],
-                ["peso_bruto", "Peso bruto"],
-                ["dimensiones", "Dimensiones"],
-                ["cbm", "CBM"],
-              ].map(([campo, label]) => (
-                <div className="mb-3" key={campo}>
-                  <label className="form-label">{label}</label>
-                  <input
-                    type={campo === "peso_neto" || campo === "peso_bruto" ? "number" : "text"}
-                    step={campo === "peso_neto" || campo === "peso_bruto" ? "0.01" : undefined}
-                    className={`form-control ${errores[campo] ? "is-invalid" : ""}`}
-                    value={nuevoContenedor[campo]}
-                    onChange={(e) =>
-                      setNuevoContenedor({
-                        ...nuevoContenedor,
-                        [campo]: e.target.value,
-                      })
-                    }
-                  />
-                  {errores[campo] && (
-                    <div className="invalid-feedback">{errores[campo]}</div>
-                  )}
-                </div>
-              ))}
-
-              <div className="mb-3">
-                <label className="form-label">Tipo de contenedor</label>
-                <select
-                  className={`form-select ${errores.id_tipo_contenedor ? "is-invalid" : ""}`}
-                  value={nuevoContenedor.id_tipo_contenedor}
-                  onChange={(e) =>
-                    setNuevoContenedor({
-                      ...nuevoContenedor,
-                      id_tipo_contenedor: e.target.value,
-                    })
-                  }
-                >
-                  <option value="">Seleccionar</option>
-                  {tiposContenedor.map((tipo) => (
-                    <option key={tipo.id_tipo_contenedor} value={tipo.id_tipo_contenedor}>
-                      {tipo.descripcion}
-                    </option>
-                  ))}
-                </select>
-                {errores.id_tipo_contenedor && (
-                  <div className="invalid-feedback">{errores.id_tipo_contenedor}</div>
-                )}
-              </div>
+              <ContainerFormFields
+                contenedor={nuevoContenedor}
+                setContenedor={setNuevoContenedor}
+                errores={errores}
+                tiposContenedor={tiposContenedor}
+              />
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" data-bs-dismiss="modal">
@@ -521,59 +488,12 @@ const Containers = () => {
             </div>
             <div className="modal-body">
               {contenedorSeleccionado && (
-                <>
-                  {[
-                    ["numero_contenedor", "Numero de contenedor"],
-                    ["naviera", "Naviera"],
-                    ["peso_neto", "Peso neto"],
-                    ["peso_bruto", "Peso bruto"],
-                    ["dimensiones", "Dimensiones"],
-                    ["cbm", "CBM"],
-                  ].map(([campo, label]) => (
-                    <div className="mb-3" key={campo}>
-                      <label className="form-label">{label}</label>
-                      <input
-                        type={campo === "peso_neto" || campo === "peso_bruto" ? "number" : "text"}
-                        step={campo === "peso_neto" || campo === "peso_bruto" ? "0.01" : undefined}
-                        className={`form-control ${errores[campo] ? "is-invalid" : ""}`}
-                        value={contenedorSeleccionado[campo] ?? ""}
-                        onChange={(e) =>
-                          setContenedorSeleccionado({
-                            ...contenedorSeleccionado,
-                            [campo]: e.target.value,
-                          })
-                        }
-                      />
-                      {errores[campo] && (
-                        <div className="invalid-feedback">{errores[campo]}</div>
-                      )}
-                    </div>
-                  ))}
-
-                  <div className="mb-3">
-                    <label className="form-label">Tipo de contenedor</label>
-                    <select
-                      className={`form-select ${errores.id_tipo_contenedor ? "is-invalid" : ""}`}
-                      value={contenedorSeleccionado.id_tipo_contenedor || ""}
-                      onChange={(e) =>
-                        setContenedorSeleccionado({
-                          ...contenedorSeleccionado,
-                          id_tipo_contenedor: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="">Seleccionar</option>
-                      {tiposContenedor.map((tipo) => (
-                        <option key={tipo.id_tipo_contenedor} value={tipo.id_tipo_contenedor}>
-                          {tipo.descripcion}
-                        </option>
-                      ))}
-                    </select>
-                    {errores.id_tipo_contenedor && (
-                      <div className="invalid-feedback">{errores.id_tipo_contenedor}</div>
-                    )}
-                  </div>
-                </>
+                <ContainerFormFields
+                  contenedor={contenedorSeleccionado}
+                  setContenedor={setContenedorSeleccionado}
+                  errores={errores}
+                  tiposContenedor={tiposContenedor}
+                />
               )}
             </div>
             <div className="modal-footer">
@@ -619,4 +539,3 @@ const Containers = () => {
 };
 
 export default Containers;
-
