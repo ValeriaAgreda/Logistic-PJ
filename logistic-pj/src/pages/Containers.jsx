@@ -5,11 +5,7 @@ import ContainerFormFields from "../components/ContainerFormFields";
 const contenedorInicial = {
   numero_contenedor: "",
   id_tipo_contenedor: "",
-  naviera: "",
-  peso_neto: "",
   peso_bruto: "",
-  dimensiones: "",
-  cbm: "",
 };
 
 const obtenerUsuarioLogueado = () => {
@@ -62,34 +58,12 @@ const Containers = () => {
       e.id_tipo_contenedor = "Selecciona el tipo de contenedor.";
     }
 
-    if (!contenedor.naviera || !contenedor.naviera.trim()) {
-      e.naviera = "La naviera es obligatoria.";
-    } else if (contenedor.naviera.trim().length > 50) {
-      e.naviera = "La naviera no puede superar 50 caracteres.";
-    }
-
-    if (
-      contenedor.peso_neto !== "" &&
-      contenedor.peso_neto !== null &&
-      Number.isNaN(Number(contenedor.peso_neto))
-    ) {
-      e.peso_neto = "El peso neto debe ser numerico.";
-    }
-
     if (
       contenedor.peso_bruto !== "" &&
       contenedor.peso_bruto !== null &&
       Number.isNaN(Number(contenedor.peso_bruto))
     ) {
       e.peso_bruto = "El peso bruto debe ser numerico.";
-    }
-
-    if (contenedor.dimensiones && contenedor.dimensiones.trim().length > 50) {
-      e.dimensiones = "Las dimensiones no pueden superar 50 caracteres.";
-    }
-
-    if (contenedor.cbm && contenedor.cbm.trim().length > 50) {
-      e.cbm = "El CBM no puede superar 50 caracteres.";
     }
 
     return e;
@@ -181,11 +155,7 @@ const Containers = () => {
         body: JSON.stringify({
           numero_contenedor: nuevoContenedor.numero_contenedor.trim().toUpperCase(),
           id_tipo_contenedor: Number(nuevoContenedor.id_tipo_contenedor),
-          naviera: nuevoContenedor.naviera.trim(),
-          peso_neto: nuevoContenedor.peso_neto,
           peso_bruto: nuevoContenedor.peso_bruto,
-          dimensiones: nuevoContenedor.dimensiones.trim(),
-          cbm: nuevoContenedor.cbm.trim(),
         }),
       });
 
@@ -227,11 +197,7 @@ const Containers = () => {
           body: JSON.stringify({
             numero_contenedor: contenedorSeleccionado.numero_contenedor.trim().toUpperCase(),
             id_tipo_contenedor: Number(contenedorSeleccionado.id_tipo_contenedor),
-            naviera: contenedorSeleccionado.naviera.trim(),
-            peso_neto: contenedorSeleccionado.peso_neto,
             peso_bruto: contenedorSeleccionado.peso_bruto,
-            dimensiones: String(contenedorSeleccionado.dimensiones || "").trim(),
-            cbm: String(contenedorSeleccionado.cbm || "").trim(),
           }),
         }
       );
@@ -300,8 +266,7 @@ const Containers = () => {
       (contenedor) =>
         !q ||
         String(contenedor.numero_contenedor || "").toLowerCase().includes(q) ||
-        String(contenedor.tipo_contenedor || "").toLowerCase().includes(q) ||
-        String(contenedor.naviera || "").toLowerCase().includes(q)
+        String(contenedor.tipo_contenedor || "").toLowerCase().includes(q)
     );
   }, [contenedores, search]);
 
@@ -379,7 +344,7 @@ const Containers = () => {
               <label className="form-label">Buscar</label>
               <input
                 className="form-control"
-                placeholder="Buscar por numero, tipo o naviera..."
+                placeholder="Buscar por numero o tipo..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -408,11 +373,7 @@ const Containers = () => {
                 </th>
                 <th>Numero</th>
                 <th>Tipo</th>
-                <th>Naviera</th>
-                <th>Peso Neto</th>
                 <th>Peso Bruto</th>
-                <th>Dimensiones</th>
-                <th>CBM</th>
                 <th>Registro</th>
               </tr>
             </thead>
@@ -430,11 +391,7 @@ const Containers = () => {
                     <td className="text-center">{idx + 1}</td>
                     <td>{contenedor.numero_contenedor}</td>
                     <td>{contenedor.tipo_contenedor || "-"}</td>
-                    <td>{contenedor.naviera}</td>
-                    <td>{contenedor.peso_neto ?? "-"}</td>
                     <td>{contenedor.peso_bruto ?? "-"}</td>
-                    <td>{contenedor.dimensiones || "-"}</td>
-                    <td>{contenedor.cbm || "-"}</td>
                     <td>{formatoFecha(contenedor.fecha_registro)}</td>
                   </tr>
                 );
@@ -442,7 +399,7 @@ const Containers = () => {
 
               {contenedoresFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center py-4 text-muted">
+                  <td colSpan={5} className="text-center py-4 text-muted">
                     No hay resultados con los filtros actuales.
                   </td>
                 </tr>

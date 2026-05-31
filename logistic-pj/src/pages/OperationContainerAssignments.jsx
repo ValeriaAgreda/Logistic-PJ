@@ -12,11 +12,7 @@ const asignacionInicial = {
 const contenedorInicial = {
   numero_contenedor: "",
   id_tipo_contenedor: "",
-  naviera: "",
-  peso_neto: "",
   peso_bruto: "",
-  dimensiones: "",
-  cbm: "",
 };
 
 const obtenerHeadersAuth = () => {
@@ -133,26 +129,8 @@ const OperationContainerAssignments = () => {
       e.id_tipo_contenedor = "Selecciona el tipo de contenedor.";
     }
 
-    if (!contenedor.naviera || !contenedor.naviera.trim()) {
-      e.naviera = "La naviera es obligatoria.";
-    } else if (contenedor.naviera.trim().length > 50) {
-      e.naviera = "La naviera no puede superar 50 caracteres.";
-    }
-
-    if (contenedor.peso_neto !== "" && Number.isNaN(Number(contenedor.peso_neto))) {
-      e.peso_neto = "El peso neto debe ser numerico.";
-    }
-
     if (contenedor.peso_bruto !== "" && Number.isNaN(Number(contenedor.peso_bruto))) {
       e.peso_bruto = "El peso bruto debe ser numerico.";
-    }
-
-    if (contenedor.dimensiones && contenedor.dimensiones.trim().length > 50) {
-      e.dimensiones = "Las dimensiones no pueden superar 50 caracteres.";
-    }
-
-    if (contenedor.cbm && contenedor.cbm.trim().length > 50) {
-      e.cbm = "El CBM no puede superar 50 caracteres.";
     }
 
     return e;
@@ -315,11 +293,7 @@ const OperationContainerAssignments = () => {
         body: JSON.stringify({
           numero_contenedor: nuevoContenedor.numero_contenedor.trim().toUpperCase(),
           id_tipo_contenedor: Number(nuevoContenedor.id_tipo_contenedor),
-          naviera: nuevoContenedor.naviera.trim(),
-          peso_neto: nuevoContenedor.peso_neto,
           peso_bruto: nuevoContenedor.peso_bruto,
-          dimensiones: nuevoContenedor.dimensiones.trim(),
-          cbm: nuevoContenedor.cbm.trim(),
         }),
       });
 
@@ -361,7 +335,6 @@ const OperationContainerAssignments = () => {
         !q ||
         String(asignacion.codigo_operacion || "").toLowerCase().includes(q) ||
         String(asignacion.numero_contenedor || "").toLowerCase().includes(q) ||
-        String(asignacion.naviera || "").toLowerCase().includes(q) ||
         String(asignacion.tipo_contenedor || "").toLowerCase().includes(q)
       );
     });
@@ -476,7 +449,7 @@ const OperationContainerAssignments = () => {
               <label className="form-label">Buscar</label>
               <input
                 className="form-control"
-                placeholder="Operacion, contenedor, naviera o tipo..."
+                placeholder="Operacion, contenedor o tipo..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -502,7 +475,6 @@ const OperationContainerAssignments = () => {
                 <th>Operacion</th>
                 <th>Contenedor</th>
                 <th>Tipo</th>
-                <th>Naviera</th>
                 <th>Fecha Asignacion</th>
                 <th>Fecha Limite</th>
                 <th>Fecha Devolucion</th>
@@ -524,7 +496,6 @@ const OperationContainerAssignments = () => {
                     <td>{asignacion.codigo_operacion}</td>
                     <td>{asignacion.numero_contenedor}</td>
                     <td>{asignacion.tipo_contenedor || "-"}</td>
-                    <td>{asignacion.naviera || "-"}</td>
                     <td>{formatearFecha(asignacion.fecha_asignacion)}</td>
                     <td>{formatearFecha(asignacion.fecha_devolucion_limite)}</td>
                     <td>{formatearFecha(asignacion.fecha_devolucion)}</td>
@@ -535,7 +506,7 @@ const OperationContainerAssignments = () => {
 
               {asignacionesFiltradas.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="text-center py-4 text-muted">
+                  <td colSpan={8} className="text-center py-4 text-muted">
                     No hay asignaciones activas con los filtros actuales.
                   </td>
                 </tr>
@@ -575,7 +546,7 @@ const OperationContainerAssignments = () => {
                 setNuevaAsignacion,
                 contenedores,
                 "id_contenedor",
-                (opcion) => `${opcion.numero_contenedor} - ${opcion.naviera || "Sin naviera"}`,
+                (opcion) => `${opcion.numero_contenedor} - ${opcion.tipo_contenedor || "Sin tipo"}`,
                 botonCrearContenedor("new")
               )}
 
@@ -678,7 +649,7 @@ const OperationContainerAssignments = () => {
                     contenedores,
                     "id_contenedor",
                     (opcion) =>
-                      `${opcion.numero_contenedor} - ${opcion.naviera || "Sin naviera"}`,
+                      `${opcion.numero_contenedor} - ${opcion.tipo_contenedor || "Sin tipo"}`,
                     botonCrearContenedor("edit")
                   )}
 

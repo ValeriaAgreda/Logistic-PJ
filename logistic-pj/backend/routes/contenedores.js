@@ -58,11 +58,7 @@ router.get("/", async (_req, res) => {
         c.numero_contenedor,
         c.id_tipo_contenedor,
         tc.descripcion AS tipo_contenedor,
-        c.naviera,
-        c.peso_neto,
         c.peso_bruto,
-        c.dimensiones,
-        c.cbm,
         c.fecha_registro,
         c.id_usuario_registro,
         c.estado
@@ -90,11 +86,7 @@ router.get("/:id_contenedor", async (req, res) => {
         c.numero_contenedor,
         c.id_tipo_contenedor,
         tc.descripcion AS tipo_contenedor,
-        c.naviera,
-        c.peso_neto,
         c.peso_bruto,
-        c.dimensiones,
-        c.cbm,
         c.fecha_registro,
         c.id_usuario_registro,
         c.estado
@@ -121,11 +113,7 @@ router.post("/", async (req, res) => {
     const {
       numero_contenedor,
       id_tipo_contenedor,
-      naviera,
-      peso_neto,
       peso_bruto,
-      dimensiones,
-      cbm,
     } = req.body;
 
     if (!numero_contenedor || !String(numero_contenedor).trim()) {
@@ -140,10 +128,6 @@ router.post("/", async (req, res) => {
 
     if (!id_tipo_contenedor || Number.isNaN(Number(id_tipo_contenedor))) {
       return res.status(400).json({ error: "El tipo de contenedor es obligatorio." });
-    }
-
-    if (!naviera || !String(naviera).trim()) {
-      return res.status(400).json({ error: "La naviera es obligatoria." });
     }
 
     const idUsuarioRegistro = obtenerIdUsuarioAutenticado(req);
@@ -169,27 +153,17 @@ router.post("/", async (req, res) => {
       `INSERT INTO contenedor (
         numero_contenedor,
         id_tipo_contenedor,
-        naviera,
-        peso_neto,
         peso_bruto,
-        dimensiones,
-        cbm,
         fecha_registro,
         id_usuario_registro,
         estado
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, 1)`,
+      ) VALUES (?, ?, ?, NOW(), ?, 1)`,
       [
         normalizarNumeroContenedor(numero_contenedor),
         Number(id_tipo_contenedor),
-        String(naviera).trim(),
-        peso_neto === "" || peso_neto === null || peso_neto === undefined
-          ? null
-          : Number(peso_neto),
         peso_bruto === "" || peso_bruto === null || peso_bruto === undefined
           ? null
           : Number(peso_bruto),
-        dimensiones ? String(dimensiones).trim() : null,
-        cbm ? String(cbm).trim() : null,
         Number(idUsuarioRegistro),
       ]
     );
@@ -210,11 +184,7 @@ router.put("/:id_contenedor", async (req, res) => {
     const {
       numero_contenedor,
       id_tipo_contenedor,
-      naviera,
-      peso_neto,
       peso_bruto,
-      dimensiones,
-      cbm,
     } = req.body;
 
     if (!numero_contenedor || !String(numero_contenedor).trim()) {
@@ -229,10 +199,6 @@ router.put("/:id_contenedor", async (req, res) => {
 
     if (!id_tipo_contenedor || Number.isNaN(Number(id_tipo_contenedor))) {
       return res.status(400).json({ error: "El tipo de contenedor es obligatorio." });
-    }
-
-    if (!naviera || !String(naviera).trim()) {
-      return res.status(400).json({ error: "La naviera es obligatoria." });
     }
 
     const [tipos] = await db.query(
@@ -250,24 +216,14 @@ router.put("/:id_contenedor", async (req, res) => {
       `UPDATE contenedor
        SET numero_contenedor = ?,
            id_tipo_contenedor = ?,
-           naviera = ?,
-           peso_neto = ?,
-           peso_bruto = ?,
-           dimensiones = ?,
-           cbm = ?
+           peso_bruto = ?
        WHERE id_contenedor = ?`,
       [
         normalizarNumeroContenedor(numero_contenedor),
         Number(id_tipo_contenedor),
-        String(naviera).trim(),
-        peso_neto === "" || peso_neto === null || peso_neto === undefined
-          ? null
-          : Number(peso_neto),
         peso_bruto === "" || peso_bruto === null || peso_bruto === undefined
           ? null
           : Number(peso_bruto),
-        dimensiones ? String(dimensiones).trim() : null,
-        cbm ? String(cbm).trim() : null,
         id_contenedor,
       ]
     );

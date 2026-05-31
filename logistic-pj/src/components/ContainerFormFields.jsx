@@ -41,30 +41,8 @@ const ContainerFormFields = ({ contenedor, setContenedor, errores = {}, tiposCon
         )}
       </div>
 
-      <div className="mb-3">
-        <label className="form-label">Naviera</label>
-        <input
-          className={`form-control ${errores.naviera ? "is-invalid" : ""}`}
-          value={contenedor.naviera || ""}
-          onChange={(e) => update("naviera", e.target.value)}
-        />
-        {errores.naviera && <div className="invalid-feedback">{errores.naviera}</div>}
-      </div>
-
       <div className="row g-3">
-        <div className="col-md-6">
-          <label className="form-label">Peso neto</label>
-          <input
-            type="number"
-            step="0.01"
-            className={`form-control ${errores.peso_neto ? "is-invalid" : ""}`}
-            value={contenedor.peso_neto ?? ""}
-            onChange={(e) => update("peso_neto", e.target.value)}
-          />
-          {errores.peso_neto && <div className="invalid-feedback">{errores.peso_neto}</div>}
-        </div>
-
-        <div className="col-md-6">
+        <div className="col-md-12">
           <label className="form-label">Peso bruto</label>
           <input
             type="number"
@@ -74,26 +52,6 @@ const ContainerFormFields = ({ contenedor, setContenedor, errores = {}, tiposCon
             onChange={(e) => update("peso_bruto", e.target.value)}
           />
           {errores.peso_bruto && <div className="invalid-feedback">{errores.peso_bruto}</div>}
-        </div>
-
-        <div className="col-md-6">
-          <label className="form-label">Dimensiones</label>
-          <input
-            className={`form-control ${errores.dimensiones ? "is-invalid" : ""}`}
-            value={contenedor.dimensiones || ""}
-            onChange={(e) => update("dimensiones", e.target.value)}
-          />
-          {errores.dimensiones && <div className="invalid-feedback">{errores.dimensiones}</div>}
-        </div>
-
-        <div className="col-md-6">
-          <label className="form-label">CBM</label>
-          <input
-            className={`form-control ${errores.cbm ? "is-invalid" : ""}`}
-            value={contenedor.cbm || ""}
-            onChange={(e) => update("cbm", e.target.value)}
-          />
-          {errores.cbm && <div className="invalid-feedback">{errores.cbm}</div>}
         </div>
       </div>
     </>
