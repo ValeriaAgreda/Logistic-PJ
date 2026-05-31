@@ -47,6 +47,8 @@ const permiteAsignarContenedor = (operacion, servicios = []) => {
   const tipo = String(descripcion).trim().toLowerCase();
   return tipo === "maritimo" || tipo === "terrestre";
 };
+const operacionCerrada = (asignacion) =>
+  String(asignacion?.estado_operacion || "").trim().toLowerCase() === "cerrado";
 const calcularFechaLimite = (fechaLlegadaPuerto) => {
   if (!fechaLlegadaPuerto) return "";
   const fecha = new Date(`${fechaLlegadaPuerto}T00:00:00`);
@@ -117,6 +119,7 @@ const normalizeOperationForm = (value) => ({
 const Operations = () => {
   const [rows, setRows] = useState([]);
   const [containers, setContainers] = useState([]);
+  const [containerAssignments, setContainerAssignments] = useState([]);
   const [clients, setClients] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [supplierRoutes, setSupplierRoutes] = useState([]);
@@ -154,9 +157,10 @@ const Operations = () => {
     );
 
   const loadAll = useCallback(async () => {
-    const [ops, cont, c, p, pr, s, n, st] = await Promise.all([
+    const [ops, cont, asg, c, p, pr, s, n, st] = await Promise.all([
       request(`${API}/operaciones`),
       request(`${API}/contenedores`),
+      request(`${API}/operacion-contenedor`),
       request(`${API}/clientes`),
       request(`${API}/proveedores`),
       request(`${API}/proveedor-ruta`),
@@ -166,6 +170,7 @@ const Operations = () => {
     ]);
     setRows(Array.isArray(ops) ? ops : []);
     setContainers(Array.isArray(cont) ? cont : []);
+    setContainerAssignments(Array.isArray(asg) ? asg : []);
     setClients(Array.isArray(c) ? c : []);
     setSuppliers(Array.isArray(p) ? p : []);
     setSupplierRoutes(Array.isArray(pr) ? pr : []);
@@ -264,6 +269,18 @@ const Operations = () => {
   });
 
   const selected = useMemo(() => rows.find((r) => r.id_operacion === selectedId) || null, [rows, selectedId]);
+  const availableContainers = useMemo(
+    () =>
+      containers.filter(
+        (container) =>
+          !containerAssignments.some(
+            (assignment) =>
+              String(assignment.id_contenedor) === String(container.id_contenedor) &&
+              !operacionCerrada(assignment)
+          )
+      ),
+    [containerAssignments, containers]
+  );
   const filtered = useMemo(() => rows.filter((r) => [r.codigo_operacion, r.cliente, r.proveedor, r.tipo_servicio, r.porducto, r.origen, r.destino, r.cantidad, r.observacion, r.estado_operacion].some((x) => String(x || "").toLowerCase().includes(search.trim().toLowerCase()))), [rows, search]);
 
   const loadNextCode = async () => {
@@ -583,7 +600,7 @@ const Operations = () => {
           <label className="form-label">Contenedor</label>
           <select className={`form-select ${assignmentErrors.id_contenedor ? "is-invalid" : ""}`} value={assignmentForm.id_contenedor} onChange={(e) => setAssignmentForm({ ...assignmentForm, id_contenedor: e.target.value })}>
             <option value="">Seleccionar</option>
-            {containers.map((container) => (
+            {availableContainers.map((container) => (
               <option key={container.id_contenedor} value={container.id_contenedor}>{container.numero_contenedor} - {container.tipo_contenedor || "Sin tipo"}</option>
             ))}
           </select>

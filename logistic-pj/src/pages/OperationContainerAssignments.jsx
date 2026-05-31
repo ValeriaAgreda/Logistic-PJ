@@ -67,6 +67,9 @@ const permiteAsignarContenedor = (operacion) => {
   return tipoServicio === "maritimo" || tipoServicio === "terrestre";
 };
 
+const operacionCerrada = (asignacion) =>
+  String(asignacion?.estado_operacion || "").trim().toLowerCase() === "cerrado";
+
 const OperationContainerAssignments = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -368,6 +371,31 @@ const OperationContainerAssignments = () => {
     () => asignaciones.find((a) => a.id_asignacion === selectedId) || null,
     [asignaciones, selectedId]
   );
+  const contenedoresDisponibles = useMemo(
+    () =>
+      contenedores.filter(
+        (contenedor) =>
+          !asignaciones.some(
+            (asignacion) =>
+              String(asignacion.id_contenedor) === String(contenedor.id_contenedor) &&
+              !operacionCerrada(asignacion)
+          )
+      ),
+    [asignaciones, contenedores]
+  );
+  const contenedoresParaEditar = useMemo(() => {
+    if (!asignacionSeleccionada) return contenedoresDisponibles;
+    return contenedores.filter(
+      (contenedor) =>
+        String(contenedor.id_contenedor) === String(asignacionSeleccionada.id_contenedor) ||
+        !asignaciones.some(
+          (asignacion) =>
+            String(asignacion.id_contenedor) === String(contenedor.id_contenedor) &&
+            String(asignacion.id_asignacion) !== String(asignacionSeleccionada.id_asignacion) &&
+            !operacionCerrada(asignacion)
+        )
+    );
+  }, [asignacionSeleccionada, asignaciones, contenedores, contenedoresDisponibles]);
 
   const asignacionesFiltradas = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -579,7 +607,7 @@ const OperationContainerAssignments = () => {
                 "id_contenedor",
                 nuevaAsignacion,
                 setNuevaAsignacion,
-                contenedores,
+                contenedoresDisponibles,
                 "id_contenedor",
                 (opcion) => `${opcion.numero_contenedor} - ${opcion.tipo_contenedor || "Sin tipo"}`,
                 botonCrearContenedor("new")
@@ -686,7 +714,7 @@ const OperationContainerAssignments = () => {
                     "id_contenedor",
                     asignacionSeleccionada,
                     setAsignacionSeleccionada,
-                    contenedores,
+                    contenedoresParaEditar,
                     "id_contenedor",
                     (opcion) =>
                       `${opcion.numero_contenedor} - ${opcion.tipo_contenedor || "Sin tipo"}`,

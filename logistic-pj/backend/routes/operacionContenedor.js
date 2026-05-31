@@ -87,6 +87,32 @@ const validarOperacionPermiteContenedor = async (idOperacion) => {
   return tipoServicio === "maritimo" || tipoServicio === "terrestre";
 };
 
+const validarContenedorDisponible = async (idContenedor, idAsignacionExcluir = null) => {
+  const params = [Number(idContenedor)];
+  let filtroExcluir = "";
+
+  if (idAsignacionExcluir) {
+    filtroExcluir = "AND oc.id_asignacion <> ?";
+    params.push(Number(idAsignacionExcluir));
+  }
+
+  const [rows] = await db.query(
+    `SELECT oc.id_asignacion
+     FROM operacion_contenedor oc
+     INNER JOIN operacion o ON o.id_operacion = oc.id_operacion
+     INNER JOIN estado_operacion eo ON eo.id_estado_operacion = o.id_estado_operacion
+     WHERE oc.id_contenedor = ?
+       AND oc.estado = 1
+       AND o.estado = 1
+       AND LOWER(eo.descripcion) <> 'cerrado'
+       ${filtroExcluir}
+     LIMIT 1`,
+    params
+  );
+
+  return rows.length === 0;
+};
+
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
@@ -98,6 +124,8 @@ router.get("/", async (_req, res) => {
         c.peso_bruto,
         oc.id_operacion,
         o.codigo_operacion,
+        o.id_estado_operacion,
+        eo.descripcion AS estado_operacion,
         DATE_FORMAT(oc.fecha_llegada_puerto, '%Y-%m-%d') AS fecha_llegada_puerto,
         DATE_FORMAT(oc.fecha_devolucion_limite, '%Y-%m-%d') AS fecha_devolucion_limite,
         DATE_FORMAT(oc.fecha_devolucion, '%Y-%m-%d') AS fecha_devolucion,
@@ -108,6 +136,7 @@ router.get("/", async (_req, res) => {
       INNER JOIN contenedor c ON c.id_contenedor = oc.id_contenedor
       LEFT JOIN tipo_contenedor tc ON tc.id_tipo_contenedor = c.id_tipo_contenedor
       INNER JOIN operacion o ON o.id_operacion = oc.id_operacion
+      INNER JOIN estado_operacion eo ON eo.id_estado_operacion = o.id_estado_operacion
       LEFT JOIN usuario u ON u.id_usuario = oc.id_usuario_registro
       WHERE oc.estado = 1
       ORDER BY oc.id_asignacion DESC`
@@ -153,17 +182,9 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const [asignacionesActivas] = await db.query(
-      `SELECT id_asignacion
-       FROM operacion_contenedor
-       WHERE id_contenedor = ?
-         AND estado = 1`,
-      [Number(req.body.id_contenedor)]
-    );
-
-    if (asignacionesActivas.length > 0) {
+    if (!(await validarContenedorDisponible(req.body.id_contenedor))) {
       return res.status(400).json({
-        error: "Ese contenedor ya tiene una asignacion activa.",
+        error: "Ese contenedor ya esta asignado a una operacion que no esta cerrada.",
       });
     }
 
@@ -230,18 +251,9 @@ router.put("/:id_asignacion", async (req, res) => {
       });
     }
 
-    const [asignacionesActivas] = await db.query(
-      `SELECT id_asignacion
-       FROM operacion_contenedor
-       WHERE id_contenedor = ?
-         AND estado = 1
-         AND id_asignacion <> ?`,
-      [Number(req.body.id_contenedor), Number(id_asignacion)]
-    );
-
-    if (asignacionesActivas.length > 0) {
+    if (!(await validarContenedorDisponible(req.body.id_contenedor, id_asignacion))) {
       return res.status(400).json({
-        error: "Ese contenedor ya tiene otra asignacion activa.",
+        error: "Ese contenedor ya esta asignado a una operacion que no esta cerrada.",
       });
     }
 
