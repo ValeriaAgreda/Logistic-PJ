@@ -437,6 +437,10 @@ const Operations = () => {
     modal("editOperationModal");
   };
   const openDelete = (row) => { if (row) { setToDelete(row); modal("deleteOperationModal"); } };
+  const openInfoForSelected = () => {
+    if (!selected) return;
+    modal("operationInfoModal");
+  };
   const openCostForSelected = () => {
     if (!selected) return;
     setMovementView("costs");
@@ -1184,6 +1188,149 @@ const Operations = () => {
       </div>
     );
   };
+  const movementTotals = (items) =>
+    Object.values(
+      items.reduce((acc, item) => {
+        const key = item.moneda ? `${item.moneda}${item.codigo_moneda ? ` (${item.codigo_moneda})` : ""}` : "Sin moneda";
+        acc[key] = acc[key] || { label: key, total: 0 };
+        acc[key].total += Number(item.monto || 0);
+        return acc;
+      }, {})
+    );
+  const infoField = (label, value) => (
+    <div className="col-md-4">
+      <div className="border rounded p-2 h-100 text-center">
+        <div className="text-muted small">{label}</div>
+        <div className="fw-semibold">{value || "-"}</div>
+      </div>
+    </div>
+  );
+  const readonlyContainersTable = (items) => (
+    <div className="table-responsive">
+      <table className="table table-sm table-bordered align-middle m-0">
+        <thead className="table-light">
+          <tr>
+            <th style={{ width: 48 }} className="text-center">#</th>
+              <th className="text-center">Contenedor</th>
+              <th className="text-center">Tipo</th>
+              <th className="text-center">Naviera</th>
+              <th className="text-center">Llegada puerto</th>
+              <th className="text-center">Devolucion limite</th>
+              <th className="text-center">Devolucion</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((assignment, index) => (
+            <tr key={assignment.id_asignacion || assignment.tempId}>
+              <td className="text-center">{index + 1}</td>
+              <td className="text-center">{assignment.numero_contenedor || "-"}</td>
+              <td className="text-center">{assignment.tipo_contenedor || "-"}</td>
+              <td className="text-center">{assignment.naviera || "-"}</td>
+              <td className="text-center">{assignment.fecha_llegada_puerto || "-"}</td>
+              <td className="text-center">{assignment.fecha_devolucion_limite || calcularFechaLimite(assignment.fecha_llegada_puerto) || "-"}</td>
+              <td className="text-center">{assignment.fecha_devolucion || "-"}</td>
+            </tr>
+          ))}
+          {items.length === 0 ? (
+            <tr><td colSpan={7} className="text-center py-3 text-muted">No hay contenedores asignados.</td></tr>
+          ) : null}
+        </tbody>
+      </table>
+    </div>
+  );
+  const readonlyMovementsTable = (title, items) => (
+    <div className="mt-4">
+      <div className="text-center mb-2">
+        <h6 className="m-0">{title}</h6>
+        <span className="text-muted small">{items.length} registro(s)</span>
+      </div>
+      <div className="table-responsive">
+        <table className="table table-sm table-bordered align-middle m-0">
+          <thead className="table-light">
+            <tr>
+              <th style={{ width: 48 }} className="text-center">#</th>
+              <th className="text-center">Tipo de costo</th>
+              <th className="text-center">Moneda</th>
+              <th className="text-center">Monto</th>
+              <th className="text-center">Observacion</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, index) => (
+              <tr key={item.id_costo || item.id_venta || item.tempId}>
+                <td className="text-center">{index + 1}</td>
+                <td className="text-center">{item.tipo_costo || "-"}</td>
+                <td className="text-center">{item.moneda ? `${item.moneda} (${item.codigo_moneda})` : "-"}</td>
+                <td className="text-center">{Number(item.monto || 0).toFixed(2)}</td>
+                <td className="text-center">{item.observacion || "-"}</td>
+              </tr>
+            ))}
+            {items.length === 0 ? (
+              <tr><td colSpan={5} className="text-center py-3 text-muted">No hay registros asociados.</td></tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+      {items.length > 0 ? (
+        <div className="d-flex flex-wrap gap-3 mt-2 text-muted small">
+          {movementTotals(items).map((total) => (
+            <span key={total.label}>
+              Total {total.label}: <strong>{total.total.toFixed(2)}</strong>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+  const operationInfoSection = (operation) => {
+    if (!operation) return null;
+    const containersInfo = operationContainerAssignments(operation.id_operacion);
+    const costsInfo = costsByOperation(operation.id_operacion);
+    const salesInfo = salesByOperation(operation.id_operacion);
+    const isLcl = Number(operation.lcl) === 1;
+    const showContainersInfo = !isLcl && permiteAsignarContenedor(operation, services);
+
+    return (
+      <div>
+        <h6 className="mb-2 text-center">Datos de la operacion</h6>
+        <div className="row g-2">
+          {infoField("Codigo", operation.codigo_operacion)}
+          {infoField("Fecha de asignacion", fmtDate(operation.fecha_asignacion))}
+          {infoField("Cliente", operation.cliente)}
+          {infoField("Proveedor", operation.proveedor)}
+          {infoField("Tipo de servicio", operation.tipo_servicio)}
+          {infoField("Producto", operation.porducto)}
+          {infoField("Origen", operation.origen)}
+          {infoField("Destino", operation.destino)}
+          {infoField("LCL", isLcl ? "Si" : "No")}
+          {isLcl ? infoField("Cantidad", operation.cantidad) : null}
+          {isLcl ? infoField("Volumen", operation.volumen) : null}
+          {isLcl ? infoField("Peso", operation.peso) : null}
+          {infoField("Nro. madre", operation.nro_madre)}
+          {infoField("Nro. hijo", operation.nro_hijo)}
+          {infoField("ETD", fmtDate(operation.etd))}
+          {infoField("ETA", fmtDate(operation.eta))}
+          {infoField("Nacionalizacion", operation.tipo_nacionalizacion)}
+          {infoField("Estado", operation.estado_operacion)}
+          <div className="col-12">
+            <div className="border rounded p-2 text-center">
+              <div className="text-muted small">Observaciones</div>
+              <div className="fw-semibold">{operation.observacion || "-"}</div>
+            </div>
+          </div>
+        </div>
+
+        {showContainersInfo ? (
+          <>
+            <h6 className="mt-4 mb-2 text-center">Contenedores asignados</h6>
+            {readonlyContainersTable(containersInfo)}
+          </>
+        ) : null}
+        {readonlyMovementsTable("Costos asociados", costsInfo)}
+        {readonlyMovementsTable("Ventas asociadas", salesInfo)}
+      </div>
+    );
+  };
   const routeKey = (route) => `${route.origen}|||${route.destino}`;
   const currentRouteKey = (state) => {
     const match = supplierRoutes.find(
@@ -1350,13 +1497,14 @@ const Operations = () => {
           <h1 className="page-title m-0">Gestión de Operaciones</h1>
           <small className="text-muted">{selected ? <>Seleccionado: <strong>{selected.codigo_operacion}</strong></> : "Selecciona una operacion para Editar o Eliminar"}</small>
         </div>
-        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-costs" type="button" onClick={openCostForSelected} disabled={!selected}>Costos</button><button className="btn btn-sales" type="button" onClick={openSaleForSelected} disabled={!selected}>Ventas</button></div></div>
+        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-info-operation" type="button" onClick={openInfoForSelected} disabled={!selected}>Informacion</button><button className="btn btn-costs" type="button" onClick={openCostForSelected} disabled={!selected}>Costos</button><button className="btn btn-sales" type="button" onClick={openSaleForSelected} disabled={!selected}>Ventas</button></div></div>
         <div className="ui-card mb-3"><div className="row g-2 align-items-end"><div className="col-md-9"><label className="form-label">Buscar</label><input className="form-control" placeholder="Codigo, cliente, proveedor, servicio, producto, origen, destino..." value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="col-md-3 d-flex gap-2"><button className="btn btn-secondary w-100" type="button" onClick={() => setSearch("")}>Limpiar</button></div></div></div>
         <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>LCL</th><th>Cantidad</th><th>Volumen</th><th>Peso</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{Number(r.lcl) === 1 ? "Si" : "No"}</td><td>{r.cantidad || "-"}</td><td>{r.volumen ?? "-"}</td><td>{r.peso ?? "-"}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={21} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
       </div>
 
       <div className="modal fade" id="addOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Nueva operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{opForm(form, setForm, { isNew: true })}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveNew}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="editOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Editar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{editForm ? opForm(editForm, setEditForm) : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-primary" onClick={saveEdit}>Guardar cambios</button></div></div></div></div>
+      <div className="modal fade" id="operationInfoModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Informacion de operacion {selected?.codigo_operacion || ""}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{operationInfoSection(selected)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>
       <div className="modal fade" id="assignContainerModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Asignar contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">
         <div className="mb-3">
           <label className="form-label">Contenedor</label>

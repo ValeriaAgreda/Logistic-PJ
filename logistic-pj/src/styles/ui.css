@@ -74,3 +74,19 @@
   border-color: #115e59 !important;
   color: #fff !important;
 }
+
+.btn-info-operation {
+  background-color: #475569 !important;
+  border-color: #475569 !important;
+  color: #fff !important;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px !important;
+}
+
+.btn-info-operation:hover,
+.btn-info-operation:focus {
+  background-color: #334155 !important;
+  border-color: #334155 !important;
+  color: #fff !important;
+}
