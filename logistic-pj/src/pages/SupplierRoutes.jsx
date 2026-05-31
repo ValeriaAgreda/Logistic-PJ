@@ -5,6 +5,11 @@ const relacionInicial = {
   id_proveedor: "",
   id_ruta: "",
 };
+const rutaInicial = {
+  origen: "",
+  destino: "",
+};
+const normalizarRuta = (valor = "") => String(valor || "").trim().toLowerCase();
 
 const SupplierRoutes = () => {
   const [relaciones, setRelaciones] = useState([]);
@@ -13,7 +18,10 @@ const SupplierRoutes = () => {
   const [nuevaRelacion, setNuevaRelacion] = useState(relacionInicial);
   const [relacionSeleccionada, setRelacionSeleccionada] = useState(null);
   const [relacionAEliminar, setRelacionAEliminar] = useState(null);
+  const [nuevaRutaRapida, setNuevaRutaRapida] = useState(rutaInicial);
   const [errores, setErrores] = useState({});
+  const [erroresRutaRapida, setErroresRutaRapida] = useState({});
+  const [rutaTarget, setRutaTarget] = useState("new");
   const [selectedKey, setSelectedKey] = useState(null);
   const [search, setSearch] = useState("");
 
@@ -28,6 +36,34 @@ const SupplierRoutes = () => {
 
     if (!relacion.id_ruta) {
       e.id_ruta = "La ruta es obligatoria.";
+    }
+
+    return e;
+  };
+  const validarRuta = (ruta) => {
+    const e = {};
+
+    if (!ruta.origen || !ruta.origen.trim()) {
+      e.origen = "El origen es obligatorio.";
+    } else if (ruta.origen.trim().length > 50) {
+      e.origen = "El origen no puede superar 50 caracteres.";
+    }
+
+    if (!ruta.destino || !ruta.destino.trim()) {
+      e.destino = "El destino es obligatorio.";
+    } else if (ruta.destino.trim().length > 50) {
+      e.destino = "El destino no puede superar 50 caracteres.";
+    }
+
+    const rutaDuplicada = rutas.some(
+      (item) =>
+        normalizarRuta(item.origen) === normalizarRuta(ruta.origen) &&
+        normalizarRuta(item.destino) === normalizarRuta(ruta.destino)
+    );
+
+    if (rutaDuplicada) {
+      e.origen = "Ya existe una ruta con ese origen y destino.";
+      e.destino = "Ya existe una ruta con ese origen y destino.";
     }
 
     return e;
@@ -113,6 +149,12 @@ const SupplierRoutes = () => {
     setRelacionAEliminar(relacion);
     new bootstrap.Modal(document.getElementById("deleteProveedorRutaModal")).show();
   };
+  const abrirRutaRapida = (target) => {
+    setRutaTarget(target);
+    setNuevaRutaRapida(rutaInicial);
+    setErroresRutaRapida({});
+    new bootstrap.Modal(document.getElementById("quickRutaModal")).show();
+  };
 
   const guardarNuevo = async () => {
     const e = validar(nuevaRelacion);
@@ -147,6 +189,51 @@ const SupplierRoutes = () => {
       setErrores({});
     } catch (error) {
       console.error("Error al crear ruta de proveedor:", error);
+      alert("Error en el servidor");
+    }
+  };
+  const guardarRutaRapida = async () => {
+    const e = validarRuta(nuevaRutaRapida);
+    if (Object.keys(e).length > 0) {
+      setErroresRutaRapida(e);
+      return;
+    }
+
+    try {
+      const res = await fetch("http://localhost:3001/api/ruta", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          origen: nuevaRutaRapida.origen.trim(),
+          destino: nuevaRutaRapida.destino.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "Error al crear ruta");
+        return;
+      }
+
+      await cargarCatalogos();
+      if (rutaTarget === "edit") {
+        setRelacionSeleccionada((relacion) => ({
+          ...relacion,
+          id_ruta: String(data.id_ruta),
+        }));
+      } else {
+        setNuevaRelacion((relacion) => ({
+          ...relacion,
+          id_ruta: String(data.id_ruta),
+        }));
+      }
+      bootstrap.Modal.getInstance(document.getElementById("quickRutaModal"))?.hide();
+      setNuevaRutaRapida(rutaInicial);
+      setErroresRutaRapida({});
+    } catch (error) {
+      console.error("Error al crear ruta:", error);
       alert("Error en el servidor");
     }
   };
@@ -412,25 +499,36 @@ const SupplierRoutes = () => {
 
               <div className="mb-3">
                 <label className="form-label">Ruta</label>
-                <select
-                  className={`form-select ${errores.id_ruta ? "is-invalid" : ""}`}
-                  value={nuevaRelacion.id_ruta}
-                  onChange={(e) =>
-                    setNuevaRelacion({
-                      ...nuevaRelacion,
-                      id_ruta: e.target.value,
-                    })
-                  }
-                >
-                  <option value="">Seleccionar</option>
-                  {rutas.map((ruta) => (
-                    <option key={ruta.id_ruta} value={ruta.id_ruta}>
-                      {ruta.origen} - {ruta.destino}
-                    </option>
-                  ))}
-                </select>
+                <div className="d-flex gap-2 align-items-start">
+                  <select
+                    className={`form-select ${errores.id_ruta ? "is-invalid" : ""}`}
+                    value={nuevaRelacion.id_ruta}
+                    onChange={(e) =>
+                      setNuevaRelacion({
+                        ...nuevaRelacion,
+                        id_ruta: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="">Seleccionar</option>
+                    {rutas.map((ruta) => (
+                      <option key={ruta.id_ruta} value={ruta.id_ruta}>
+                        {ruta.origen} - {ruta.destino}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary"
+                    onClick={() => abrirRutaRapida("new")}
+                    title="Crear ruta"
+                    aria-label="Crear ruta"
+                  >
+                    +
+                  </button>
+                </div>
                 {errores.id_ruta && (
-                  <div className="invalid-feedback">{errores.id_ruta}</div>
+                  <div className="invalid-feedback d-block">{errores.id_ruta}</div>
                 )}
               </div>
             </div>
@@ -487,25 +585,36 @@ const SupplierRoutes = () => {
 
                   <div className="mb-3">
                     <label className="form-label">Ruta</label>
-                    <select
-                      className={`form-select ${errores.id_ruta ? "is-invalid" : ""}`}
-                      value={relacionSeleccionada.id_ruta}
-                      onChange={(e) =>
-                        setRelacionSeleccionada({
-                          ...relacionSeleccionada,
-                          id_ruta: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="">Seleccionar</option>
-                      {rutas.map((ruta) => (
-                        <option key={ruta.id_ruta} value={ruta.id_ruta}>
-                          {ruta.origen} - {ruta.destino}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="d-flex gap-2 align-items-start">
+                      <select
+                        className={`form-select ${errores.id_ruta ? "is-invalid" : ""}`}
+                        value={relacionSeleccionada.id_ruta}
+                        onChange={(e) =>
+                          setRelacionSeleccionada({
+                            ...relacionSeleccionada,
+                            id_ruta: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Seleccionar</option>
+                        {rutas.map((ruta) => (
+                          <option key={ruta.id_ruta} value={ruta.id_ruta}>
+                            {ruta.origen} - {ruta.destino}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary"
+                        onClick={() => abrirRutaRapida("edit")}
+                        title="Crear ruta"
+                        aria-label="Crear ruta"
+                      >
+                        +
+                      </button>
+                    </div>
                     {errores.id_ruta && (
-                      <div className="invalid-feedback">{errores.id_ruta}</div>
+                      <div className="invalid-feedback d-block">{errores.id_ruta}</div>
                     )}
                   </div>
                 </>
@@ -552,6 +661,62 @@ const SupplierRoutes = () => {
               </button>
               <button className="btn btn-danger" onClick={eliminarRelacion}>
                 Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal fade" id="quickRutaModal" tabIndex="-1" aria-hidden="true">
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content shadow rounded-3">
+            <div className="modal-header">
+              <h5 className="modal-title">Crear ruta</h5>
+              <button className="btn-close" data-bs-dismiss="modal" />
+            </div>
+            <div className="modal-body">
+              <div className="mb-3">
+                <label className="form-label">Origen</label>
+                <input
+                  type="text"
+                  className={`form-control ${erroresRutaRapida.origen ? "is-invalid" : ""}`}
+                  value={nuevaRutaRapida.origen}
+                  onChange={(e) =>
+                    setNuevaRutaRapida({
+                      ...nuevaRutaRapida,
+                      origen: e.target.value,
+                    })
+                  }
+                />
+                {erroresRutaRapida.origen ? (
+                  <div className="invalid-feedback">{erroresRutaRapida.origen}</div>
+                ) : null}
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label">Destino</label>
+                <input
+                  type="text"
+                  className={`form-control ${erroresRutaRapida.destino ? "is-invalid" : ""}`}
+                  value={nuevaRutaRapida.destino}
+                  onChange={(e) =>
+                    setNuevaRutaRapida({
+                      ...nuevaRutaRapida,
+                      destino: e.target.value,
+                    })
+                  }
+                />
+                {erroresRutaRapida.destino ? (
+                  <div className="invalid-feedback">{erroresRutaRapida.destino}</div>
+                ) : null}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" data-bs-dismiss="modal">
+                Cancelar
+              </button>
+              <button className="btn btn-success" onClick={guardarRutaRapida}>
+                Guardar
               </button>
             </div>
           </div>

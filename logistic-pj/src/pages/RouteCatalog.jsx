@@ -6,6 +6,8 @@ const rutaInicial = {
   destino: "",
 };
 
+const normalizarRuta = (valor = "") => String(valor || "").trim().toLowerCase();
+
 const RouteCatalog = () => {
   const [rutas, setRutas] = useState([]);
   const [nuevaRuta, setNuevaRuta] = useState(rutaInicial);
@@ -28,6 +30,18 @@ const RouteCatalog = () => {
       e.destino = "El destino es obligatorio.";
     } else if (ruta.destino.trim().length > 50) {
       e.destino = "El destino no puede superar 50 caracteres.";
+    }
+
+    const rutaDuplicada = rutas.some(
+      (item) =>
+        normalizarRuta(item.origen) === normalizarRuta(ruta.origen) &&
+        normalizarRuta(item.destino) === normalizarRuta(ruta.destino) &&
+        String(item.id_ruta || "") !== String(ruta.id_ruta || "")
+    );
+
+    if (rutaDuplicada) {
+      e.origen = "Ya existe una ruta con ese origen y destino.";
+      e.destino = "Ya existe una ruta con ese origen y destino.";
     }
 
     return e;
@@ -444,4 +458,3 @@ const RouteCatalog = () => {
 };
 
 export default RouteCatalog;
-

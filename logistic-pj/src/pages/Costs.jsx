@@ -10,6 +10,13 @@ const costoInicial = {
   monto: "",
   observacion: "",
 };
+const ventaInicial = {
+  id_operacion: "",
+  id_tipo_costo: "",
+  id_moneda: "",
+  monto: "",
+  observacion: "",
+};
 
 const obtenerHeadersAuth = () => {
   try {
@@ -43,13 +50,16 @@ const Costs = () => {
   const [searchParams] = useSearchParams();
   const autoOpenKeyRef = useRef("");
   const [costos, setCostos] = useState([]);
+  const [ventas, setVentas] = useState([]);
   const [operaciones, setOperaciones] = useState([]);
   const [tiposCosto, setTiposCosto] = useState([]);
   const [monedas, setMonedas] = useState([]);
   const [nuevoCosto, setNuevoCosto] = useState(costoInicial);
   const [costoSeleccionado, setCostoSeleccionado] = useState(null);
   const [costoAEliminar, setCostoAEliminar] = useState(null);
+  const [ventaDesdeCosto, setVentaDesdeCosto] = useState(ventaInicial);
   const [errores, setErrores] = useState({});
+  const [erroresVenta, setErroresVenta] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [busquedaCodigoOperacion, setBusquedaCodigoOperacion] = useState("");
   const [codigoOperacionAplicado, setCodigoOperacionAplicado] = useState("");
@@ -103,15 +113,17 @@ const Costs = () => {
 
   const cargarDatos = useCallback(async () => {
     try {
-      const [costosData, operacionesData, tiposCostoData, monedasData] =
+      const [costosData, ventasData, operacionesData, tiposCostoData, monedasData] =
         await Promise.all([
           request("http://localhost:3001/api/costo-operacion"),
+          request("http://localhost:3001/api/venta-operacion"),
           request("http://localhost:3001/api/operaciones"),
           request("http://localhost:3001/api/tipo-costo"),
           request("http://localhost:3001/api/moneda"),
         ]);
 
       setCostos(Array.isArray(costosData) ? costosData : []);
+      setVentas(Array.isArray(ventasData) ? ventasData : []);
       setOperaciones(Array.isArray(operacionesData) ? operacionesData : []);
       setTiposCosto(Array.isArray(tiposCostoData) ? tiposCostoData : []);
       setMonedas(Array.isArray(monedasData) ? monedasData : []);
@@ -182,6 +194,16 @@ const Costs = () => {
     setCostoAEliminar(costo);
     new bootstrap.Modal(document.getElementById("deleteCostoModal")).show();
   };
+  const abrirVentaDesdeCosto = (costo) => {
+    if (!costo) return;
+    setVentaDesdeCosto({
+      ...ventaInicial,
+      id_operacion: String(costo.id_operacion ?? ""),
+      id_tipo_costo: String(costo.id_tipo_costo ?? ""),
+    });
+    setErroresVenta({});
+    new bootstrap.Modal(document.getElementById("addVentaDesdeCostoModal")).show();
+  };
 
   const normalizarPayload = (costo) => ({
     id_operacion: Number(costo.id_operacion),
@@ -190,6 +212,12 @@ const Costs = () => {
     monto: Number(costo.monto),
     observacion: costo.observacion?.trim() || "",
   });
+  const existeVentaParaCosto = (costo) =>
+    ventas.some(
+      (venta) =>
+        String(venta.id_operacion) === String(costo.id_operacion) &&
+        String(venta.id_tipo_costo) === String(costo.id_tipo_costo)
+    );
 
   const guardarNuevo = async () => {
     const e = validar(nuevoCosto);
@@ -211,6 +239,28 @@ const Costs = () => {
     } catch (error) {
       console.error("Error al crear costo:", error);
       alert(error.message || "Error al crear costo");
+    }
+  };
+  const guardarVentaDesdeCosto = async () => {
+    const e = validar(ventaDesdeCosto);
+    if (Object.keys(e).length > 0) {
+      setErroresVenta(e);
+      return;
+    }
+
+    try {
+      await request("http://localhost:3001/api/venta-operacion", {
+        method: "POST",
+        body: JSON.stringify(normalizarPayload(ventaDesdeCosto)),
+      });
+
+      await cargarDatos();
+      bootstrap.Modal.getInstance(document.getElementById("addVentaDesdeCostoModal"))?.hide();
+      setVentaDesdeCosto(ventaInicial);
+      setErroresVenta({});
+    } catch (error) {
+      console.error("Error al crear venta:", error);
+      alert(error.message || "Error al crear venta");
     }
   };
 
@@ -340,6 +390,28 @@ const Costs = () => {
       {errores[field] && <div className="invalid-feedback">{errores[field]}</div>}
     </div>
   );
+  const obtenerOperacion = (idOperacion) =>
+    operaciones.find((operacion) => String(operacion.id_operacion) === String(idOperacion));
+  const obtenerTipoCosto = (idTipoCosto) =>
+    tiposCosto.find((tipo) => String(tipo.id_tipo_costo) === String(idTipoCosto));
+  const renderSelectConErrores = (label, field, state, setState, opciones, valueKey, labelKey, erroresActuales) => (
+    <div className="mb-3">
+      <label className="form-label">{label}</label>
+      <select
+        className={`form-select ${erroresActuales[field] ? "is-invalid" : ""}`}
+        value={state[field] || ""}
+        onChange={(e) => setState({ ...state, [field]: e.target.value })}
+      >
+        <option value="">Seleccionar</option>
+        {opciones.map((opcion) => (
+          <option key={opcion[valueKey]} value={opcion[valueKey]}>
+            {opcion[labelKey]}
+          </option>
+        ))}
+      </select>
+      {erroresActuales[field] ? <div className="invalid-feedback">{erroresActuales[field]}</div> : null}
+    </div>
+  );
 
   return (
     <>
@@ -426,6 +498,7 @@ const Costs = () => {
                     <th>Moneda</th>
                     <th>Monto</th>
                     <th>Observacion</th>
+                    <th className="text-center">Venta</th>
                     <th>Registro</th>
                   </tr>
                 </thead>
@@ -443,11 +516,29 @@ const Costs = () => {
                         <td className="text-center">{idx + 1}</td>
                         <td>{costo.codigo_operacion}</td>
                         <td>{costo.tipo_costo}</td>
-                        <td>
+                        <td className="text-center">
                           {costo.moneda} ({costo.codigo_moneda})
                         </td>
                         <td>{Number(costo.monto || 0).toFixed(2)}</td>
                         <td>{costo.observacion || "-"}</td>
+                        <td>
+                          <div className="d-flex justify-content-center">
+                            {existeVentaParaCosto(costo) ? (
+                              <span className="text-muted">Registrada</span>
+                            ) : (
+                              <button
+                                className="btn btn-sm btn-outline-success"
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  abrirVentaDesdeCosto(costo);
+                                }}
+                              >
+                                Registrar venta
+                              </button>
+                            )}
+                          </div>
+                        </td>
                         <td>
                           {costo.fecha_registro
                             ? new Date(costo.fecha_registro).toLocaleString("es-BO")
@@ -459,7 +550,7 @@ const Costs = () => {
 
                   {costosFiltrados.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="text-center py-4 text-muted">
+                      <td colSpan={8} className="text-center py-4 text-muted">
                         No hay costos activos con los filtros actuales.
                       </td>
                     </tr>
@@ -656,6 +747,71 @@ const Costs = () => {
               </button>
               <button className="btn btn-primary" onClick={guardarEdicion}>
                 Guardar cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal fade" id="addVentaDesdeCostoModal" tabIndex="-1" aria-hidden="true">
+        <div className="modal-dialog modal-dialog-centered modal-lg">
+          <div className="modal-content shadow rounded-3">
+            <div className="modal-header">
+              <h5 className="modal-title">Agregar venta</h5>
+              <button className="btn-close" data-bs-dismiss="modal" />
+            </div>
+            <div className="modal-body">
+              <div className="mb-3">
+                <label className="form-label">Operacion</label>
+                <input className="form-control" value={obtenerOperacion(ventaDesdeCosto.id_operacion)?.codigo_operacion || ""} readOnly disabled />
+                {erroresVenta.id_operacion ? <div className="invalid-feedback d-block">{erroresVenta.id_operacion}</div> : null}
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label">Tipo de costo</label>
+                <input className="form-control" value={obtenerTipoCosto(ventaDesdeCosto.id_tipo_costo)?.descripcion || ""} readOnly disabled />
+                {erroresVenta.id_tipo_costo ? <div className="invalid-feedback d-block">{erroresVenta.id_tipo_costo}</div> : null}
+              </div>
+
+              {renderSelectConErrores(
+                "Moneda",
+                "id_moneda",
+                ventaDesdeCosto,
+                setVentaDesdeCosto,
+                monedas,
+                "id_moneda",
+                "descripcion",
+                erroresVenta
+              )}
+
+              <div className="mb-3">
+                <label className="form-label">Monto</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className={`form-control ${erroresVenta.monto ? "is-invalid" : ""}`}
+                  value={ventaDesdeCosto.monto}
+                  onChange={(e) => setVentaDesdeCosto({ ...ventaDesdeCosto, monto: e.target.value })}
+                />
+                {erroresVenta.monto ? <div className="invalid-feedback">{erroresVenta.monto}</div> : null}
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label">Observacion</label>
+                <textarea
+                  className="form-control"
+                  rows="3"
+                  value={ventaDesdeCosto.observacion}
+                  onChange={(e) => setVentaDesdeCosto({ ...ventaDesdeCosto, observacion: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" data-bs-dismiss="modal">
+                Cancelar
+              </button>
+              <button className="btn btn-success" onClick={guardarVentaDesdeCosto}>
+                Guardar
               </button>
             </div>
           </div>

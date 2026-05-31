@@ -2,6 +2,24 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 
+const existeRutaDuplicada = async (origen, destino, idRutaExcluir = null) => {
+  const params = [String(origen).trim(), String(destino).trim()];
+  let sql = `
+    SELECT id_ruta
+    FROM ruta
+    WHERE LOWER(TRIM(origen)) = LOWER(TRIM(?))
+      AND LOWER(TRIM(destino)) = LOWER(TRIM(?))
+      AND estado = 1`;
+
+  if (idRutaExcluir) {
+    sql += " AND id_ruta <> ?";
+    params.push(idRutaExcluir);
+  }
+
+  const [rows] = await db.query(sql, params);
+  return rows.length > 0;
+};
+
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
@@ -60,6 +78,10 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "El destino es obligatorio." });
     }
 
+    if (await existeRutaDuplicada(origen, destino)) {
+      return res.status(400).json({ error: "Ya existe una ruta con ese origen y destino." });
+    }
+
     const [result] = await db.query(
       `INSERT INTO ruta (
         origen,
@@ -90,6 +112,10 @@ router.put("/:id_ruta", async (req, res) => {
 
     if (!destino || !String(destino).trim()) {
       return res.status(400).json({ error: "El destino es obligatorio." });
+    }
+
+    if (await existeRutaDuplicada(origen, destino, id_ruta)) {
+      return res.status(400).json({ error: "Ya existe una ruta con ese origen y destino." });
     }
 
     const [result] = await db.query(
