@@ -80,7 +80,6 @@ router.get("/", async (_req, res) => {
         o.codigo_operacion,
         vo.id_tipo_costo,
         tc.descripcion AS tipo_costo,
-        tc.grupo AS grupo_tipo_costo,
         vo.id_moneda,
         m.descripcion AS moneda,
         m.codigo AS codigo_moneda,

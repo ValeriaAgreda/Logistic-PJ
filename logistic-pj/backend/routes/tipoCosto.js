@@ -8,7 +8,6 @@ router.get("/", async (_req, res) => {
       `SELECT
         id_tipo_costo,
         descripcion,
-        grupo,
         estado
       FROM tipo_costo
       WHERE estado = 1
@@ -30,7 +29,6 @@ router.get("/:id_tipo_costo", async (req, res) => {
       `SELECT
         id_tipo_costo,
         descripcion,
-        grupo,
         estado
       FROM tipo_costo
       WHERE id_tipo_costo = ?`,
@@ -50,23 +48,18 @@ router.get("/:id_tipo_costo", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { descripcion, grupo } = req.body;
+    const { descripcion } = req.body;
 
     if (!descripcion || !String(descripcion).trim()) {
       return res.status(400).json({ error: "La descripcion es obligatoria." });
     }
 
-    if (!grupo || !String(grupo).trim()) {
-      return res.status(400).json({ error: "El grupo es obligatorio." });
-    }
-
     const [result] = await db.query(
       `INSERT INTO tipo_costo (
         descripcion,
-        grupo,
         estado
-      ) VALUES (?, ?, 1)`,
-      [String(descripcion).trim(), String(grupo).trim()]
+      ) VALUES (?, 1)`,
+      [String(descripcion).trim()]
     );
 
     res.status(201).json({
@@ -82,25 +75,19 @@ router.post("/", async (req, res) => {
 router.put("/:id_tipo_costo", async (req, res) => {
   try {
     const { id_tipo_costo } = req.params;
-    const { descripcion, grupo, estado } = req.body;
+    const { descripcion, estado } = req.body;
 
     if (!descripcion || !String(descripcion).trim()) {
       return res.status(400).json({ error: "La descripcion es obligatoria." });
     }
 
-    if (!grupo || !String(grupo).trim()) {
-      return res.status(400).json({ error: "El grupo es obligatorio." });
-    }
-
     const [result] = await db.query(
       `UPDATE tipo_costo
        SET descripcion = ?,
-           grupo = ?,
            estado = ?
        WHERE id_tipo_costo = ?`,
       [
         String(descripcion).trim(),
-        String(grupo).trim(),
         typeof estado === "number" ? estado : 1,
         id_tipo_costo,
       ]

@@ -3,7 +3,6 @@ import * as bootstrap from "bootstrap";
 
 const tipoInicial = {
   descripcion: "",
-  grupo: "",
 };
 
 const CostType = () => {
@@ -22,12 +21,6 @@ const CostType = () => {
       e.descripcion = "La descripcion es obligatoria.";
     } else if (tipo.descripcion.trim().length > 50) {
       e.descripcion = "La descripcion no puede superar 50 caracteres.";
-    }
-
-    if (!tipo.grupo || !tipo.grupo.trim()) {
-      e.grupo = "El grupo es obligatorio.";
-    } else if (tipo.grupo.trim().length > 50) {
-      e.grupo = "El grupo no puede superar 50 caracteres.";
     }
 
     return e;
@@ -89,7 +82,6 @@ const CostType = () => {
         credentials: "include",
         body: JSON.stringify({
           descripcion: nuevoTipo.descripcion.trim(),
-          grupo: nuevoTipo.grupo.trim(),
         }),
       });
 
@@ -130,7 +122,6 @@ const CostType = () => {
           credentials: "include",
           body: JSON.stringify({
             descripcion: tipoSeleccionado.descripcion.trim(),
-            grupo: tipoSeleccionado.grupo.trim(),
           }),
         }
       );
@@ -196,8 +187,7 @@ const CostType = () => {
     return tiposCosto.filter(
       (t) =>
         !q ||
-        String(t.descripcion || "").toLowerCase().includes(q) ||
-        String(t.grupo || "").toLowerCase().includes(q)
+        String(t.descripcion || "").toLowerCase().includes(q)
     );
   }, [tiposCosto, search]);
 
@@ -265,7 +255,7 @@ const CostType = () => {
               <label className="form-label">Buscar</label>
               <input
                 className="form-control"
-                placeholder="Buscar por descripcion o grupo..."
+                placeholder="Buscar por descripcion..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -293,7 +283,6 @@ const CostType = () => {
                   #
                 </th>
                 <th>Descripcion</th>
-                <th>Grupo</th>
               </tr>
             </thead>
             <tbody>
@@ -309,14 +298,13 @@ const CostType = () => {
                   >
                     <td className="text-center">{idx + 1}</td>
                     <td>{t.descripcion}</td>
-                    <td>{t.grupo}</td>
                   </tr>
                 );
               })}
 
               {tiposFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="text-center py-4 text-muted">
+                  <td colSpan={2} className="text-center py-4 text-muted">
                     No hay resultados con los filtros actuales.
                   </td>
                 </tr>
@@ -359,25 +347,6 @@ const CostType = () => {
                 )}
               </div>
 
-              <div className="mb-3">
-                <label className="form-label">Grupo</label>
-                <input
-                  type="text"
-                  className={`form-control ${
-                    errores.grupo ? "is-invalid" : ""
-                  }`}
-                  value={nuevoTipo.grupo}
-                  onChange={(e) =>
-                    setNuevoTipo({
-                      ...nuevoTipo,
-                      grupo: e.target.value,
-                    })
-                  }
-                />
-                {errores.grupo && (
-                  <div className="invalid-feedback">{errores.grupo}</div>
-                )}
-              </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" data-bs-dismiss="modal">
@@ -428,25 +397,6 @@ const CostType = () => {
                     )}
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label">Grupo</label>
-                    <input
-                      type="text"
-                      className={`form-control ${
-                        errores.grupo ? "is-invalid" : ""
-                      }`}
-                      value={tipoSeleccionado.grupo || ""}
-                      onChange={(e) =>
-                        setTipoSeleccionado({
-                          ...tipoSeleccionado,
-                          grupo: e.target.value,
-                        })
-                      }
-                    />
-                    {errores.grupo && (
-                      <div className="invalid-feedback">{errores.grupo}</div>
-                    )}
-                  </div>
                 </>
               )}
             </div>
@@ -498,4 +448,3 @@ const CostType = () => {
 };
 
 export default CostType;
-

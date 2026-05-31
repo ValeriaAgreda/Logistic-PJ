@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as bootstrap from "bootstrap";
+import { useSearchParams } from "react-router-dom";
 import "../styles/costs.css";
 
 const costoInicial = {
@@ -19,7 +20,28 @@ const obtenerHeadersAuth = () => {
   }
 };
 
+const normalizarMoneda = (valor = "") =>
+  String(valor || "")
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const esBoliviano = (item) => {
+  const codigo = normalizarMoneda(item.codigo_moneda);
+  const descripcion = normalizarMoneda(item.moneda);
+  return ["BOB", "BS", "BOL"].includes(codigo) || descripcion.includes("BOLIVIANO");
+};
+
+const esDolar = (item) => {
+  const codigo = normalizarMoneda(item.codigo_moneda);
+  const descripcion = normalizarMoneda(item.moneda);
+  return ["USD", "$US", "SUS", "DOL"].includes(codigo) || descripcion.includes("DOLAR");
+};
+
 const Costs = () => {
+  const [searchParams] = useSearchParams();
+  const autoOpenKeyRef = useRef("");
   const [costos, setCostos] = useState([]);
   const [operaciones, setOperaciones] = useState([]);
   const [tiposCosto, setTiposCosto] = useState([]);
@@ -29,7 +51,9 @@ const Costs = () => {
   const [costoAEliminar, setCostoAEliminar] = useState(null);
   const [errores, setErrores] = useState({});
   const [selectedId, setSelectedId] = useState(null);
-  const [search, setSearch] = useState("");
+  const [busquedaCodigoOperacion, setBusquedaCodigoOperacion] = useState("");
+  const [codigoOperacionAplicado, setCodigoOperacionAplicado] = useState("");
+  const [busquedaRealizada, setBusquedaRealizada] = useState(false);
 
   const request = async (url, options = {}) => {
     const res = await fetch(url, {
@@ -100,6 +124,37 @@ const Costs = () => {
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
+
+  useEffect(() => {
+    const idOperacion = searchParams.get("id_operacion");
+    const debeAbrirNuevo = searchParams.get("nuevo") === "1";
+    const key = `${idOperacion || ""}-${debeAbrirNuevo ? "nuevo" : ""}`;
+
+    if (!debeAbrirNuevo || !idOperacion || autoOpenKeyRef.current === key) return;
+    const operacion = operaciones.find((item) => String(item.id_operacion) === String(idOperacion));
+    if (!operacion) return;
+
+    autoOpenKeyRef.current = key;
+    setBusquedaCodigoOperacion(String(operacion.codigo_operacion || ""));
+    setCodigoOperacionAplicado(String(operacion.codigo_operacion || ""));
+    setBusquedaRealizada(true);
+    setNuevoCosto({ ...costoInicial, id_operacion: String(idOperacion) });
+    setErrores({});
+    new bootstrap.Modal(document.getElementById("addCostoModal")).show();
+  }, [operaciones, searchParams]);
+
+  const buscarPorOperacion = () => {
+    setCodigoOperacionAplicado(busquedaCodigoOperacion.trim());
+    setBusquedaRealizada(true);
+    setSelectedId(null);
+  };
+
+  const limpiarBusquedaOperacion = () => {
+    setBusquedaCodigoOperacion("");
+    setCodigoOperacionAplicado("");
+    setBusquedaRealizada(false);
+    setSelectedId(null);
+  };
 
   const abrirNuevo = () => {
     setNuevoCosto(costoInicial);
@@ -214,26 +269,26 @@ const Costs = () => {
   );
 
   const costosFiltrados = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    if (!busquedaRealizada) return [];
+    const codigo = codigoOperacionAplicado.trim().toLowerCase();
 
-    return costos.filter((costo) => {
-      return (
-        !q ||
-        String(costo.codigo_operacion || "").toLowerCase().includes(q) ||
-        String(costo.tipo_costo || "").toLowerCase().includes(q) ||
-        String(costo.grupo_tipo_costo || "").toLowerCase().includes(q) ||
-        String(costo.moneda || "").toLowerCase().includes(q) ||
-        String(costo.codigo_moneda || "").toLowerCase().includes(q) ||
-        String(costo.observacion || "").toLowerCase().includes(q)
-      );
-    });
-  }, [costos, search]);
+    return costos.filter((costo) => String(costo.codigo_operacion || "").toLowerCase() === codigo);
+  }, [codigoOperacionAplicado, costos, busquedaRealizada]);
 
-  const totalMonto = useMemo(
+  const resumenMontos = useMemo(
     () =>
       costosFiltrados.reduce(
-        (sum, costo) => sum + Number(costo.monto || 0),
-        0
+        (resumen, costo) => {
+          const monto = Number(costo.monto || 0);
+          if (esBoliviano(costo)) {
+            return { ...resumen, bolivianos: resumen.bolivianos + monto };
+          }
+          if (esDolar(costo)) {
+            return { ...resumen, dolares: resumen.dolares + monto };
+          }
+          return resumen;
+        },
+        { bolivianos: 0, dolares: 0 }
       ),
     [costosFiltrados]
   );
@@ -323,20 +378,30 @@ const Costs = () => {
         <div className="ui-card mb-3">
           <div className="row g-2 align-items-end">
             <div className="col-12 col-md-8">
-              <label className="form-label">Buscar</label>
+              <label className="form-label">Codigo de operacion</label>
               <input
                 className="form-control"
-                placeholder="Operacion, tipo de costo, grupo, moneda u observacion..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Escribe el codigo de operacion..."
+                value={busquedaCodigoOperacion}
+                onChange={(e) => setBusquedaCodigoOperacion(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") buscarPorOperacion();
+                }}
               />
             </div>
 
             <div className="col-12 col-md-4 d-flex gap-2">
               <button
+                className="btn btn-primary w-100"
+                type="button"
+                onClick={buscarPorOperacion}
+              >
+                Buscar
+              </button>
+              <button
                 className="btn btn-secondary w-100"
                 type="button"
-                onClick={() => setSearch("")}
+                onClick={limpiarBusquedaOperacion}
               >
                 Limpiar
               </button>
@@ -344,6 +409,11 @@ const Costs = () => {
           </div>
         </div>
 
+        {!busquedaRealizada ? (
+          <div className="ui-card text-center py-4 text-muted">
+            Escribe el codigo de operacion y presiona Buscar para ver sus costos.
+          </div>
+        ) : (
         <div className="row g-3 mb-3">
           <div className="col-12 col-lg-9">
             <div className="table-responsive ui-card">
@@ -353,7 +423,6 @@ const Costs = () => {
                     <th style={{ width: 48 }} className="text-center">#</th>
                     <th>Operacion</th>
                     <th>Tipo de costo</th>
-                    <th>Grupo</th>
                     <th>Moneda</th>
                     <th>Monto</th>
                     <th>Observacion</th>
@@ -374,7 +443,6 @@ const Costs = () => {
                         <td className="text-center">{idx + 1}</td>
                         <td>{costo.codigo_operacion}</td>
                         <td>{costo.tipo_costo}</td>
-                        <td>{costo.grupo_tipo_costo}</td>
                         <td>
                           {costo.moneda} ({costo.codigo_moneda})
                         </td>
@@ -391,7 +459,7 @@ const Costs = () => {
 
                   {costosFiltrados.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="text-center py-4 text-muted">
+                      <td colSpan={7} className="text-center py-4 text-muted">
                         No hay costos activos con los filtros actuales.
                       </td>
                     </tr>
@@ -409,12 +477,17 @@ const Costs = () => {
                 <strong>{costosFiltrados.length}</strong>
               </div>
               <div className="summary-row">
-                <span>Total montos</span>
-                <strong>{totalMonto.toFixed(2)}</strong>
+                <span>Total bolivianos</span>
+                <strong>{resumenMontos.bolivianos.toFixed(2)}</strong>
+              </div>
+              <div className="summary-row">
+                <span>Total dolares</span>
+                <strong>{resumenMontos.dolares.toFixed(2)}</strong>
               </div>
             </div>
           </div>
         </div>
+        )}
       </div>
 
       <div className="modal fade" id="addCostoModal" tabIndex="-1" aria-hidden="true">
@@ -620,4 +693,3 @@ const Costs = () => {
 };
 
 export default Costs;
-

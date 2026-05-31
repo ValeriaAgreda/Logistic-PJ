@@ -5,6 +5,7 @@ import "../styles/operations.css";
 const API = "http://localhost:3001/api";
 const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", lcl: false, cantidad: "", volumen: "", peso: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
 const asignacionInit = { id_contenedor: "", id_operacion: "", fecha_llegada_puerto: "", fecha_devolucion_limite: "", fecha_devolucion: "" };
+const movimientoInit = { id_operacion: "", id_tipo_costo: "", id_moneda: "", monto: "", observacion: "" };
 const clientInit = { razon_social: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", observacion: "" };
 const supplierInit = { empresa: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", lugar_origen: "", id_tipo_servicio: "" };
 const itemInit = { descripcion: "" };
@@ -120,6 +121,8 @@ const Operations = () => {
   const [rows, setRows] = useState([]);
   const [containers, setContainers] = useState([]);
   const [containerAssignments, setContainerAssignments] = useState([]);
+  const [tiposCosto, setTiposCosto] = useState([]);
+  const [monedas, setMonedas] = useState([]);
   const [clients, setClients] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [supplierRoutes, setSupplierRoutes] = useState([]);
@@ -142,6 +145,10 @@ const Operations = () => {
   const [nextCode, setNextCode] = useState("");
   const [assignmentForm, setAssignmentForm] = useState(asignacionInit);
   const [assignmentErrors, setAssignmentErrors] = useState({});
+  const [costForm, setCostForm] = useState(movimientoInit);
+  const [saleForm, setSaleForm] = useState(movimientoInit);
+  const [costErrors, setCostErrors] = useState({});
+  const [saleErrors, setSaleErrors] = useState({});
 
   const request = async (url, options = {}) =>
     parse(
@@ -157,10 +164,12 @@ const Operations = () => {
     );
 
   const loadAll = useCallback(async () => {
-    const [ops, cont, asg, c, p, pr, s, n, st] = await Promise.all([
+    const [ops, cont, asg, tc, mon, c, p, pr, s, n, st] = await Promise.all([
       request(`${API}/operaciones`),
       request(`${API}/contenedores`),
       request(`${API}/operacion-contenedor`),
+      request(`${API}/tipo-costo`),
+      request(`${API}/moneda`),
       request(`${API}/clientes`),
       request(`${API}/proveedores`),
       request(`${API}/proveedor-ruta`),
@@ -171,6 +180,8 @@ const Operations = () => {
     setRows(Array.isArray(ops) ? ops : []);
     setContainers(Array.isArray(cont) ? cont : []);
     setContainerAssignments(Array.isArray(asg) ? asg : []);
+    setTiposCosto(Array.isArray(tc) ? tc : []);
+    setMonedas(Array.isArray(mon) ? mon : []);
     setClients(Array.isArray(c) ? c : []);
     setSuppliers(Array.isArray(p) ? p : []);
     setSupplierRoutes(Array.isArray(pr) ? pr : []);
@@ -246,6 +257,16 @@ const Operations = () => {
     }
     return e;
   };
+  const validateMovimiento = (v) => {
+    const e = {};
+    if (!v.id_operacion) e.id_operacion = "Selecciona una operacion.";
+    if (!v.id_tipo_costo) e.id_tipo_costo = "Selecciona un tipo de costo.";
+    if (!v.id_moneda) e.id_moneda = "Selecciona una moneda.";
+    if (v.monto === "" || Number.isNaN(Number(v.monto)) || Number(v.monto) < 0) {
+      e.monto = "Ingresa un monto valido.";
+    }
+    return e;
+  };
 
   const payload = (v) => ({
     ...v,
@@ -266,6 +287,13 @@ const Operations = () => {
     id_estado_operacion: Number(v.id_estado_operacion),
     etd: v.etd || null,
     eta: v.eta || null,
+  });
+  const movimientoPayload = (v) => ({
+    id_operacion: Number(v.id_operacion),
+    id_tipo_costo: Number(v.id_tipo_costo),
+    id_moneda: Number(v.id_moneda),
+    monto: Number(v.monto),
+    observacion: text(v.observacion),
   });
 
   const selected = useMemo(() => rows.find((r) => r.id_operacion === selectedId) || null, [rows, selectedId]);
@@ -306,6 +334,18 @@ const Operations = () => {
     modal("editOperationModal");
   };
   const openDelete = (row) => { if (row) { setToDelete(row); modal("deleteOperationModal"); } };
+  const openCostForSelected = () => {
+    if (!selected) return;
+    setCostForm({ ...movimientoInit, id_operacion: String(selected.id_operacion) });
+    setCostErrors({});
+    modal("addCostFromOperationModal");
+  };
+  const openSaleForSelected = () => {
+    if (!selected) return;
+    setSaleForm({ ...movimientoInit, id_operacion: String(selected.id_operacion) });
+    setSaleErrors({});
+    modal("addSaleFromOperationModal");
+  };
   const openAssignContainer = (state) => {
     if (!state?.id_operacion) return;
     if (!permiteAsignarContenedor(state, services)) return;
@@ -337,6 +377,38 @@ const Operations = () => {
       setAssignmentErrors({});
     } catch (error) {
       alert(error.message || "Error al asignar contenedor");
+    }
+  };
+  const saveCostFromOperation = async () => {
+    const e = validateMovimiento(costForm);
+    if (Object.keys(e).length) return setCostErrors(e);
+
+    try {
+      await request(`${API}/costo-operacion`, {
+        method: "POST",
+        body: JSON.stringify(movimientoPayload(costForm)),
+      });
+      hideModal("addCostFromOperationModal");
+      setCostForm(movimientoInit);
+      setCostErrors({});
+    } catch (error) {
+      alert(error.message || "Error al registrar costo");
+    }
+  };
+  const saveSaleFromOperation = async () => {
+    const e = validateMovimiento(saleForm);
+    if (Object.keys(e).length) return setSaleErrors(e);
+
+    try {
+      await request(`${API}/venta-operacion`, {
+        method: "POST",
+        body: JSON.stringify(movimientoPayload(saleForm)),
+      });
+      hideModal("addSaleFromOperationModal");
+      setSaleForm(movimientoInit);
+      setSaleErrors({});
+    } catch (error) {
+      alert(error.message || "Error al registrar venta");
     }
   };
 
@@ -458,6 +530,33 @@ const Operations = () => {
       {errs[name] ? <div className="invalid-feedback d-block">{errs[name]}</div> : null}
     </div>
   );
+  const selectSimple = (state, setter, name, label, list, idKey, textKey, errs) => (
+    <div className="mb-3">
+      <label className="form-label">{label}</label>
+      <select className={`form-select ${errs[name] ? "is-invalid" : ""}`} value={state[name] || ""} onChange={(e) => setter({ ...state, [name]: e.target.value })}>
+        <option value="">Seleccionar</option>
+        {list.map((item) => <option key={item[idKey]} value={item[idKey]}>{item[textKey]}</option>)}
+      </select>
+      {errs[name] ? <div className="invalid-feedback">{errs[name]}</div> : null}
+    </div>
+  );
+  const movimientoForm = (state, setter, errs) => {
+    const operacion = rows.find((row) => String(row.id_operacion) === String(state.id_operacion));
+
+    return (
+      <>
+        <div className="mb-3">
+          <label className="form-label">Operacion</label>
+          <input className="form-control" value={operacion?.codigo_operacion || selected?.codigo_operacion || ""} readOnly disabled />
+          {errs.id_operacion ? <div className="invalid-feedback d-block">{errs.id_operacion}</div> : null}
+        </div>
+        {selectSimple(state, setter, "id_tipo_costo", "Tipo de costo", tiposCosto, "id_tipo_costo", "descripcion", errs)}
+        {selectSimple(state, setter, "id_moneda", "Moneda", monedas, "id_moneda", "descripcion", errs)}
+        {field(state, setter, "monto", "Monto", "number", errs)}
+        {textareaField(state, setter, "observacion", "Observacion", errs)}
+      </>
+    );
+  };
   const routeKey = (route) => `${route.origen}|||${route.destino}`;
   const currentRouteKey = (state) => {
     const match = supplierRoutes.find(
@@ -588,7 +687,7 @@ const Operations = () => {
           <h1 className="page-title m-0">Gestión de Operaciones</h1>
           <small className="text-muted">{selected ? <>Seleccionado: <strong>{selected.codigo_operacion}</strong></> : "Selecciona una operacion para Editar o Eliminar"}</small>
         </div>
-        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button></div></div>
+        <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-outline-primary" type="button" onClick={openCostForSelected} disabled={!selected}>Costos</button><button className="btn btn-outline-success" type="button" onClick={openSaleForSelected} disabled={!selected}>Ventas</button></div></div>
         <div className="ui-card mb-3"><div className="row g-2 align-items-end"><div className="col-md-9"><label className="form-label">Buscar</label><input className="form-control" placeholder="Codigo, cliente, proveedor, servicio, producto, origen, destino..." value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="col-md-3 d-flex gap-2"><button className="btn btn-secondary w-100" type="button" onClick={() => setSearch("")}>Limpiar</button></div></div></div>
         <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>LCL</th><th>Cantidad</th><th>Volumen</th><th>Peso</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{Number(r.lcl) === 1 ? "Si" : "No"}</td><td>{r.cantidad || "-"}</td><td>{r.volumen ?? "-"}</td><td>{r.peso ?? "-"}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={21} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
       </div>
@@ -632,6 +731,8 @@ const Operations = () => {
           ) : null}
         </div>
       </div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveAssignment}>Guardar asignacion</button></div></div></div></div>
+      <div className="modal fade" id="addCostFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Agregar costo</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(costForm, setCostForm, costErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveCostFromOperation}>Guardar</button></div></div></div></div>
+      <div className="modal fade" id="addSaleFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Agregar venta</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(saleForm, setSaleForm, saleErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveSaleFromOperation}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>
       <div className="modal fade" id="quickClientModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear cliente rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickClient, setQuickClient, "razon_social", "Razon social", "text", quickErrors)}{field(quickClient, setQuickClient, "nit", "NIT", "text", quickErrors)}{field(quickClient, setQuickClient, "contacto", "Contacto", "text", quickErrors)}{field(quickClient, setQuickClient, "telefono", "Telefono", "text", quickErrors)}{field(quickClient, setQuickClient, "correo", "Correo", "email", quickErrors)}{field(quickClient, setQuickClient, "direccion", "Direccion", "text", quickErrors)}<div className="mb-3"><label className="form-label">Observacion</label><textarea className="form-control" rows="3" value={quickClient.observacion} onChange={(e) => setQuickClient({ ...quickClient, observacion: e.target.value })} /></div></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickClient}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="quickServiceModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear tipo de servicio rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickService, setQuickService, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={() => saveQuickService()}>Guardar</button></div></div></div></div>
