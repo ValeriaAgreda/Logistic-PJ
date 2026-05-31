@@ -3,7 +3,8 @@ import * as bootstrap from "bootstrap";
 import "../styles/operations.css";
 
 const API = "http://localhost:3001/api";
-const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", cantidad: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
+const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", lcl: false, cantidad: "", volumen: "", peso: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
+const asignacionInit = { id_contenedor: "", id_operacion: "", fecha_asignacion: "", fecha_devolucion_limite: "", fecha_devolucion: "" };
 const clientInit = { razon_social: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", observacion: "" };
 const supplierInit = { empresa: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", lugar_origen: "", id_tipo_servicio: "" };
 const itemInit = { descripcion: "" };
@@ -38,6 +39,14 @@ const parse = async (res) => {
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString("es-BO") : "-");
 const fmtDateTime = (v) => (v ? new Date(v).toLocaleString("es-BO") : "-");
 const text = (value) => String(value ?? "").trim();
+const permiteAsignarContenedor = (operacion, servicios = []) => {
+  const descripcion =
+    operacion?.tipo_servicio ||
+    servicios.find((servicio) => String(servicio.id_tipo_servicio) === String(operacion?.id_tipo_servicio))?.descripcion ||
+    "";
+  const tipo = String(descripcion).trim().toLowerCase();
+  return tipo === "maritimo" || tipo === "terrestre";
+};
 const toDateInputValue = (value) => {
   if (!value) return "";
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
@@ -71,6 +80,9 @@ const normalizeOperationForm = (value) => ({
   nro_madre: value?.nro_madre ?? "",
   nro_hijo: value?.nro_hijo ?? "",
   observacion: value?.observacion ?? "",
+  lcl: Number(value?.lcl || 0) === 1,
+  volumen: value?.volumen ?? "",
+  peso: value?.peso ?? "",
   etd: toDateInputValue(value?.etd),
   eta: toDateInputValue(value?.eta),
   fecha_asignacion: toDateInputValue(value?.fecha_asignacion),
@@ -84,6 +96,7 @@ const normalizeOperationForm = (value) => ({
 
 const Operations = () => {
   const [rows, setRows] = useState([]);
+  const [containers, setContainers] = useState([]);
   const [clients, setClients] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [supplierRoutes, setSupplierRoutes] = useState([]);
@@ -104,6 +117,8 @@ const Operations = () => {
   const [quickStatus, setQuickStatus] = useState(itemInit);
   const [quickServiceTarget, setQuickServiceTarget] = useState("operation");
   const [nextCode, setNextCode] = useState("");
+  const [assignmentForm, setAssignmentForm] = useState(asignacionInit);
+  const [assignmentErrors, setAssignmentErrors] = useState({});
 
   const request = async (url, options = {}) =>
     parse(
@@ -119,8 +134,9 @@ const Operations = () => {
     );
 
   const loadAll = useCallback(async () => {
-    const [ops, c, p, pr, s, n, st] = await Promise.all([
+    const [ops, cont, c, p, pr, s, n, st] = await Promise.all([
       request(`${API}/operaciones`),
+      request(`${API}/contenedores`),
       request(`${API}/clientes`),
       request(`${API}/proveedores`),
       request(`${API}/proveedor-ruta`),
@@ -129,6 +145,7 @@ const Operations = () => {
       request(`${API}/estado-operacion`),
     ]);
     setRows(Array.isArray(ops) ? ops : []);
+    setContainers(Array.isArray(cont) ? cont : []);
     setClients(Array.isArray(c) ? c : []);
     setSuppliers(Array.isArray(p) ? p : []);
     setSupplierRoutes(Array.isArray(pr) ? pr : []);
@@ -146,6 +163,7 @@ const Operations = () => {
 
   const validateOp = (v) => {
     const e = {};
+    const esLcl = Number(v.lcl) === 1 || v.lcl === true;
     if (!v.fecha_asignacion) e.fecha_asignacion = "Fecha obligatoria.";
     if (!v.id_cliente) e.id_cliente = "Selecciona un cliente.";
     if (!v.id_proveedor) e.id_proveedor = "Selecciona un proveedor.";
@@ -153,7 +171,9 @@ const Operations = () => {
     if (!text(v.porducto)) e.porducto = "Producto obligatorio.";
     if (!text(v.origen)) e.origen = "Origen obligatorio.";
     if (!text(v.destino)) e.destino = "Destino obligatorio.";
-    if (!v.cantidad || Number(v.cantidad) <= 0) e.cantidad = "Cantidad invalida.";
+    if (esLcl && !text(v.cantidad)) e.cantidad = "Cantidad obligatoria.";
+    if (esLcl && text(v.volumen) && Number.isNaN(Number(v.volumen))) e.volumen = "Volumen invalido.";
+    if (esLcl && text(v.peso) && Number.isNaN(Number(v.peso))) e.peso = "Peso invalido.";
     if (!v.id_tipo_nacionalizacion) e.id_tipo_nacionalizacion = "Selecciona un tipo.";
     if (!v.omitir_validacion_estado && !v.id_estado_operacion) {
       e.id_estado_operacion = "Selecciona un estado.";
@@ -188,16 +208,35 @@ const Operations = () => {
     if (!text(v.descripcion)) e.descripcion = "Descripcion obligatoria.";
     return e;
   };
+  const validateAssignment = (v) => {
+    const e = {};
+    const operacion = rows.find((row) => String(row.id_operacion) === String(v.id_operacion));
+    if (!v.id_contenedor) e.id_contenedor = "Selecciona un contenedor.";
+    if (!permiteAsignarContenedor(operacion, services)) {
+      e.id_operacion = "Solo se puede asignar contenedor a operaciones Maritimo o Terrestre.";
+    }
+    if (!v.fecha_asignacion) e.fecha_asignacion = "Fecha de asignacion obligatoria.";
+    if (v.fecha_devolucion_limite && v.fecha_devolucion_limite < v.fecha_asignacion) {
+      e.fecha_devolucion_limite = "La fecha limite no puede ser menor a la fecha de asignacion.";
+    }
+    if (v.fecha_devolucion && v.fecha_devolucion < v.fecha_asignacion) {
+      e.fecha_devolucion = "La fecha de devolucion no puede ser menor a la fecha de asignacion.";
+    }
+    return e;
+  };
 
   const payload = (v) => ({
     ...v,
+    lcl: Number(v.lcl) === 1 || v.lcl === true ? 1 : 0,
     porducto: text(v.porducto),
     origen: text(v.origen),
     destino: text(v.destino),
     nro_madre: text(v.nro_madre),
     nro_hijo: text(v.nro_hijo),
     observacion: text(v.observacion),
-    cantidad: Number(v.cantidad),
+    cantidad: Number(v.lcl) === 1 || v.lcl === true ? text(v.cantidad) : "",
+    volumen: Number(v.lcl) === 1 || v.lcl === true ? v.volumen || null : null,
+    peso: Number(v.lcl) === 1 || v.lcl === true ? v.peso || null : null,
     id_cliente: Number(v.id_cliente),
     id_proveedor: Number(v.id_proveedor),
     id_tipo_servicio: Number(v.id_tipo_servicio),
@@ -208,7 +247,7 @@ const Operations = () => {
   });
 
   const selected = useMemo(() => rows.find((r) => r.id_operacion === selectedId) || null, [rows, selectedId]);
-  const filtered = useMemo(() => rows.filter((r) => [r.codigo_operacion, r.cliente, r.proveedor, r.tipo_servicio, r.porducto, r.origen, r.destino, r.observacion, r.estado_operacion].some((x) => String(x || "").toLowerCase().includes(search.trim().toLowerCase()))), [rows, search]);
+  const filtered = useMemo(() => rows.filter((r) => [r.codigo_operacion, r.cliente, r.proveedor, r.tipo_servicio, r.porducto, r.origen, r.destino, r.cantidad, r.observacion, r.estado_operacion].some((x) => String(x || "").toLowerCase().includes(search.trim().toLowerCase()))), [rows, search]);
 
   const loadNextCode = async () => {
     const data = await request(`${API}/operaciones/siguiente-codigo`);
@@ -233,6 +272,39 @@ const Operations = () => {
     modal("editOperationModal");
   };
   const openDelete = (row) => { if (row) { setToDelete(row); modal("deleteOperationModal"); } };
+  const openAssignContainer = (state) => {
+    if (!state?.id_operacion) return;
+    if (!permiteAsignarContenedor(state, services)) return;
+    setAssignmentForm({
+      ...asignacionInit,
+      id_operacion: String(state.id_operacion),
+      fecha_asignacion: state.fecha_asignacion || "",
+    });
+    setAssignmentErrors({});
+    modal("assignContainerModal");
+  };
+  const saveAssignment = async () => {
+    const e = validateAssignment(assignmentForm);
+    if (Object.keys(e).length) return setAssignmentErrors(e);
+
+    try {
+      await request(`${API}/operacion-contenedor`, {
+        method: "POST",
+        body: JSON.stringify({
+          id_contenedor: Number(assignmentForm.id_contenedor),
+          id_operacion: Number(assignmentForm.id_operacion),
+          fecha_asignacion: assignmentForm.fecha_asignacion,
+          fecha_devolucion_limite: assignmentForm.fecha_devolucion_limite || null,
+          fecha_devolucion: assignmentForm.fecha_devolucion || null,
+        }),
+      });
+      hideModal("assignContainerModal");
+      setAssignmentForm(asignacionInit);
+      setAssignmentErrors({});
+    } catch (error) {
+      alert(error.message || "Error al asignar contenedor");
+    }
+  };
 
   const saveNew = async () => {
     const e = validateOp({ ...form, omitir_validacion_estado: true });
@@ -315,6 +387,26 @@ const Operations = () => {
       <label className="form-label">{label}</label>
       <textarea className={`form-control ${errs[name] ? "is-invalid" : ""}`} rows="3" value={state[name] || ""} onChange={(e) => setter({ ...state, [name]: e.target.value })} />
       {errs[name] ? <div className="invalid-feedback">{errs[name]}</div> : null}
+    </div>
+  );
+  const checkboxField = (state, setter, name, label) => (
+    <div className="form-check mb-3">
+      <input
+        id={`${name}-${state.id_operacion || "new"}`}
+        type="checkbox"
+        className="form-check-input"
+        checked={Number(state[name]) === 1 || state[name] === true}
+        onChange={(e) =>
+          setter({
+            ...state,
+            [name]: e.target.checked,
+            ...(e.target.checked ? {} : { cantidad: "", volumen: "", peso: "" }),
+          })
+        }
+      />
+      <label className="form-check-label" htmlFor={`${name}-${state.id_operacion || "new"}`}>
+        {label}
+      </label>
     </div>
   );
   const selectField = (state, setter, name, label, list, idKey, textKey, quickType, errs = errors) => (
@@ -408,9 +500,16 @@ const Operations = () => {
       <div className="col-md-6">{field(state, setter, "porducto", "Producto")}</div>
       <div className="col-md-6">{field(state, setter, "origen", "Origen")}</div>
       <div className="col-md-6">{field(state, setter, "destino", "Destino")}</div>
-      <div className="col-md-4">{field(state, setter, "cantidad", "Cantidad", "number")}</div>
-      <div className="col-md-4">{field(state, setter, "nro_madre", "Nro. madre")}</div>
-      <div className="col-md-4">{field(state, setter, "nro_hijo", "Nro. hijo")}</div>
+      <div className="col-12">{checkboxField(state, setter, "lcl", "LCL (Low Container Loaded)")}</div>
+      {(Number(state.lcl) === 1 || state.lcl === true) ? (
+        <>
+          <div className="col-md-4">{field(state, setter, "cantidad", "Cantidad")}</div>
+          <div className="col-md-4">{field(state, setter, "volumen", "Volumen", "number")}</div>
+          <div className="col-md-4">{field(state, setter, "peso", "Peso", "number")}</div>
+        </>
+      ) : null}
+      <div className="col-md-6">{field(state, setter, "nro_madre", "Nro. madre")}</div>
+      <div className="col-md-6">{field(state, setter, "nro_hijo", "Nro. hijo")}</div>
       <div className="col-12">{textareaField(state, setter, "observacion", "Observaciones")}</div>
       <div className="col-md-4">{field(state, setter, "etd", "ETD", "date")}</div>
       <div className="col-md-4">{field(state, setter, "eta", "ETA", "date")}</div>
@@ -425,6 +524,26 @@ const Operations = () => {
           selectField(state, setter, "id_estado_operacion", "Estado de operacion", statuses, "id_estado_operacion", "descripcion", "status")
         )}
       </div>
+      {!(Number(state.lcl) === 1 || state.lcl === true) && permiteAsignarContenedor(state, services) ? (
+        <div className="col-12">
+          <button
+            type="button"
+            className="btn btn-outline-primary"
+            onClick={() => openAssignContainer(state)}
+            disabled={!state.id_operacion}
+          >
+            Asignar contenedor
+          </button>
+          {!state.id_operacion ? (
+            <small className="text-muted ms-2">Guarda la operacion para asignar contenedores.</small>
+          ) : null}
+        </div>
+      ) : null}
+      {!(Number(state.lcl) === 1 || state.lcl === true) && !permiteAsignarContenedor(state, services) ? (
+        <div className="col-12">
+          <small className="text-muted">La asignacion de contenedores solo aplica para servicios Maritimo o Terrestre.</small>
+        </div>
+      ) : null}
     </div></form>
   );
 
@@ -437,11 +556,38 @@ const Operations = () => {
         </div>
         <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-outline-light" type="button" onClick={() => loadAll().catch((e) => alert(e.message))}>Refrescar</button></div></div>
         <div className="ui-card mb-3"><div className="row g-2 align-items-end"><div className="col-md-9"><label className="form-label">Buscar</label><input className="form-control" placeholder="Codigo, cliente, proveedor, servicio, producto, origen, destino..." value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="col-md-3 d-flex gap-2"><button className="btn btn-secondary w-100" type="button" onClick={() => setSearch("")}>Limpiar</button></div></div></div>
-        <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>Cantidad</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{r.cantidad}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={18} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
+        <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>LCL</th><th>Cantidad</th><th>Volumen</th><th>Peso</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{Number(r.lcl) === 1 ? "Si" : "No"}</td><td>{r.cantidad || "-"}</td><td>{r.volumen ?? "-"}</td><td>{r.peso ?? "-"}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={21} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
       </div>
 
       <div className="modal fade" id="addOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Nueva operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{opForm(form, setForm, { isNew: true })}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveNew}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="editOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Editar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{editForm ? opForm(editForm, setEditForm) : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-primary" onClick={saveEdit}>Guardar cambios</button></div></div></div></div>
+      <div className="modal fade" id="assignContainerModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Asignar contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">
+        <div className="mb-3">
+          <label className="form-label">Contenedor</label>
+          <select className={`form-select ${assignmentErrors.id_contenedor ? "is-invalid" : ""}`} value={assignmentForm.id_contenedor} onChange={(e) => setAssignmentForm({ ...assignmentForm, id_contenedor: e.target.value })}>
+            <option value="">Seleccionar</option>
+            {containers.map((container) => (
+              <option key={container.id_contenedor} value={container.id_contenedor}>{container.numero_contenedor} - {container.tipo_contenedor || "Sin tipo"}</option>
+            ))}
+          </select>
+          {assignmentErrors.id_contenedor ? <div className="invalid-feedback">{assignmentErrors.id_contenedor}</div> : null}
+        </div>
+        <div className="mb-3">
+          <label className="form-label">Fecha de asignacion</label>
+          <input type="date" className={`form-control ${assignmentErrors.fecha_asignacion ? "is-invalid" : ""}`} value={assignmentForm.fecha_asignacion} onChange={(e) => setAssignmentForm({ ...assignmentForm, fecha_asignacion: e.target.value })} />
+          {assignmentErrors.fecha_asignacion ? <div className="invalid-feedback">{assignmentErrors.fecha_asignacion}</div> : null}
+        </div>
+        <div className="mb-3">
+          <label className="form-label">Fecha de devolucion limite</label>
+          <input type="date" className={`form-control ${assignmentErrors.fecha_devolucion_limite ? "is-invalid" : ""}`} value={assignmentForm.fecha_devolucion_limite} onChange={(e) => setAssignmentForm({ ...assignmentForm, fecha_devolucion_limite: e.target.value })} />
+          {assignmentErrors.fecha_devolucion_limite ? <div className="invalid-feedback">{assignmentErrors.fecha_devolucion_limite}</div> : null}
+        </div>
+        <div className="mb-3">
+          <label className="form-label">Fecha de devolucion</label>
+          <input type="date" className={`form-control ${assignmentErrors.fecha_devolucion ? "is-invalid" : ""}`} value={assignmentForm.fecha_devolucion} onChange={(e) => setAssignmentForm({ ...assignmentForm, fecha_devolucion: e.target.value })} />
+          {assignmentErrors.fecha_devolucion ? <div className="invalid-feedback">{assignmentErrors.fecha_devolucion}</div> : null}
+        </div>
+      </div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveAssignment}>Guardar asignacion</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>
       <div className="modal fade" id="quickClientModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear cliente rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickClient, setQuickClient, "razon_social", "Razon social", "text", quickErrors)}{field(quickClient, setQuickClient, "nit", "NIT", "text", quickErrors)}{field(quickClient, setQuickClient, "contacto", "Contacto", "text", quickErrors)}{field(quickClient, setQuickClient, "telefono", "Telefono", "text", quickErrors)}{field(quickClient, setQuickClient, "correo", "Correo", "email", quickErrors)}{field(quickClient, setQuickClient, "direccion", "Direccion", "text", quickErrors)}<div className="mb-3"><label className="form-label">Observacion</label><textarea className="form-control" rows="3" value={quickClient.observacion} onChange={(e) => setQuickClient({ ...quickClient, observacion: e.target.value })} /></div></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickClient}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="quickServiceModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear tipo de servicio rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickService, setQuickService, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={() => saveQuickService()}>Guardar</button></div></div></div></div>

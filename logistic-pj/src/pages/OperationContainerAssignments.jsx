@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as bootstrap from "bootstrap";
+import { useLocation, useNavigate } from "react-router-dom";
 import ContainerFormFields from "../components/ContainerFormFields";
 
 const asignacionInicial = {
@@ -38,7 +39,14 @@ const formatearFechaHora = (valor) => {
   return fecha.toLocaleString("es-BO");
 };
 
+const permiteAsignarContenedor = (operacion) => {
+  const tipoServicio = String(operacion?.tipo_servicio || "").trim().toLowerCase();
+  return tipoServicio === "maritimo" || tipoServicio === "terrestre";
+};
+
 const OperationContainerAssignments = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [asignaciones, setAsignaciones] = useState([]);
   const [contenedores, setContenedores] = useState([]);
   const [tiposContenedor, setTiposContenedor] = useState([]);
@@ -75,6 +83,9 @@ const OperationContainerAssignments = () => {
 
   const validar = (asignacion) => {
     const e = {};
+    const operacionSeleccionada = operaciones.find(
+      (operacion) => String(operacion.id_operacion) === String(asignacion.id_operacion)
+    );
 
     if (!asignacion.id_contenedor) {
       e.id_contenedor = "Selecciona un contenedor.";
@@ -82,6 +93,8 @@ const OperationContainerAssignments = () => {
 
     if (!asignacion.id_operacion) {
       e.id_operacion = "Selecciona una operacion.";
+    } else if (!permiteAsignarContenedor(operacionSeleccionada)) {
+      e.id_operacion = "Solo se puede asignar contenedor a operaciones Maritimo o Terrestre.";
     }
 
     if (!asignacion.fecha_asignacion) {
@@ -158,6 +171,21 @@ const OperationContainerAssignments = () => {
   useEffect(() => {
     cargarDatos();
   }, [cargarDatos]);
+
+  useEffect(() => {
+    const idOperacion = location.state?.id_operacion;
+    if (!idOperacion || operaciones.length === 0) return;
+    const operacion = operaciones.find((item) => String(item.id_operacion) === String(idOperacion));
+    if (!permiteAsignarContenedor(operacion)) return;
+
+    setNuevaAsignacion({
+      ...asignacionInicial,
+      id_operacion: String(idOperacion),
+    });
+    setErrores({});
+    new bootstrap.Modal(document.getElementById("addAsignacionContenedorModal")).show();
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.pathname, location.state?.id_operacion, navigate, operaciones]);
 
   const abrirNuevo = () => {
     setNuevaAsignacion(asignacionInicial);
@@ -534,7 +562,7 @@ const OperationContainerAssignments = () => {
                 "id_operacion",
                 nuevaAsignacion,
                 setNuevaAsignacion,
-                operaciones,
+                operaciones.filter(permiteAsignarContenedor),
                 "id_operacion",
                 (opcion) => opcion.codigo_operacion
               )}
@@ -636,7 +664,7 @@ const OperationContainerAssignments = () => {
                     "id_operacion",
                     asignacionSeleccionada,
                     setAsignacionSeleccionada,
-                    operaciones,
+                    operaciones.filter(permiteAsignarContenedor),
                     "id_operacion",
                     (opcion) => opcion.codigo_operacion
                   )}

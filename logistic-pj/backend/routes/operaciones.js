@@ -32,8 +32,17 @@ const normalizarTexto = (valor) => {
   return texto || null;
 };
 
+const normalizarDecimal = (valor) => {
+  if (valor === undefined || valor === null || String(valor).trim() === "") {
+    return null;
+  }
+
+  return Number(valor);
+};
+
 const validarOperacion = (body) => {
   const errores = [];
+  const esLcl = Number(body.lcl) === 1 || body.lcl === true;
 
   if (!normalizarTexto(body.fecha_asignacion)) {
     errores.push("La fecha de asignacion es obligatoria.");
@@ -63,14 +72,16 @@ const validarOperacion = (body) => {
     errores.push("El destino es obligatorio.");
   }
 
-  if (
-    body.cantidad === undefined ||
-    body.cantidad === null ||
-    String(body.cantidad).trim() === "" ||
-    Number.isNaN(Number(body.cantidad)) ||
-    Number(body.cantidad) <= 0
-  ) {
-    errores.push("La cantidad debe ser un numero mayor a cero.");
+  if (esLcl && !normalizarTexto(body.cantidad)) {
+    errores.push("La cantidad es obligatoria cuando la operacion es LCL.");
+  }
+
+  if (esLcl && normalizarDecimal(body.volumen) !== null && Number.isNaN(normalizarDecimal(body.volumen))) {
+    errores.push("El volumen debe ser numerico.");
+  }
+
+  if (esLcl && normalizarDecimal(body.peso) !== null && Number.isNaN(normalizarDecimal(body.peso))) {
+    errores.push("El peso debe ser numerico.");
   }
 
   if (!body.id_tipo_nacionalizacion || Number.isNaN(Number(body.id_tipo_nacionalizacion))) {
@@ -202,6 +213,9 @@ router.get("/", async (_req, res) => {
         o.origen,
         o.destino,
         o.cantidad,
+        o.lcl,
+        o.volumen,
+        o.peso,
         o.nro_madre,
         o.nro_hijo,
         o.observacion,
@@ -304,6 +318,9 @@ router.post("/", async (req, res) => {
         origen,
         destino,
         cantidad,
+        lcl,
+        volumen,
+        peso,
         nro_madre,
         nro_hijo,
         observacion,
@@ -316,7 +333,7 @@ router.post("/", async (req, res) => {
         fecha_modificacion,
         id_usuario_modificacion,
         estado
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NULL, NULL, 1)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NULL, NULL, 1)`,
       [
         codigoOperacion,
         req.body.fecha_asignacion,
@@ -326,7 +343,10 @@ router.post("/", async (req, res) => {
         String(req.body.porducto).trim(),
         String(req.body.origen).trim(),
         String(req.body.destino).trim(),
-        Number(req.body.cantidad),
+        normalizarTexto(req.body.cantidad) || "",
+        Number(req.body.lcl) === 1 || req.body.lcl === true ? 1 : 0,
+        normalizarDecimal(req.body.volumen),
+        normalizarDecimal(req.body.peso),
         normalizarTexto(req.body.nro_madre),
         normalizarTexto(req.body.nro_hijo),
         normalizarTexto(req.body.observacion),
@@ -417,6 +437,9 @@ router.put("/:id_operacion", async (req, res) => {
            origen = ?,
            destino = ?,
            cantidad = ?,
+           lcl = ?,
+           volumen = ?,
+           peso = ?,
            nro_madre = ?,
            nro_hijo = ?,
            observacion = ?,
@@ -436,7 +459,10 @@ router.put("/:id_operacion", async (req, res) => {
         String(req.body.porducto).trim(),
         String(req.body.origen).trim(),
         String(req.body.destino).trim(),
-        Number(req.body.cantidad),
+        normalizarTexto(req.body.cantidad) || "",
+        Number(req.body.lcl) === 1 || req.body.lcl === true ? 1 : 0,
+        normalizarDecimal(req.body.volumen),
+        normalizarDecimal(req.body.peso),
         normalizarTexto(req.body.nro_madre),
         normalizarTexto(req.body.nro_hijo),
         normalizarTexto(req.body.observacion),

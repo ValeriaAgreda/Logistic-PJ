@@ -69,6 +69,21 @@ const validarRelacionActiva = async (tabla, idCampo, valor) => {
   return rows.length > 0;
 };
 
+const validarOperacionPermiteContenedor = async (idOperacion) => {
+  const [rows] = await db.query(
+    `SELECT ts.descripcion AS tipo_servicio
+     FROM operacion o
+     INNER JOIN tipo_servicio ts ON ts.id_tipo_servicio = o.id_tipo_servicio
+     WHERE o.id_operacion = ?
+       AND o.estado = 1
+     LIMIT 1`,
+    [Number(idOperacion)]
+  );
+
+  const tipoServicio = String(rows[0]?.tipo_servicio || "").trim().toLowerCase();
+  return tipoServicio === "maritimo" || tipoServicio === "terrestre";
+};
+
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
@@ -126,6 +141,12 @@ router.post("/", async (req, res) => {
     if (relaciones.includes(false)) {
       return res.status(400).json({
         error: "El contenedor o la operacion no existen o estan inactivos.",
+      });
+    }
+
+    if (!(await validarOperacionPermiteContenedor(req.body.id_operacion))) {
+      return res.status(400).json({
+        error: "Solo se puede asignar contenedor a operaciones con servicio Maritimo o Terrestre.",
       });
     }
 
@@ -194,6 +215,12 @@ router.put("/:id_asignacion", async (req, res) => {
     if (relaciones.includes(false)) {
       return res.status(400).json({
         error: "El contenedor o la operacion no existen o estan inactivos.",
+      });
+    }
+
+    if (!(await validarOperacionPermiteContenedor(req.body.id_operacion))) {
+      return res.status(400).json({
+        error: "Solo se puede asignar contenedor a operaciones con servicio Maritimo o Terrestre.",
       });
     }
 
