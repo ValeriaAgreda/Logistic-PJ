@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as bootstrap from "bootstrap";
+import ContainerFormFields from "../components/ContainerFormFields";
 import "../styles/operations.css";
 
 const API = "http://localhost:3001/api";
 const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", lcl: false, cantidad: "", volumen: "", peso: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
 const asignacionInit = { id_contenedor: "", id_operacion: "", fecha_llegada_puerto: "", fecha_devolucion_limite: "", fecha_devolucion: "" };
+const contenedorInit = { numero_contenedor: "", id_tipo_contenedor: "", naviera: "", peso_bruto: "" };
 const movimientoInit = { id_operacion: "", id_tipo_costo: "", id_moneda: "", monto: "", observacion: "" };
 const clientInit = { razon_social: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", observacion: "" };
 const supplierInit = { empresa: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", lugar_origen: "", id_tipo_servicio: "" };
@@ -161,6 +163,7 @@ const Operations = () => {
   const [rows, setRows] = useState([]);
   const [containers, setContainers] = useState([]);
   const [containerAssignments, setContainerAssignments] = useState([]);
+  const [containerTypes, setContainerTypes] = useState([]);
   const [tiposCosto, setTiposCosto] = useState([]);
   const [monedas, setMonedas] = useState([]);
   const [clients, setClients] = useState([]);
@@ -188,6 +191,8 @@ const Operations = () => {
   const [assignmentContext, setAssignmentContext] = useState("existing");
   const [assignmentMode, setAssignmentMode] = useState("create");
   const [pendingContainerAssignments, setPendingContainerAssignments] = useState([]);
+  const [quickContainer, setQuickContainer] = useState(contenedorInit);
+  const [quickContainerErrors, setQuickContainerErrors] = useState({});
   const [costForm, setCostForm] = useState(movimientoInit);
   const [saleForm, setSaleForm] = useState(movimientoInit);
   const [costErrors, setCostErrors] = useState({});
@@ -207,10 +212,11 @@ const Operations = () => {
     );
 
   const loadAll = useCallback(async () => {
-    const [ops, cont, asg, tc, mon, c, p, pr, s, n, st] = await Promise.all([
+    const [ops, cont, asg, cty, tc, mon, c, p, pr, s, n, st] = await Promise.all([
       request(`${API}/operaciones`),
       request(`${API}/contenedores`),
       request(`${API}/operacion-contenedor`),
+      request(`${API}/tipo-contenedor`),
       request(`${API}/tipo-costo`),
       request(`${API}/moneda`),
       request(`${API}/clientes`),
@@ -223,6 +229,7 @@ const Operations = () => {
     setRows(Array.isArray(ops) ? ops : []);
     setContainers(Array.isArray(cont) ? cont : []);
     setContainerAssignments(Array.isArray(asg) ? asg : []);
+    setContainerTypes(Array.isArray(cty) ? cty : []);
     setTiposCosto(Array.isArray(tc) ? tc : []);
     setMonedas(Array.isArray(mon) ? mon : []);
     setClients(Array.isArray(c) ? c : []);
@@ -285,6 +292,25 @@ const Operations = () => {
   const validateItem = (v) => {
     const e = {};
     if (!text(v.descripcion)) e.descripcion = "Descripcion obligatoria.";
+    return e;
+  };
+  const validateQuickContainer = (contenedor) => {
+    const e = {};
+    if (!text(contenedor.numero_contenedor)) {
+      e.numero_contenedor = "El numero de contenedor es obligatorio.";
+    } else if (text(contenedor.numero_contenedor).length > 70) {
+      e.numero_contenedor = "El numero de contenedor no puede superar 70 caracteres.";
+    } else {
+      const numeroNormalizado = text(contenedor.numero_contenedor).toUpperCase();
+      const duplicado = containers.some(
+        (item) => text(item.numero_contenedor).toUpperCase() === numeroNormalizado
+      );
+      if (duplicado) e.numero_contenedor = "Ya existe un contenedor registrado con ese numero.";
+    }
+
+    if (!contenedor.id_tipo_contenedor) e.id_tipo_contenedor = "Selecciona el tipo de contenedor.";
+    if (text(contenedor.naviera).length > 50) e.naviera = "La naviera no puede superar 50 caracteres.";
+    if (contenedor.peso_bruto !== "" && Number.isNaN(Number(contenedor.peso_bruto))) e.peso_bruto = "El peso bruto debe ser numerico.";
     return e;
   };
   const validateAssignment = (v) => {
@@ -691,6 +717,35 @@ const Operations = () => {
       await loadAll(); activeSetter((c) => ({ ...c, id_estado_operacion: String(data.id_estado_operacion) })); hideModal("quickStatusModal");
     } catch (error) { alert(error.message); }
   };
+  const openQuickContainer = () => {
+    setQuickContainer(contenedorInit);
+    setQuickContainerErrors({});
+    modal("quickContainerFromOperationModal");
+  };
+  const saveQuickContainer = async () => {
+    const e = validateQuickContainer(quickContainer);
+    if (Object.keys(e).length) return setQuickContainerErrors(e);
+
+    try {
+      const data = await request(`${API}/contenedores`, {
+        method: "POST",
+        body: JSON.stringify({
+          numero_contenedor: text(quickContainer.numero_contenedor).toUpperCase(),
+          id_tipo_contenedor: Number(quickContainer.id_tipo_contenedor),
+          naviera: text(quickContainer.naviera),
+          peso_bruto: quickContainer.peso_bruto,
+        }),
+      });
+      const containersData = await request(`${API}/contenedores`);
+      setContainers(Array.isArray(containersData) ? containersData : []);
+      setAssignmentForm((actual) => ({ ...actual, id_contenedor: String(data.id_contenedor) }));
+      hideModal("quickContainerFromOperationModal");
+      setQuickContainer(contenedorInit);
+      setQuickContainerErrors({});
+    } catch (error) {
+      alert(error.message || "Error al crear contenedor");
+    }
+  };
 
   const field = (state, setter, name, label, type = "text", errs = errors) => (
     <div className="mb-3">
@@ -1064,18 +1119,23 @@ const Operations = () => {
       <div className="modal fade" id="assignContainerModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Asignar contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">
         <div className="mb-3">
           <label className="form-label">Contenedor</label>
-          <select className={`form-select ${assignmentErrors.id_contenedor ? "is-invalid" : ""}`} value={assignmentForm.id_contenedor} onChange={(e) => setAssignmentForm({ ...assignmentForm, id_contenedor: e.target.value })}>
-            <option value="">Seleccionar</option>
-            {containers
-              .filter((container) =>
-                availableContainers.some((item) => String(item.id_contenedor) === String(container.id_contenedor)) ||
-                String(container.id_contenedor) === String(assignmentForm.id_contenedor)
-              )
-              .map((container) => (
-              <option key={container.id_contenedor} value={container.id_contenedor}>{container.numero_contenedor} - {container.tipo_contenedor || "Sin tipo"}</option>
-            ))}
-          </select>
-          {assignmentErrors.id_contenedor ? <div className="invalid-feedback">{assignmentErrors.id_contenedor}</div> : null}
+          <div className="d-flex gap-2 align-items-start">
+            <select className={`form-select ${assignmentErrors.id_contenedor ? "is-invalid" : ""}`} value={assignmentForm.id_contenedor} onChange={(e) => setAssignmentForm({ ...assignmentForm, id_contenedor: e.target.value })}>
+              <option value="">Seleccionar</option>
+              {containers
+                .filter((container) =>
+                  availableContainers.some((item) => String(item.id_contenedor) === String(container.id_contenedor)) ||
+                  String(container.id_contenedor) === String(assignmentForm.id_contenedor)
+                )
+                .map((container) => (
+                <option key={container.id_contenedor} value={container.id_contenedor}>{container.numero_contenedor} - {container.tipo_contenedor || "Sin tipo"}</option>
+              ))}
+            </select>
+            <button type="button" className="btn btn-outline-primary" onClick={openQuickContainer} title="Crear contenedor" aria-label="Crear contenedor">
+              +
+            </button>
+          </div>
+          {assignmentErrors.id_contenedor ? <div className="invalid-feedback d-block">{assignmentErrors.id_contenedor}</div> : null}
         </div>
         <div className="mb-3">
           <label className="form-label">Fecha de llegada al puerto</label>
@@ -1105,6 +1165,7 @@ const Operations = () => {
       </div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveAssignment}>{assignmentMode === "create" ? (assignmentContext === "new" || assignmentContext === "edit-pending" ? "Aceptar" : "Guardar asignacion") : "Guardar cambios"}</button></div></div></div></div>
       <div className="modal fade" id="addCostFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Agregar costo</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(costForm, setCostForm, costErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveCostFromOperation}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="addSaleFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Agregar venta</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(saleForm, setSaleForm, saleErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveSaleFromOperation}>Guardar</button></div></div></div></div>
+      <div className="modal fade" id="quickContainerFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body"><ContainerFormFields contenedor={quickContainer} setContenedor={setQuickContainer} errores={quickContainerErrors} tiposContenedor={containerTypes} /></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickContainer}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>
       <div className="modal fade" id="quickClientModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear cliente rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickClient, setQuickClient, "razon_social", "Razon social", "text", quickErrors)}{field(quickClient, setQuickClient, "nit", "NIT", "text", quickErrors)}{field(quickClient, setQuickClient, "contacto", "Contacto", "text", quickErrors)}{field(quickClient, setQuickClient, "telefono", "Telefono", "text", quickErrors)}{field(quickClient, setQuickClient, "correo", "Correo", "email", quickErrors)}{field(quickClient, setQuickClient, "direccion", "Direccion", "text", quickErrors)}<div className="mb-3"><label className="form-label">Observacion</label><textarea className="form-control" rows="3" value={quickClient.observacion} onChange={(e) => setQuickClient({ ...quickClient, observacion: e.target.value })} /></div></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickClient}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="quickServiceModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear tipo de servicio rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickService, setQuickService, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={() => saveQuickService()}>Guardar</button></div></div></div></div>
