@@ -152,11 +152,11 @@ const sendResetPasswordEmail = async ({ correo, nombre, resetLink }) => {
   await mailer.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: correo,
-    subject: "Recuperacion de contrasena",
+    subject: "Recuperacion de contraseña",
     html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #1f2937;">
-        <h2 style="margin-bottom: 8px;">Recuperacion de contrasena</h2>
-        <p>Hola ${nombre || "usuario"}, recibimos una solicitud para restablecer tu contrasena.</p>
+        <h2 style="margin-bottom: 8px;">Recuperacion de contraseña</h2>
+        <p>Hola ${nombre || "usuario"}, recibimos una solicitud para restablecer tu contraseña.</p>
         <p>
           Haz clic en el siguiente enlace para continuar:
         </p>
@@ -165,7 +165,7 @@ const sendResetPasswordEmail = async ({ correo, nombre, resetLink }) => {
             href="${resetLink}"
             style="display: inline-block; padding: 10px 16px; background: #009fa3; color: white; text-decoration: none; border-radius: 8px;"
           >
-            Restablecer contrasena
+            Restablecer contraseña  
           </a>
         </p>
         <p>Si no solicitaste este cambio, puedes ignorar este correo.</p>
@@ -408,7 +408,7 @@ router.post("/forgot-password", async (req, res) => {
     if (rows.length === 0 || rows[0].estado !== 1) {
       return res.json({
         message:
-          "Si el correo esta registrado, recibirás instrucciones para recuperar tu contrasena.",
+          "Si el correo esta registrado, recibirás instrucciones para recuperar tu contraseña.",
       });
     }
 
@@ -421,12 +421,12 @@ router.post("/forgot-password", async (req, res) => {
     });
 
     if (!emailResult.delivered) {
-      console.log(`Recuperacion de contrasena para ${user.correo}: ${resetLink}`);
+      console.log(`Recuperacion de contraseña para ${user.correo}: ${resetLink}`);
     }
 
     return res.json({
       message:
-        "Si el correo esta registrado, recibirás instrucciones para recuperar tu contrasena.",
+        "Si el correo esta registrado, recibirás instrucciones para recuperar tu contraseña.",
       ...(emailResult.delivered
         ? {}
         : {
@@ -436,7 +436,7 @@ router.post("/forgot-password", async (req, res) => {
           }),
     });
   } catch (err) {
-    console.error("Error al solicitar recuperacion de contrasena:", err);
+    console.error("Error al solicitar recuperacion de contraseña:", err);
     return res.status(500).json({ error: "Error en el servidor" });
   }
 });
@@ -520,9 +520,9 @@ router.post("/reset-password", async (req, res) => {
       connection.release();
     }
 
-    return res.json({ message: "Contrasena actualizada correctamente." });
+    return res.json({ message: "Contraseña actualizada correctamente." });
   } catch (err) {
-    console.error("Error al restablecer contrasena:", err);
+    console.error("Error al restablecer contraseña:", err);
     return res.status(500).json({ error: "Error en el servidor" });
   }
 });
