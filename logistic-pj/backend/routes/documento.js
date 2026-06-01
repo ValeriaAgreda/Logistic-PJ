@@ -5,6 +5,7 @@ const path = require("path");
 
 const router = express.Router();
 const db = require("../db");
+const { tieneOperacionAbiertaPorDocumento } = require("../utils/deleteGuards");
 
 router.use(cookieParser());
 
@@ -311,6 +312,8 @@ router.delete("/:id_documento", async (req, res) => {
   try {
     const { id_documento } = req.params;
     const idUsuarioModificacion = obtenerIdUsuarioAutenticado(req);
+
+    if (await tieneOperacionAbiertaPorDocumento(db, res, id_documento)) return;
 
     const [result] = await db.query(
       `UPDATE documento

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const cookieParser = require("cookie-parser");
+const { tieneOperacionAbiertaPorProveedor } = require("../utils/deleteGuards");
 
 router.use(cookieParser());
 
@@ -234,6 +235,8 @@ router.delete("/:id_proveedor", async (req, res) => {
   try {
     const { id_proveedor } = req.params;
     const idUsuarioModificacion = req.cookies?.user?.id_usuario ?? null;
+
+    if (await tieneOperacionAbiertaPorProveedor(db, res, id_proveedor)) return;
 
     const [result] = await db.query(
       `UPDATE proveedor

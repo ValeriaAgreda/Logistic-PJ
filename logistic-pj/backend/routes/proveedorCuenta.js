@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
+const { tieneOperacionAbiertaPorCuentaProveedor } = require("../utils/deleteGuards");
 
 const NUMERO_CUENTA_REGEX = /^[A-Za-z0-9\s-]{5,34}$/;
 
@@ -228,6 +229,8 @@ router.put("/:id_cuenta", async (req, res) => {
 router.delete("/:id_cuenta", async (req, res) => {
   try {
     const { id_cuenta } = req.params;
+
+    if (await tieneOperacionAbiertaPorCuentaProveedor(db, res, id_cuenta)) return;
 
     const [result] = await db.query(
       `UPDATE proveedor_cuenta

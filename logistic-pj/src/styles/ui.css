@@ -106,3 +106,47 @@
   border-color: #92400e !important;
   color: #fff !important;
 }
+
+.app-alert-backdrop {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.58);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 16px;
+  position: fixed;
+  z-index: 3000;
+}
+
+.app-alert-dialog {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.28);
+  color: #1f2937;
+  max-width: 520px;
+  overflow: hidden;
+  width: min(100%, 520px);
+}
+
+.app-alert-header {
+  align-items: center;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.app-alert-body {
+  font-size: 1rem;
+  line-height: 1.5;
+  padding: 20px;
+  white-space: pre-wrap;
+}
+
+.app-alert-footer {
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 20px;
+}

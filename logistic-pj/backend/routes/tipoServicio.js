@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
+const { tieneOperacionAbiertaPorTipoServicio } = require("../utils/deleteGuards");
 
 // GET: listar tipos de servicio
 router.get("/", async (_req, res) => {
@@ -112,6 +113,8 @@ router.put("/:id_tipo_servicio", async (req, res) => {
 router.delete("/:id_tipo_servicio", async (req, res) => {
   try {
     const { id_tipo_servicio } = req.params;
+
+    if (await tieneOperacionAbiertaPorTipoServicio(db, res, id_tipo_servicio)) return;
 
     const [result] = await db.query(
       `UPDATE tipo_servicio

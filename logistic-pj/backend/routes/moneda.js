@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
+const { tieneOperacionAbiertaPorMoneda } = require("../utils/deleteGuards");
 
 router.get("/", async (_req, res) => {
   try {
@@ -120,6 +121,8 @@ router.put("/:id_moneda", async (req, res) => {
 router.delete("/:id_moneda", async (req, res) => {
   try {
     const { id_moneda } = req.params;
+
+    if (await tieneOperacionAbiertaPorMoneda(db, res, id_moneda)) return;
 
     const [result] = await db.query(
       `UPDATE moneda

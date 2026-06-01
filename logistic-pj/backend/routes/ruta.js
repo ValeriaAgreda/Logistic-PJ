@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
+const { tieneOperacionAbiertaPorRuta } = require("../utils/deleteGuards");
 
 const existeRutaDuplicada = async (origen, destino, idRutaExcluir = null) => {
   const params = [String(origen).trim(), String(destino).trim()];
@@ -146,6 +147,8 @@ router.put("/:id_ruta", async (req, res) => {
 router.delete("/:id_ruta", async (req, res) => {
   try {
     const { id_ruta } = req.params;
+
+    if (await tieneOperacionAbiertaPorRuta(db, res, id_ruta)) return;
 
     const [result] = await db.query(
       `UPDATE ruta

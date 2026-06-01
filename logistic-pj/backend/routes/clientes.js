@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const cookieParser = require("cookie-parser");
+const { tieneOperacionAbiertaPorCliente } = require("../utils/deleteGuards");
 
 router.use(cookieParser());
 
@@ -212,6 +213,8 @@ router.delete("/:id_cliente", async (req, res) => {
   try {
     const { id_cliente } = req.params;
     const idUsuarioModificacion = req.cookies?.user?.id_usuario ?? null;
+
+    if (await tieneOperacionAbiertaPorCliente(db, res, id_cliente)) return;
 
     const [result] = await db.query(
       `UPDATE cliente

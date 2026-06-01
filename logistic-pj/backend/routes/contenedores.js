@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db");
 const cookieParser = require("cookie-parser");
+const { tieneOperacionAbiertaPorContenedor } = require("../utils/deleteGuards");
 
 router.use(cookieParser());
 
@@ -258,6 +259,8 @@ router.put("/:id_contenedor", async (req, res) => {
 router.delete("/:id_contenedor", async (req, res) => {
   try {
     const { id_contenedor } = req.params;
+
+    if (await tieneOperacionAbiertaPorContenedor(db, res, id_contenedor)) return;
 
     const [result] = await db.query(
       `UPDATE contenedor

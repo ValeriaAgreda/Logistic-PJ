@@ -27,49 +27,53 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./components/AppLayout";
+import AppAlert from "./components/AppAlert";
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/olvide-contrasena" element={<ForgotPassword />} />
-        <Route path="/restablecer-contrasena" element={<ResetPassword />} />
-        <Route element={<ProtectedRoute />}>
-          <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/usuarios" element={<Navigate to="/usuarios/registro" replace />} />
-            <Route path="/usuarios/registro" element={<Users />} />
-            <Route path="/usuarios/asignacion-roles" element={<UserRoleAssignments />} />
-            <Route path="/clients" element={<Clients />} />
-            <Route path="/suppliers" element={<Navigate to="/suppliers/registro" replace />} />
-            <Route path="/suppliers/registro" element={<Suppliers />} />
-            <Route path="/suppliers/cuentas" element={<SupplierAccounts />} />
-            <Route path="/suppliers/rutas" element={<SupplierRoutes />} />
-            <Route path="/operations" element={<Navigate to="/operations/registro" replace />} />
-            <Route path="/operations/registro" element={<Operations />} />
-            <Route
-              path="/operations/asignacion-contenedores"
-              element={<OperationContainerAssignments />}
-            />
-            <Route path="/containers" element={<Containers />} />
-            <Route path="/documents" element={<Documents />} />
-            <Route path="/costs" element={<Costs />} />
-            <Route path="/sales" element={<Sales />} />
-            <Route path="/insurance" element={<InsuranceAI />} />
-            <Route path="/tipo-servicio" element={<ServiceType />} />
-            <Route path="/tipo-contenedor" element={<ContainerType />} />
-            <Route path="/tipo-costo" element={<CostType />} />
-            <Route path="/estado-operacion" element={<OperationStatus />} />
-            <Route path="/moneda" element={<Currency />} />
-            <Route path="/ruta" element={<RouteCatalog />} />
-            <Route path="/tipo-documento" element={<DocumentType />} />
-            <Route path="/tipo-nacionalizacion" element={<NationalizationType />} />
-            <Route path="/rol" element={<Roles />} />
+    <>
+      <AppAlert />
+      <Router>
+        <Routes>
+          <Route path="/" element={<Login />} />
+          <Route path="/olvide-contrasena" element={<ForgotPassword />} />
+          <Route path="/restablecer-contrasena" element={<ResetPassword />} />
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/usuarios" element={<Navigate to="/usuarios/registro" replace />} />
+              <Route path="/usuarios/registro" element={<Users />} />
+              <Route path="/usuarios/asignacion-roles" element={<UserRoleAssignments />} />
+              <Route path="/clients" element={<Clients />} />
+              <Route path="/suppliers" element={<Navigate to="/suppliers/registro" replace />} />
+              <Route path="/suppliers/registro" element={<Suppliers />} />
+              <Route path="/suppliers/cuentas" element={<SupplierAccounts />} />
+              <Route path="/suppliers/rutas" element={<SupplierRoutes />} />
+              <Route path="/operations" element={<Navigate to="/operations/registro" replace />} />
+              <Route path="/operations/registro" element={<Operations />} />
+              <Route
+                path="/operations/asignacion-contenedores"
+                element={<OperationContainerAssignments />}
+              />
+              <Route path="/containers" element={<Containers />} />
+              <Route path="/documents" element={<Documents />} />
+              <Route path="/costs" element={<Costs />} />
+              <Route path="/sales" element={<Sales />} />
+              <Route path="/insurance" element={<InsuranceAI />} />
+              <Route path="/tipo-servicio" element={<ServiceType />} />
+              <Route path="/tipo-contenedor" element={<ContainerType />} />
+              <Route path="/tipo-costo" element={<CostType />} />
+              <Route path="/estado-operacion" element={<OperationStatus />} />
+              <Route path="/moneda" element={<Currency />} />
+              <Route path="/ruta" element={<RouteCatalog />} />
+              <Route path="/tipo-documento" element={<DocumentType />} />
+              <Route path="/tipo-nacionalizacion" element={<NationalizationType />} />
+              <Route path="/rol" element={<Roles />} />
+            </Route>
           </Route>
-        </Route>
-      </Routes>
-    </Router>
+        </Routes>
+      </Router>
+    </>
   );
 }
 

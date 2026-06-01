@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
+const { tieneOperacionAbiertaPorProveedorRuta } = require("../utils/deleteGuards");
 
 router.get("/", async (_req, res) => {
   try {
@@ -184,6 +185,8 @@ router.put("/:id_proveedor/:id_ruta", async (req, res) => {
 router.delete("/:id_proveedor/:id_ruta", async (req, res) => {
   try {
     const { id_proveedor, id_ruta } = req.params;
+
+    if (await tieneOperacionAbiertaPorProveedorRuta(db, res, id_proveedor, id_ruta)) return;
 
     const [result] = await db.query(
       `DELETE FROM proveedor_ruta

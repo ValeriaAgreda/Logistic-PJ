@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../db");
+const { tieneOperacionAbiertaPorEstadoOperacion } = require("../utils/deleteGuards");
 
 router.get("/", async (_req, res) => {
   try {
@@ -107,6 +108,8 @@ router.put("/:id_estado_operacion", async (req, res) => {
 router.delete("/:id_estado_operacion", async (req, res) => {
   try {
     const { id_estado_operacion } = req.params;
+
+    if (await tieneOperacionAbiertaPorEstadoOperacion(db, res, id_estado_operacion)) return;
 
     const [result] = await db.query(
       `UPDATE estado_operacion
