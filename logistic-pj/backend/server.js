@@ -26,6 +26,7 @@ const rolRoutes = require("./routes/rol");
 const rolUsuarioRoutes = require("./routes/rolUsuario");
 const usuariosRoutes = require("./routes/usuarios");
 const recomendacionSeguroRoutes = require("./routes/recomendacionSeguro");
+const dashboardRoutes = require("./routes/dashboard");
 
 
 app.use(cors({
@@ -61,6 +62,7 @@ app.use("/api/rol", rolRoutes);
 app.use("/api/rol-usuario", rolUsuarioRoutes);
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/recomendacion-seguro", recomendacionSeguroRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 
 app.listen(3001, () => {

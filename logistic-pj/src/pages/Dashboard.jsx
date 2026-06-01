@@ -1,144 +1,360 @@
-// src/pages/Dashboard.jsx
-import React from "react";
-import "../styles/dashboard.css";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer
 } from "recharts";
+import { API_BASE_URL } from "../config/api";
+import "../styles/dashboard.css";
+
+const COLORS = ["#0f766e", "#2563eb", "#d97706", "#7c3aed", "#dc2626", "#0891b2", "#65a30d"];
+
+const numberFmt = new Intl.NumberFormat("es-BO");
+const moneyFmt = new Intl.NumberFormat("es-BO", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const fmtDate = (value) => (value ? new Date(`${value}T00:00:00`).toLocaleDateString("es-BO") : "-");
+const metric = (value) => numberFmt.format(Number(value || 0));
 
 const Dashboard = () => {
-  // Datos estáticos
-  const operationsData = [
-    { month: "Jan", operations: 10 },
-    { month: "Feb", operations: 15 },
-    { month: "Mar", operations: 20 },
-    { month: "Apr", operations: 12 },
-    { month: "May", operations: 24 },
-  ];
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedClient, setSelectedClient] = useState("");
+  const [selectedStatus, setSelectedStatus] = useState("");
 
-  const transportData = [
-    { type: "Maritime", value: 12 },
-    { type: "Aerial", value: 5 },
-    { type: "Terrestrial", value: 20 },
-    { type: "Bimodal", value: 8 },
-  ];
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const response = await fetch(`${API_BASE_URL}/dashboard`, {
+          credentials: "include",
+        });
+        const payload = await response.json();
 
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+        if (!response.ok) {
+          throw new Error(payload?.error || "No se pudo cargar el dashboard.");
+        }
+
+        setData(payload);
+      } catch (err) {
+        console.error("Error al cargar dashboard:", err);
+        setError(err.message || "No se pudo cargar el dashboard.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, []);
+
+  const clientStatusData = useMemo(() => {
+    const rows = data?.operations_by_client_status || [];
+    const statuses = data?.statuses || [];
+    const selectedRows = selectedClient
+      ? rows.filter((row) => String(row.id_cliente) === String(selectedClient))
+      : rows;
+
+    if (selectedClient) {
+      return statuses.map((status) => {
+        const match = selectedRows.find(
+          (row) => String(row.id_estado_operacion) === String(status.id_estado_operacion)
+        );
+        return {
+          name: status.estado_operacion,
+          operaciones: Number(match?.total || 0),
+        };
+      });
+    }
+
+    const totalsByClient = new Map();
+    selectedRows.forEach((row) => {
+      const current = totalsByClient.get(row.cliente) || 0;
+      totalsByClient.set(row.cliente, current + Number(row.total || 0));
+    });
+
+    return Array.from(totalsByClient, ([name, operaciones]) => ({ name, operaciones }))
+      .sort((a, b) => b.operaciones - a.operaciones)
+      .slice(0, 10);
+  }, [data, selectedClient]);
+
+  const statusChartData = useMemo(() => {
+    const rows = data?.operations_by_client_status || [];
+
+    if (!selectedStatus) {
+      return data?.operations_by_status?.map((row) => ({
+        name: row.estado_operacion,
+        operaciones: Number(row.total || 0),
+      })) || [];
+    }
+
+    return rows
+      .filter((row) => String(row.id_estado_operacion) === String(selectedStatus))
+      .map((row) => ({
+        name: row.cliente,
+        operaciones: Number(row.total || 0),
+      }))
+      .sort((a, b) => b.operaciones - a.operaciones)
+      .slice(0, 10);
+  }, [data, selectedStatus]);
+
+  const selectedClientName = useMemo(
+    () => data?.clients?.find((client) => String(client.id_cliente) === String(selectedClient))?.cliente,
+    [data, selectedClient]
+  );
+
+  const selectedStatusName = useMemo(
+    () =>
+      data?.statuses?.find((status) => String(status.id_estado_operacion) === String(selectedStatus))
+        ?.estado_operacion,
+    [data, selectedStatus]
+  );
+
+  if (loading) {
+    return (
+      <div className="dashboard-container flex-grow-1 p-4">
+        <div className="dashboard-empty">Cargando reportes del dashboard...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="dashboard-container flex-grow-1 p-4">
+        <div className="alert alert-danger mb-0">{error}</div>
+      </div>
+    );
+  }
+
+  const metrics = data?.metrics || {};
 
   return (
-    <>
-      <div className="dashboard-container flex-grow-1 p-4">
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <h4>Welcome Administrator</h4>
-          <span className="text-muted">Thursday, May 10, 2025</span>
+    <div className="dashboard-container flex-grow-1 p-4">
+      <div className="dashboard-hero mb-4">
+        <div>
+          <h1 className="dashboard-title">Dashboard de operaciones</h1>
+          <p className="dashboard-subtitle">Reportes conectados al backend para seguimiento comercial y logistico.</p>
+        </div>
+        <span className="dashboard-date">{new Date().toLocaleDateString("es-BO", { dateStyle: "full" })}</span>
+      </div>
+
+      <div className="dashboard-stat-grid mb-4">
+        <div className="stat-panel">
+          <span className="stat-label">Operaciones activas</span>
+          <strong className="stat-value">{metric(metrics.total_operaciones)}</strong>
+          <span className="stat-detail">{metric(metrics.operaciones_abiertas)} abiertas</span>
+        </div>
+        <div className="stat-panel">
+          <span className="stat-label">Clientes activos</span>
+          <strong className="stat-value">{metric(metrics.total_clientes)}</strong>
+          <span className="stat-detail">con datos para filtrar reportes</span>
+        </div>
+        <div className="stat-panel">
+          <span className="stat-label">Contenedores registrados</span>
+          <strong className="stat-value">{metric(metrics.total_contenedores)}</strong>
+          <span className="stat-detail">disponibles en gestion logistica</span>
+        </div>
+      </div>
+
+      <div className="dashboard-grid mb-4">
+        <div className="chart-card">
+          <div className="section-header">
+            <div>
+              <h5>Operaciones por cliente</h5>
+              <small>{selectedClientName ? `Estados de ${selectedClientName}` : "Top clientes por volumen"}</small>
+            </div>
+            <select
+              className="form-select dashboard-filter"
+              value={selectedClient}
+              onChange={(event) => setSelectedClient(event.target.value)}
+            >
+              <option value="">Todos los clientes</option>
+              {data.clients.map((client) => (
+                <option key={client.id_cliente} value={client.id_cliente}>
+                  {client.cliente}
+                </option>
+              ))}
+            </select>
+          </div>
+          <ResponsiveContainer width="100%" height={310}>
+            <BarChart data={clientStatusData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-18} textAnchor="end" height={80} />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="operaciones" name="Operaciones" fill="#0f766e" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Estadísticas */}
-        <div className="row mb-4">
-          <div className="col-md-4">
-            <div className="card stat-card">
-              <div className="card-body text-center">
-                <div className="stat-icon">⏱</div>
-                <h5 className="card-title">24 Operations</h5>
-                <p className="card-text text-muted">imports recorded in May</p>
-              </div>
+        <div className="chart-card">
+          <div className="section-header">
+            <div>
+              <h5>Operaciones por estado</h5>
+              <small>{selectedStatusName ? `Clientes con estado ${selectedStatusName}` : "Distribucion general"}</small>
+            </div>
+            <select
+              className="form-select dashboard-filter"
+              value={selectedStatus}
+              onChange={(event) => setSelectedStatus(event.target.value)}
+            >
+              <option value="">Todos los estados</option>
+              {data.statuses.map((status) => (
+                <option key={status.id_estado_operacion} value={status.id_estado_operacion}>
+                  {status.estado_operacion}
+                </option>
+              ))}
+            </select>
+          </div>
+          <ResponsiveContainer width="100%" height={310}>
+            <BarChart data={statusChartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-18} textAnchor="end" height={80} />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Bar dataKey="operaciones" name="Operaciones" fill="#2563eb" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="dashboard-grid dashboard-grid-three mb-4">
+        <div className="chart-card">
+          <div className="section-header">
+            <div>
+              <h5>Tendencia mensual</h5>
+              <small>Operaciones asignadas en los ultimos meses</small>
             </div>
           </div>
-          <div className="col-md-4">
-            <div className="card stat-card">
-              <div className="card-body text-center">
-                <div className="stat-icon">💲</div>
-                <h5 className="card-title">$5,387</h5>
-                <p className="card-text text-muted">sum of logistics costs</p>
-              </div>
-            </div>
-          </div>
-          <div className="col-md-4">
-            <div className="card stat-card">
-              <div className="card-body text-center">
-                <div className="stat-icon">🚚</div>
-                <h5 className="card-title">Truck</h5>
-                <p className="card-text text-muted">most used type of transport</p>
-              </div>
-            </div>
-          </div>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={data.operations_by_month}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="etiqueta" tick={{ fontSize: 12 }} />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Line type="monotone" dataKey="total" name="Operaciones" stroke="#0f766e" strokeWidth={3} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Gráficos */}
-        <div className="row mb-4">
-          <div className="col-md-6">
-            <div className="card">
-              <div className="card-body">
-                <h6 className="text-center">Monthly Operations</h6>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={operationsData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="operations" fill="#007bff" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+        <div className="chart-card">
+          <div className="section-header">
+            <div>
+              <h5>Tipos de servicio</h5>
+              <small>Participacion por modalidad</small>
             </div>
           </div>
-          <div className="col-md-6">
-            <div className="card">
-              <div className="card-body">
-                <h6 className="text-center">Transport Types</h6>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie
-                      data={transportData}
-                      dataKey="value"
-                      nameKey="type"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      label
-                    >
-                      {transportData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie data={data.operations_by_service} dataKey="total" nameKey="tipo_servicio" outerRadius={82} label>
+                {data.operations_by_service.map((entry, index) => (
+                  <Cell key={entry.id_tipo_servicio} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
 
-        {/* Acciones */}
-        <div className="row">
-          <div className="col-md-3">
-            <button className="dashboard-btn w-100">➕ New Operation</button>
+        <div className="chart-card">
+          <div className="section-header">
+            <div>
+              <h5>Finanzas por moneda</h5>
+              <small>Ventas, costos y utilidad registrada</small>
+            </div>
           </div>
-          <div className="col-md-3">
-            <button className="dashboard-btn w-100">📦 Register Container</button>
-          </div>
-          <div className="col-md-3">
-            <button className="dashboard-btn w-100">📁 Upload Documents</button>
-          </div>
-          <div className="col-md-3">
-            <button className="dashboard-btn w-100">📊 View Reports</button>
+          <div className="finance-list">
+            {data.financial_by_currency.length ? (
+              data.financial_by_currency.map((row) => (
+                <div className="finance-row" key={row.codigo_moneda}>
+                  <strong>{row.codigo_moneda}</strong>
+                  <span>Ventas {moneyFmt.format(row.total_ventas)}</span>
+                  <span>Costos {moneyFmt.format(row.total_costos)}</span>
+                  <span className={row.utilidad >= 0 ? "finance-positive" : "finance-negative"}>
+                    Utilidad {moneyFmt.format(row.utilidad)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="dashboard-empty small">Aun no hay costos o ventas registrados.</div>
+            )}
           </div>
         </div>
       </div>
-    </>
+
+      <div className="dashboard-grid mb-4">
+        <div className="chart-card">
+          <div className="section-header">
+            <div>
+              <h5>Clientes principales</h5>
+              <small>Mayor cantidad de operaciones activas</small>
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={data.top_clients} layout="vertical" margin={{ left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+              <XAxis type="number" allowDecimals={false} />
+              <YAxis type="category" dataKey="cliente" tick={{ fontSize: 12 }} width={140} />
+              <Tooltip />
+              <Bar dataKey="total" name="Operaciones" fill="#d97706" radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="chart-card">
+          <div className="section-header">
+            <div>
+              <h5>Operaciones recientes</h5>
+              <small>Ultimas asignaciones registradas</small>
+            </div>
+          </div>
+          <div className="table-responsive">
+            <table className="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Codigo</th>
+                  <th>Cliente</th>
+                  <th>Servicio</th>
+                  <th>Estado</th>
+                  <th>Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recent_operations.map((operation) => (
+                  <tr key={operation.id_operacion}>
+                    <td>{operation.codigo_operacion}</td>
+                    <td>{operation.cliente}</td>
+                    <td>{operation.tipo_servicio}</td>
+                    <td>{operation.estado_operacion}</td>
+                    <td>{fmtDate(operation.fecha_asignacion)}</td>
+                  </tr>
+                ))}
+                {!data.recent_operations.length ? (
+                  <tr>
+                    <td className="text-center text-muted py-3" colSpan={5}>
+                      No hay operaciones registradas.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
 export default Dashboard;
-

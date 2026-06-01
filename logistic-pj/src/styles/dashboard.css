@@ -1,6 +1,6 @@
 .dashboard-container {
   margin-left: var(--sidebar-width);
-  background: linear-gradient(180deg, #f6fbfc 0%, #eef5f7 100%);
+  background: #f4f7f8;
   min-height: 100vh;
 }
 
@@ -32,6 +32,10 @@
 .stat-panel {
   border: 1px solid rgba(0, 159, 163, 0.12);
   background: #ffffff;
+  border-radius: 8px;
+  display: grid;
+  min-height: 136px;
+  padding: 1.15rem;
 }
 
 .stat-label {
@@ -55,6 +59,10 @@
 
 .chart-card {
   background: #fff;
+  border: 1px solid rgba(18, 52, 59, 0.08);
+  border-radius: 8px;
+  min-width: 0;
+  padding: 1rem;
 }
 
 .section-header {
@@ -67,6 +75,81 @@
 
 .section-header h5 {
   color: #12343b;
+  font-weight: 700;
+  margin: 0;
+}
+
+.section-header small {
+  color: #6b7f84;
+}
+
+.dashboard-stat-grid,
+.dashboard-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.dashboard-stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-grid-three {
+  grid-template-columns: 1.2fr 0.9fr 0.9fr;
+}
+
+.dashboard-filter {
+  max-width: 260px;
+}
+
+.dashboard-empty {
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(18, 52, 59, 0.08);
+  border-radius: 8px;
+  color: #5f7479;
+  display: flex;
+  justify-content: center;
+  min-height: 120px;
+  padding: 1rem;
+}
+
+.dashboard-empty.small {
+  min-height: 180px;
+}
+
+.finance-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.finance-row {
+  border: 1px solid #e7ecee;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.8rem;
+}
+
+.finance-row strong {
+  color: #12343b;
+  font-size: 1.1rem;
+}
+
+.finance-row span {
+  color: #5f7479;
+}
+
+.finance-positive {
+  color: #0f766e !important;
+  font-weight: 700;
+}
+
+.finance-negative {
+  color: #dc2626 !important;
   font-weight: 700;
 }
 
@@ -126,5 +209,21 @@
 
   .dashboard-title {
     font-size: 1.6rem;
+  }
+
+  .dashboard-stat-grid,
+  .dashboard-grid,
+  .dashboard-grid-three {
+    grid-template-columns: 1fr;
+  }
+
+  .section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dashboard-filter {
+    max-width: none;
+    width: 100%;
   }
 }
