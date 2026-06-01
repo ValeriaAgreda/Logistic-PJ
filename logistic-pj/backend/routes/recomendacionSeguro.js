@@ -5,21 +5,6 @@ const db = require("../db");
 
 const FLASK_IA_URL = process.env.FLASK_IA_URL || "http://localhost:5000/api/recomendar-seguro";
 
-const parseMotivos = (valor) => {
-  if (!valor) return [];
-  if (Array.isArray(valor)) return valor;
-
-  try {
-    const parsed = JSON.parse(valor);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return String(valor)
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-};
-
 const obtenerOperacionConContenedores = async (idOperacion) => {
   const [operaciones] = await db.query(
     `SELECT
@@ -69,62 +54,13 @@ const obtenerOperacionConContenedores = async (idOperacion) => {
 };
 
 router.get("/", async (_req, res) => {
-  try {
-    const [rows] = await db.query(
-      `SELECT
-        rs.id_recomendacion,
-        rs.id_operacion,
-        o.codigo_operacion,
-        rs.requiere_seguro,
-        rs.nivel_riesgo,
-        rs.puntaje_riesgo,
-        rs.tipo_seguro_recomendado,
-        rs.motivos,
-        rs.fecha_recomendacion,
-        rs.estado
-      FROM recomendacion_seguro rs
-      INNER JOIN operacion o ON o.id_operacion = rs.id_operacion
-      WHERE rs.estado = 1
-      ORDER BY rs.id_recomendacion DESC`
-    );
-
-    res.json(rows.map((row) => ({ ...row, motivos: parseMotivos(row.motivos) })));
-  } catch (error) {
-    console.error("Error al obtener recomendaciones de seguro:", error);
-    res.status(500).json({ error: "Error al obtener recomendaciones de seguro" });
-  }
+  res.json([]);
 });
 
 router.get("/operacion/:id_operacion", async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      `SELECT
-        id_recomendacion,
-        id_operacion,
-        requiere_seguro,
-        nivel_riesgo,
-        puntaje_riesgo,
-        tipo_seguro_recomendado,
-        motivos,
-        fecha_recomendacion,
-        estado
-      FROM recomendacion_seguro
-      WHERE id_operacion = ?
-        AND estado = 1
-      ORDER BY id_recomendacion DESC
-      LIMIT 1`,
-      [Number(req.params.id_operacion)]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "La operacion aun no tiene recomendacion." });
-    }
-
-    res.json({ ...rows[0], motivos: parseMotivos(rows[0].motivos) });
-  } catch (error) {
-    console.error("Error al obtener recomendacion de seguro:", error);
-    res.status(500).json({ error: "Error al obtener recomendacion de seguro" });
-  }
+  res.status(404).json({
+    error: "La recomendacion de seguro no se almacena. Genera una nueva recomendacion para verla.",
+  });
 });
 
 router.post("/operacion/:id_operacion", async (req, res) => {
@@ -173,39 +109,10 @@ router.post("/operacion/:id_operacion", async (req, res) => {
       });
     }
 
-    await db.query(
-      `UPDATE recomendacion_seguro
-       SET estado = 0
-       WHERE id_operacion = ?
-         AND estado = 1`,
-      [Number(operacion.id_operacion)]
-    );
-
-    const [result] = await db.query(
-      `INSERT INTO recomendacion_seguro (
-        id_operacion,
-        requiere_seguro,
-        nivel_riesgo,
-        puntaje_riesgo,
-        tipo_seguro_recomendado,
-        motivos,
-        fecha_recomendacion,
-        estado
-      ) VALUES (?, ?, ?, ?, ?, ?, NOW(), 1)`,
-      [
-        Number(operacion.id_operacion),
-        recomendacion.requiere_seguro ? 1 : 0,
-        recomendacion.nivel_riesgo,
-        Number(recomendacion.puntaje_riesgo || 0),
-        recomendacion.tipo_seguro_recomendado,
-        JSON.stringify(recomendacion.motivos || []),
-      ]
-    );
-
-    res.status(201).json({
-      id_recomendacion: result.insertId,
+    res.status(200).json({
       id_operacion: Number(operacion.id_operacion),
       codigo_operacion: operacion.codigo_operacion,
+      fecha_recomendacion: new Date().toISOString(),
       ...recomendacion,
     });
   } catch (error) {

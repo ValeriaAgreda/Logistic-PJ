@@ -35,7 +35,6 @@ const fmtDateTime = (value) => (value ? new Date(value).toLocaleString("es-BO") 
 const InsuranceAI = () => {
   const [operaciones, setOperaciones] = useState([]);
   const [asignaciones, setAsignaciones] = useState([]);
-  const [recomendaciones, setRecomendaciones] = useState([]);
   const [idOperacion, setIdOperacion] = useState("");
   const [resultado, setResultado] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -47,15 +46,13 @@ const InsuranceAI = () => {
     setError("");
 
     try {
-      const [ops, asigns, recs] = await Promise.all([
+      const [ops, asigns] = await Promise.all([
         request(`${API_BASE_URL}/operaciones`),
         request(`${API_BASE_URL}/operacion-contenedor`),
-        request(`${API_BASE_URL}/recomendacion-seguro`),
       ]);
 
       setOperaciones(Array.isArray(ops) ? ops : []);
       setAsignaciones(Array.isArray(asigns) ? asigns : []);
-      setRecomendaciones(Array.isArray(recs) ? recs : []);
     } catch (err) {
       setError(err.message || "No se pudieron cargar los datos.");
     } finally {
@@ -80,17 +77,9 @@ const InsuranceAI = () => {
     [asignaciones, idOperacion]
   );
 
-  const ultimaRecomendacion = useMemo(
-    () =>
-      recomendaciones.find(
-        (recomendacion) => String(recomendacion.id_operacion) === String(idOperacion)
-      ) || null,
-    [idOperacion, recomendaciones]
-  );
-
   useEffect(() => {
-    setResultado(ultimaRecomendacion);
-  }, [ultimaRecomendacion]);
+    setResultado(null);
+  }, [idOperacion]);
 
   const generarRecomendacion = async () => {
     if (!idOperacion) {
@@ -112,7 +101,6 @@ const InsuranceAI = () => {
       });
 
       setResultado(data);
-      await cargarDatos();
     } catch (err) {
       setError(err.message || "No se pudo generar la recomendacion.");
     } finally {
