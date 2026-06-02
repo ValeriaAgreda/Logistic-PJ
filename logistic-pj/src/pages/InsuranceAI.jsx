@@ -13,7 +13,7 @@ const authHeaders = () => {
 
 const parseResponse = async (res) => {
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.error || data?.detalle || "Error en la solicitud");
+  if (!res.ok) throw new Error(data?.detalle || data?.error || "Error en la solicitud");
   return data;
 };
 
@@ -31,6 +31,13 @@ const request = async (url, options = {}) =>
   );
 
 const fmtDateTime = (value) => (value ? new Date(value).toLocaleString("es-BO") : "-");
+
+const isLclOperation = (operation) => Number(operation?.lcl) === 1 || operation?.lcl === true;
+
+const serviceAllowsContainers = (operation) => {
+  const service = String(operation?.tipo_servicio || "").trim().toLowerCase();
+  return service === "maritimo" || service === "terrestre" || service === "bimodal";
+};
 
 const InsuranceAI = () => {
   const [operaciones, setOperaciones] = useState([]);
@@ -87,8 +94,11 @@ const InsuranceAI = () => {
       return;
     }
 
-    if (contenedoresOperacion.length === 0) {
-      setError("La operacion seleccionada debe tener al menos un contenedor asignado.");
+    const requiresContainer =
+      serviceAllowsContainers(operacionSeleccionada) && !isLclOperation(operacionSeleccionada);
+
+    if (requiresContainer && contenedoresOperacion.length === 0) {
+      setError("Esta operacion requiere al menos un contenedor asignado.");
       return;
     }
 
@@ -114,7 +124,7 @@ const InsuranceAI = () => {
         <div>
           <h1 className="page-title m-0">Recomendacion de Seguros IA</h1>
           <small className="text-muted">
-            Selecciona una operacion con contenedores asignados para generar la recomendacion.
+            Selecciona una operacion para que Gemini evalue la carga, ruta y nacionalizacion.
           </small>
         </div>
       </div>
@@ -155,15 +165,45 @@ const InsuranceAI = () => {
                   <strong>{operacionSeleccionada.porducto}</strong>
                 </div>
                 <div>
+                  <span>Modalidad</span>
+                  <strong>
+                    {contenedoresOperacion.length
+                      ? "Contenedorizada"
+                      : isLclOperation(operacionSeleccionada)
+                        ? "LCL / carga suelta"
+                        : "Sin contenedor"}
+                  </strong>
+                </div>
+                <div>
                   <span>Ruta</span>
                   <strong>
                     {operacionSeleccionada.origen} - {operacionSeleccionada.destino}
                   </strong>
                 </div>
-                <div>
-                  <span>Cantidad</span>
-                  <strong>{operacionSeleccionada.cantidad}</strong>
-                </div>
+                {isLclOperation(operacionSeleccionada) ? (
+                  <div>
+                    <span>Cantidad</span>
+                    <strong>{operacionSeleccionada.cantidad || "-"}</strong>
+                  </div>
+                ) : null}
+                {isLclOperation(operacionSeleccionada) ? (
+                  <>
+                    <div>
+                      <span>Volumen</span>
+                      <strong>{operacionSeleccionada.volumen ?? "-"}</strong>
+                    </div>
+                    <div>
+                      <span>Peso</span>
+                      <strong>{operacionSeleccionada.peso ?? "-"}</strong>
+                    </div>
+                  </>
+                ) : null}
+                {operacionSeleccionada.observacion ? (
+                  <div>
+                    <span>Observaciones</span>
+                    <strong>{operacionSeleccionada.observacion}</strong>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -180,13 +220,14 @@ const InsuranceAI = () => {
 
         <div className="col-12 col-xl-7">
           <div className="ui-card insurance-panel">
-            <h2 className="insurance-heading">Contenedores asignados</h2>
+            <h2 className="insurance-heading">Detalle de carga</h2>
             <div className="table-responsive">
               <table className="table table-sm table-bordered align-middle m-0">
                 <thead className="table-light">
                   <tr>
                     <th>Numero</th>
                     <th>Tipo</th>
+                    <th>Naviera</th>
                     <th>Peso bruto</th>
                   </tr>
                 </thead>
@@ -195,19 +236,24 @@ const InsuranceAI = () => {
                     <tr key={contenedor.id_asignacion}>
                       <td>{contenedor.numero_contenedor}</td>
                       <td>{contenedor.tipo_contenedor || "-"}</td>
+                      <td>{contenedor.naviera || "-"}</td>
                       <td>{contenedor.peso_bruto ?? "-"}</td>
                     </tr>
                   ))}
                   {idOperacion && contenedoresOperacion.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="text-center text-muted py-3">
-                        Esta operacion aun no tiene contenedores asignados.
+                      <td colSpan={4} className="text-center text-muted py-3">
+                        {isLclOperation(operacionSeleccionada)
+                          ? `Carga suelta LCL: cantidad ${operacionSeleccionada?.cantidad || "-"}, volumen ${operacionSeleccionada?.volumen ?? "-"}, peso ${operacionSeleccionada?.peso ?? "-"}`
+                          : serviceAllowsContainers(operacionSeleccionada)
+                            ? "Esta operacion permite contenedores, pero aun no tiene asignados."
+                            : "Este tipo de servicio se evalua con producto, ruta y datos de operacion."}
                       </td>
                     </tr>
                   ) : null}
                   {!idOperacion ? (
                     <tr>
-                      <td colSpan={3} className="text-center text-muted py-3">
+                      <td colSpan={4} className="text-center text-muted py-3">
                         Selecciona una operacion.
                       </td>
                     </tr>
@@ -238,10 +284,50 @@ const InsuranceAI = () => {
                     <span>Seguro recomendado</span>
                     <strong>{resultado.tipo_seguro_recomendado}</strong>
                   </div>
+                  <div>
+                    <span>Fuente</span>
+                    <strong>{resultado.fuente_recomendacion === "gemini" ? "Gemini" : "Reglas"}</strong>
+                  </div>
+                  {resultado.modelo_ia ? (
+                    <div>
+                      <span>Modelo IA</span>
+                      <strong>{resultado.modelo_ia}</strong>
+                    </div>
+                  ) : null}
                 </div>
 
+                {resultado.resumen_ia ? (
+                  <div className="mt-3">
+                    <span className="insurance-label">Resumen IA</span>
+                    <p className="mb-0">{resultado.resumen_ia}</p>
+                  </div>
+                ) : null}
+
+                {Array.isArray(resultado.motivos_ia) && resultado.motivos_ia.length ? (
+                  <div className="mt-3">
+                    <span className="insurance-label">Motivos IA</span>
+                    <ul className="insurance-motives">
+                      {resultado.motivos_ia.map((motivo) => (
+                        <li key={motivo}>{motivo}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {Array.isArray(resultado.acciones_recomendadas) &&
+                resultado.acciones_recomendadas.length ? (
+                  <div className="mt-3">
+                    <span className="insurance-label">Acciones recomendadas</span>
+                    <ul className="insurance-motives">
+                      {resultado.acciones_recomendadas.map((accion) => (
+                        <li key={accion}>{accion}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
                 <div className="mt-3">
-                  <span className="insurance-label">Motivos</span>
+                  <span className="insurance-label">Metricas usadas</span>
                   {Array.isArray(resultado.motivos) && resultado.motivos.length ? (
                     <ul className="insurance-motives">
                       {resultado.motivos.map((motivo) => (
@@ -255,6 +341,7 @@ const InsuranceAI = () => {
 
                 <small className="text-muted d-block mt-3">
                   Fecha: {fmtDateTime(resultado.fecha_recomendacion)}
+                  {resultado.error_ia ? ` · IA no disponible: ${resultado.error_ia}` : ""}
                 </small>
               </>
             ) : (

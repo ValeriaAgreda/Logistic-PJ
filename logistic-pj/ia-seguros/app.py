@@ -1,4 +1,7 @@
 import json
+import os
+import re
+from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -11,46 +14,46 @@ app = Flask(__name__)
 CORS(app)
 
 
-PUNTAJE_TIPO_SERVICIO = {
-    "aereo": {
-        "puntaje": 25,
-        "motivo": "servicio aereo con mayor exigencia de tiempos y manipulacion",
-    },
-    "bimodal": {
-        "puntaje": 20,
-        "motivo": "servicio bimodal con transferencia entre medios de transporte",
-    },
-    "maritimo": {
-        "puntaje": 20,
-        "motivo": "servicio maritimo con mayor exposicion durante el traslado",
-    },
-    "terrestre": {
-        "puntaje": 10,
-        "motivo": "servicio terrestre con exposicion operativa en ruta",
-    },
-}
-
-PUNTAJE_TIPO_NACIONALIZACION = {
-    "abreviado": {
-        "puntaje": 10,
-        "motivo": "nacionalizacion abreviada con menor complejidad documental",
-    },
-    "anticipado": {
-        "puntaje": 15,
-        "motivo": "nacionalizacion anticipada con coordinacion previa de documentos",
-    },
-    "normal con descarga": {
-        "puntaje": 20,
-        "motivo": "nacionalizacion normal con descarga y mayor manipulacion de carga",
-    },
-    "sobre carro": {
-        "puntaje": 15,
-        "motivo": "nacionalizacion sobre carro con dependencia del tiempo de traslado",
-    },
-}
-
 HTTP_TIMEOUT = 6
 USER_AGENT = "logistic-pj-insurance-ai/1.0"
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_TIMEOUT = int(os.getenv("GEMINI_TIMEOUT", "30"))
+GEMINI_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "requiere_seguro": {"type": "boolean"},
+        "nivel_riesgo": {
+            "type": "string",
+            "enum": ["muy bajo", "bajo", "medio", "alto"],
+        },
+        "puntaje_riesgo": {"type": "number"},
+        "tipo_seguro_recomendado": {"type": "string"},
+        "resumen_ia": {"type": "string"},
+        "motivos_ia": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "acciones_recomendadas": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "confianza": {
+            "type": "string",
+            "enum": ["baja", "media", "alta"],
+        },
+    },
+    "required": [
+        "requiere_seguro",
+        "nivel_riesgo",
+        "puntaje_riesgo",
+        "tipo_seguro_recomendado",
+        "resumen_ia",
+        "motivos_ia",
+        "acciones_recomendadas",
+        "confianza",
+    ],
+}
 
 
 def obtener_json(url):
@@ -58,6 +61,209 @@ def obtener_json(url):
 
     with urlopen(req, timeout=HTTP_TIMEOUT) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def post_json(url, payload, headers=None, timeout=HTTP_TIMEOUT):
+    req = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
+            **(headers or {}),
+        },
+        method="POST",
+    )
+
+    with urlopen(req, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def extraer_texto_gemini(data):
+    textos = []
+
+    for candidate in data.get("candidates", []):
+        finish_reason = candidate.get("finishReason")
+        if finish_reason:
+            print(f"[Gemini] finishReason: {finish_reason}", flush=True)
+
+        content = candidate.get("content") or {}
+        for part in content.get("parts", []):
+            text = part.get("text")
+            if text:
+                textos.append(text)
+
+    return "\n".join(textos).strip()
+
+
+def parsear_json_modelo(texto):
+    if not texto:
+        return None
+
+    limpio = texto.strip()
+    bloque = re.search(r"```(?:json)?\s*(.*?)\s*```", limpio, re.DOTALL)
+    if bloque:
+        limpio = bloque.group(1).strip()
+
+    try:
+        return json.loads(limpio)
+    except json.JSONDecodeError:
+        inicio = limpio.find("{")
+        fin = limpio.rfind("}")
+        if inicio != -1 and fin != -1 and fin > inicio:
+            return json.loads(limpio[inicio : fin + 1])
+        raise
+
+
+def normalizar_recomendacion_ia(resultado):
+    if not isinstance(resultado, dict):
+        return None
+
+    motivos = resultado.get("motivos_ia")
+    acciones = resultado.get("acciones_recomendadas")
+    puntaje = resultado.get("puntaje_riesgo")
+
+    try:
+        puntaje = max(0, min(100, float(puntaje)))
+    except (TypeError, ValueError):
+        puntaje = None
+
+    return {
+        "requiere_seguro": bool(resultado.get("requiere_seguro")),
+        "nivel_riesgo": str(resultado.get("nivel_riesgo", "")).lower(),
+        "puntaje_riesgo": puntaje,
+        "tipo_seguro_recomendado": str(resultado.get("tipo_seguro_recomendado", "")),
+        "resumen_ia": str(resultado.get("resumen_ia", "")),
+        "motivos_ia": motivos if isinstance(motivos, list) else [],
+        "acciones_recomendadas": acciones if isinstance(acciones, list) else [],
+        "confianza": str(resultado.get("confianza", "media")).lower(),
+    }
+
+
+def numero_o_none(valor):
+    if valor is None or str(valor).strip() == "":
+        return None
+
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        return None
+
+
+def construir_prompt_reparacion(texto):
+    return (
+        "Corrige el siguiente texto para que sea JSON valido. "
+        "Devuelve solamente el JSON corregido, sin markdown ni explicaciones. "
+        "Debe conservar los campos: requiere_seguro, nivel_riesgo, puntaje_riesgo, "
+        "tipo_seguro_recomendado, resumen_ia, motivos_ia, acciones_recomendadas y confianza. "
+        "Si algun campo esta incompleto, completalo de forma breve y consistente. "
+        f"Texto a corregir: {texto}"
+    )
+
+
+def construir_prompt_gemini(operacion, analisis):
+    contexto = {
+        "operacion": operacion,
+        "metricas_disponibles": analisis,
+    }
+
+    return (
+        "Eres un asistente experto en gestion logistica y seguros de carga. "
+        "Evalua la operacion usando solo los datos y metricas entregadas. "
+        "Tu debes determinar toda la recomendacion: si requiere seguro, nivel de riesgo, "
+        "puntaje de riesgo y tipo de seguro recomendado. No uses reglas externas fijas, "
+        "no inventes datos externos ni precios. Devuelve exclusivamente JSON valido, "
+        "sin markdown ni texto adicional. No incluyas saltos de linea dentro de strings. "
+        "Estructura exacta: "
+        "{"
+        '"requiere_seguro": boolean, '
+        '"nivel_riesgo": "muy bajo|bajo|medio|alto", '
+        '"puntaje_riesgo": number, '
+        '"tipo_seguro_recomendado": string, '
+        '"resumen_ia": string, '
+        '"motivos_ia": [string], '
+        '"acciones_recomendadas": [string], '
+        '"confianza": "baja|media|alta"'
+        "}. "
+        "El puntaje_riesgo debe estar entre 0 y 100 y debe ser decidido por tu analisis. "
+        "La respuesta debe estar en espanol, ser breve y justificable para un sistema academico. "
+        f"Datos: {json.dumps(contexto, ensure_ascii=False)}"
+    )
+
+
+def consultar_gemini(operacion, analisis):
+    if not GEMINI_API_KEY:
+        return None, "GEMINI_API_KEY no configurada"
+
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent"
+    )
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": construir_prompt_gemini(operacion, analisis)}],
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0,
+            "maxOutputTokens": 3000,
+            "responseMimeType": "application/json",
+        },
+    }
+
+    try:
+        print(f"[Gemini] Consultando modelo {GEMINI_MODEL}", flush=True)
+        data = post_json(
+            url,
+            payload,
+            headers={"x-goog-api-key": GEMINI_API_KEY},
+            timeout=GEMINI_TIMEOUT,
+        )
+        texto = extraer_texto_gemini(data)
+        try:
+            resultado = parsear_json_modelo(texto)
+        except json.JSONDecodeError as error:
+            print(f"[Gemini] JSON invalido: {texto[:1000]}", flush=True)
+            reparacion_payload = {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [{"text": construir_prompt_reparacion(texto)}],
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0,
+                    "maxOutputTokens": 3000,
+                    "responseMimeType": "application/json",
+                },
+            }
+            print("[Gemini] Reintentando reparacion de JSON", flush=True)
+            reparacion = post_json(
+                url,
+                reparacion_payload,
+                headers={"x-goog-api-key": GEMINI_API_KEY},
+                timeout=GEMINI_TIMEOUT,
+            )
+            texto_reparado = extraer_texto_gemini(reparacion)
+            try:
+                resultado = parsear_json_modelo(texto_reparado)
+            except json.JSONDecodeError as repair_error:
+                print(f"[Gemini] JSON reparado invalido: {texto_reparado[:1000]}", flush=True)
+                return None, f"Gemini devolvio JSON invalido: {repair_error}"
+
+        resultado = normalizar_recomendacion_ia(resultado)
+        if not resultado:
+            return None, "Gemini no devolvio un objeto JSON"
+        return resultado, None
+    except HTTPError as error:
+        detalle = error.read().decode("utf-8", errors="replace")
+        print(f"[Gemini] HTTP error: {detalle}", flush=True)
+        return None, f"Gemini HTTP {error.code}"
+    except (OSError, URLError, TimeoutError, json.JSONDecodeError) as error:
+        print(f"[Gemini] Error: {error}", flush=True)
+        return None, str(error)
 
 
 def geocodificar_lugar(lugar):
@@ -160,8 +366,6 @@ def evaluar_datos_externos(origen, destino):
         "clima_destino": None,
         "disponible": False,
     }
-    puntaje = 0
-    motivos = []
 
     print(f"[IA externa] Consultando APIs para ruta '{origen}' -> '{destino}'", flush=True)
 
@@ -172,58 +376,25 @@ def evaluar_datos_externos(origen, destino):
 
     if not origen_geo or not destino_geo:
         print("[IA externa] No se pudo geocodificar origen o destino.", flush=True)
-        return puntaje, motivos, datos
+        return datos
 
     ruta = obtener_ruta_osrm(origen_geo, destino_geo)
     datos["ruta"] = ruta
 
     if ruta:
         datos["disponible"] = True
-        distancia = ruta["distancia_km"]
-        duracion = ruta["duracion_horas"]
-
-        if distancia >= 1000:
-            puntaje += 20
-            motivos.append("ruta terrestre extensa mayor o igual a 1000 km")
-        elif distancia >= 500:
-            puntaje += 15
-            motivos.append("ruta terrestre de distancia media mayor o igual a 500 km")
-        elif distancia >= 200:
-            puntaje += 5
-            motivos.append("ruta terrestre con distancia moderada")
-
-        if duracion >= 15:
-            puntaje += 10
-            motivos.append("duracion estimada de ruta elevada")
 
     clima_origen = obtener_clima_open_meteo(origen_geo)
     clima_destino = obtener_clima_open_meteo(destino_geo)
     datos["clima_origen"] = clima_origen
     datos["clima_destino"] = clima_destino
 
-    for etiqueta, clima in [("origen", clima_origen), ("destino", clima_destino)]:
+    for clima in [clima_origen, clima_destino]:
         if not clima:
             continue
-
         datos["disponible"] = True
-        precipitacion = clima["precipitacion_mm"] + clima["lluvia_mm"]
-        viento = clima["viento_kmh"]
 
-        if precipitacion >= 10:
-            puntaje += 10
-            motivos.append(f"precipitacion elevada en {etiqueta}")
-        elif precipitacion >= 2:
-            puntaje += 5
-            motivos.append(f"precipitacion moderada en {etiqueta}")
-
-        if viento >= 50:
-            puntaje += 10
-            motivos.append(f"viento fuerte en {etiqueta}")
-        elif viento >= 30:
-            puntaje += 5
-            motivos.append(f"viento moderado en {etiqueta}")
-
-    return puntaje, motivos, datos
+    return datos
 
 
 @app.route("/", methods=["GET"])
@@ -238,9 +409,12 @@ def home():
 def recomendar_seguro():
     data = request.get_json() or {}
 
-    tipo_servicio = str(data.get("tipo_servicio", "")).lower()
-    tipo_nacionalizacion = str(data.get("tipo_nacionalizacion", "")).lower()
-    cantidad = float(data.get("cantidad", 0) or 0)
+    cantidad = data.get("cantidad")
+    volumen = numero_o_none(data.get("volumen"))
+    peso_suelto = numero_o_none(data.get("peso"))
+    modalidad_carga = data.get("modalidad_carga") or "no_especificada"
+    usa_contenedores = bool(data.get("usa_contenedores"))
+    es_lcl = bool(data.get("lcl"))
     origen = str(data.get("origen", "")).lower()
     destino = str(data.get("destino", "")).lower()
     contenedores = data.get("contenedores", [])
@@ -254,67 +428,139 @@ def recomendar_seguro():
         if not isinstance(contenedor, dict):
             continue
 
-        peso_total += float(contenedor.get("peso_bruto", 0) or 0)
+        peso_total += numero_o_none(contenedor.get("peso_bruto")) or 0
 
     if not contenedores:
-        peso_total = float(data.get("peso_bruto", 0) or 0)
+        peso_total = peso_suelto or numero_o_none(data.get("peso_bruto")) or 0
 
-    puntaje = 0
-    motivos = []
+    datos_externos = evaluar_datos_externos(origen, destino)
 
-    if peso_total >= 20000:
-        puntaje += 25
-        motivos.append("peso total elevado de la carga")
+    metricas_usadas = [
+        f"modalidad de carga: {modalidad_carga}",
+        f"LCL: {'si' if es_lcl else 'no'}",
+        f"usa contenedores: {'si' if usa_contenedores else 'no'}",
+        f"peso total de la carga: {peso_total} kg",
+        f"tipo de servicio: {data.get('tipo_servicio') or 'no especificado'}",
+        f"tipo de nacionalizacion: {data.get('tipo_nacionalizacion') or 'no especificado'}",
+        f"producto: {data.get('producto') or 'no especificado'}",
+        f"origen: {data.get('origen') or 'no especificado'}",
+        f"destino: {data.get('destino') or 'no especificado'}",
+    ]
 
-    if cantidad >= 5:
-        puntaje += 15
-        motivos.append("cantidad considerable de contenedores")
-
-    if origen and destino and origen != destino:
-        puntaje += 5
-        motivos.append("traslado entre diferentes ubicaciones")
-
-    regla_servicio = PUNTAJE_TIPO_SERVICIO.get(tipo_servicio)
-    if regla_servicio:
-        puntaje += regla_servicio["puntaje"]
-        motivos.append(regla_servicio["motivo"])
-
-    regla_nacionalizacion = PUNTAJE_TIPO_NACIONALIZACION.get(tipo_nacionalizacion)
-    if regla_nacionalizacion:
-        puntaje += regla_nacionalizacion["puntaje"]
-        motivos.append(regla_nacionalizacion["motivo"])
-
-    puntaje_externo, motivos_externos, datos_externos = evaluar_datos_externos(origen, destino)
-    puntaje += puntaje_externo
-    motivos.extend(motivos_externos)
-
-    if puntaje >= 70:
-        nivel_riesgo = "alto"
-        requiere_seguro = True
-        tipo_seguro = "Seguro de cobertura amplia"
-    elif puntaje >= 45:
-        nivel_riesgo = "medio"
-        requiere_seguro = True
-        tipo_seguro = "Seguro de cobertura intermedia"
-    elif puntaje >= 30:
-        nivel_riesgo = "bajo"
-        requiere_seguro = True
-        tipo_seguro = "Seguro basico"
+    if contenedores:
+        metricas_usadas.append(f"contenedores asignados: {len(contenedores)}")
+        for indice, contenedor in enumerate(contenedores, start=1):
+            metricas_usadas.append(
+                f"contenedor {indice}: numero {contenedor.get('numero_contenedor') or '-'}, "
+                f"tipo {contenedor.get('tipo_contenedor') or '-'}, "
+                f"naviera {contenedor.get('naviera') or '-'}, "
+                f"peso bruto {contenedor.get('peso_bruto') or 0} kg"
+            )
     else:
-        nivel_riesgo = "muy bajo"
-        requiere_seguro = False
-        tipo_seguro = "Seguro opcional"
+        metricas_usadas.append("contenedores asignados: no aplica o no registrado")
 
-    return jsonify({
-        "requiere_seguro": requiere_seguro,
-        "nivel_riesgo": nivel_riesgo,
-        "puntaje_riesgo": puntaje,
-        "tipo_seguro_recomendado": tipo_seguro,
-        "motivos": motivos,
+    if es_lcl:
+        metricas_usadas.append(f"cantidad declarada: {cantidad or 'no especificada'}")
+
+    if es_lcl:
+        metricas_usadas.extend([
+            f"volumen LCL: {volumen if volumen is not None else 'no especificado'}",
+            f"peso LCL: {peso_suelto if peso_suelto is not None else 'no especificado'} kg",
+        ])
+
+    if data.get("nro_madre"):
+        metricas_usadas.append(f"numero madre: {data.get('nro_madre')}")
+
+    if data.get("nro_hijo"):
+        metricas_usadas.append(f"numero hijo: {data.get('nro_hijo')}")
+
+    if data.get("observacion"):
+        metricas_usadas.append(f"observaciones de operacion: {data.get('observacion')}")
+
+    if data.get("etd"):
+        metricas_usadas.append(f"ETD: {data.get('etd')}")
+
+    if data.get("eta"):
+        metricas_usadas.append(f"ETA: {data.get('eta')}")
+
+    ruta = datos_externos.get("ruta") or {}
+    if ruta:
+        metricas_usadas.extend([
+            f"distancia estimada de ruta: {ruta.get('distancia_km')} km",
+            f"duracion estimada de ruta: {ruta.get('duracion_horas')} horas",
+        ])
+
+    for etiqueta in ["clima_origen", "clima_destino"]:
+        clima = datos_externos.get(etiqueta)
+        if clima:
+            metricas_usadas.append(
+                f"{etiqueta}: precipitacion {clima.get('precipitacion_mm')} mm, "
+                f"lluvia {clima.get('lluvia_mm')} mm, viento {clima.get('viento_kmh')} km/h"
+            )
+
+    analisis_base = {
+        "modalidad_carga": modalidad_carga,
+        "usa_contenedores": usa_contenedores,
+        "lcl": es_lcl,
         "peso_total": peso_total,
+        "cantidad_declarada": cantidad if es_lcl else None,
+        "volumen": volumen,
+        "peso_suelto": peso_suelto,
         "cantidad_contenedores": len(contenedores),
+        "metricas_usadas": metricas_usadas,
         "datos_externos": datos_externos,
-    })
+    }
+
+    operacion = {
+        "id_operacion": data.get("id_operacion"),
+        "codigo_operacion": data.get("codigo_operacion"),
+        "tipo_servicio": data.get("tipo_servicio"),
+        "tipo_nacionalizacion": data.get("tipo_nacionalizacion"),
+        "producto": data.get("producto"),
+        "cantidad": cantidad if es_lcl else None,
+        "volumen": volumen,
+        "peso": peso_suelto,
+        "modalidad_carga": modalidad_carga,
+        "usa_contenedores": usa_contenedores,
+        "lcl": es_lcl,
+        "origen": data.get("origen"),
+        "destino": data.get("destino"),
+        "nro_madre": data.get("nro_madre"),
+        "nro_hijo": data.get("nro_hijo"),
+        "observacion": data.get("observacion"),
+        "etd": data.get("etd"),
+        "eta": data.get("eta"),
+        "contenedores": contenedores,
+    }
+
+    recomendacion_ia, error_ia = consultar_gemini(operacion, analisis_base)
+
+    if not recomendacion_ia:
+        return jsonify({
+            "error": "Gemini no pudo generar la recomendacion.",
+            "detalle": error_ia,
+            "fuente_recomendacion": "gemini",
+            "modelo_ia": GEMINI_MODEL,
+            "metricas_enviadas": analisis_base,
+        }), 503
+
+    respuesta = {
+        **analisis_base,
+        "requiere_seguro": bool(recomendacion_ia.get("requiere_seguro")),
+        "nivel_riesgo": recomendacion_ia.get("nivel_riesgo", ""),
+        "puntaje_riesgo": recomendacion_ia.get("puntaje_riesgo"),
+        "tipo_seguro_recomendado": recomendacion_ia.get("tipo_seguro_recomendado", ""),
+        "resumen_ia": recomendacion_ia.get("resumen_ia", ""),
+        "motivos_ia": recomendacion_ia.get("motivos_ia", []),
+        "acciones_recomendadas": recomendacion_ia.get("acciones_recomendadas", []),
+        "confianza": recomendacion_ia.get("confianza", "media"),
+        "motivos": metricas_usadas,
+        "fuente_recomendacion": "gemini",
+        "modelo_ia": GEMINI_MODEL,
+        "error_ia": None,
+    }
+
+    return jsonify(respuesta)
 
 
 if __name__ == "__main__":

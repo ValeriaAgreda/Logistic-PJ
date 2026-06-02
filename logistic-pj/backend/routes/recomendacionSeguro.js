@@ -17,7 +17,15 @@ const obtenerOperacionConContenedores = async (idOperacion) => {
       o.porducto,
       o.origen,
       o.destino,
-      o.cantidad
+      o.cantidad,
+      o.lcl,
+      o.volumen,
+      o.peso,
+      o.nro_madre,
+      o.nro_hijo,
+      o.observacion,
+      DATE_FORMAT(o.etd, '%Y-%m-%d') AS etd,
+      DATE_FORMAT(o.eta, '%Y-%m-%d') AS eta
     FROM operacion o
     INNER JOIN tipo_servicio ts ON ts.id_tipo_servicio = o.id_tipo_servicio
     INNER JOIN tipo_nacionalizacion tn
@@ -36,7 +44,11 @@ const obtenerOperacionConContenedores = async (idOperacion) => {
       c.id_contenedor,
       c.numero_contenedor,
       tc.descripcion AS tipo_contenedor,
-      c.peso_bruto
+      c.naviera,
+      c.peso_bruto,
+      DATE_FORMAT(oc.fecha_llegada_puerto, '%Y-%m-%d') AS fecha_llegada_puerto,
+      DATE_FORMAT(oc.fecha_devolucion_limite, '%Y-%m-%d') AS fecha_devolucion_limite,
+      DATE_FORMAT(oc.fecha_devolucion, '%Y-%m-%d') AS fecha_devolucion
     FROM operacion_contenedor oc
     INNER JOIN contenedor c ON c.id_contenedor = oc.id_contenedor
     LEFT JOIN tipo_contenedor tc ON tc.id_tipo_contenedor = c.id_tipo_contenedor
@@ -71,11 +83,23 @@ router.post("/operacion/:id_operacion", async (req, res) => {
       return res.status(404).json({ error: "Operacion no encontrada." });
     }
 
-    if (!operacion.contenedores.length) {
+    const tipoServicio = String(operacion.tipo_servicio || "").trim().toLowerCase();
+    const esLcl = Number(operacion.lcl) === 1;
+    const servicioPermiteContenedor =
+      tipoServicio === "maritimo" || tipoServicio === "terrestre" || tipoServicio === "bimodal";
+
+    if (servicioPermiteContenedor && !esLcl && !operacion.contenedores.length) {
       return res.status(400).json({
-        error: "La operacion debe tener al menos un contenedor asignado antes de recomendar seguro.",
+        error: "Esta operacion requiere al menos un contenedor asignado para recomendar seguro.",
       });
     }
+
+    const usaContenedores = operacion.contenedores.length > 0;
+    const modalidadCarga = usaContenedores
+      ? "contenedorizada"
+      : esLcl
+        ? "lcl_carga_suelta"
+        : "carga_no_contenedorizada";
 
     const payload = {
       id_operacion: operacion.id_operacion,
@@ -83,14 +107,28 @@ router.post("/operacion/:id_operacion", async (req, res) => {
       tipo_servicio: operacion.tipo_servicio,
       tipo_nacionalizacion: operacion.tipo_nacionalizacion,
       producto: operacion.porducto,
-      cantidad: Number(operacion.cantidad || operacion.contenedores.length),
+      modalidad_carga: modalidadCarga,
+      usa_contenedores: usaContenedores,
+      lcl: esLcl,
+      cantidad: esLcl ? operacion.cantidad : null,
+      volumen: esLcl ? Number(operacion.volumen || 0) || null : null,
+      peso: esLcl ? Number(operacion.peso || 0) || null : null,
       origen: operacion.origen,
       destino: operacion.destino,
+      nro_madre: operacion.nro_madre,
+      nro_hijo: operacion.nro_hijo,
+      observacion: operacion.observacion,
+      etd: operacion.etd,
+      eta: operacion.eta,
       contenedores: operacion.contenedores.map((contenedor) => ({
         id_contenedor: contenedor.id_contenedor,
         numero_contenedor: contenedor.numero_contenedor,
         tipo_contenedor: contenedor.tipo_contenedor || "",
+        naviera: contenedor.naviera || "",
         peso_bruto: Number(contenedor.peso_bruto || 0),
+        fecha_llegada_puerto: contenedor.fecha_llegada_puerto,
+        fecha_devolucion_limite: contenedor.fecha_devolucion_limite,
+        fecha_devolucion: contenedor.fecha_devolucion,
       })),
     };
 
@@ -105,7 +143,7 @@ router.post("/operacion/:id_operacion", async (req, res) => {
     if (!flaskResponse.ok) {
       return res.status(502).json({
         error: "El microservicio IA no pudo generar la recomendacion.",
-        detalle: recomendacion?.error || recomendacion,
+        detalle: recomendacion?.detalle || recomendacion?.error || recomendacion,
       });
     }
 
