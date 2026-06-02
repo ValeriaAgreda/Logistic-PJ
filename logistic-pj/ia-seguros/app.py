@@ -150,17 +150,6 @@ def numero_o_none(valor):
         return None
 
 
-def construir_prompt_reparacion(texto):
-    return (
-        "Corrige el siguiente texto para que sea JSON valido. "
-        "Devuelve solamente el JSON corregido, sin markdown ni explicaciones. "
-        "Debe conservar los campos: requiere_seguro, nivel_riesgo, puntaje_riesgo, "
-        "tipo_seguro_recomendado, resumen_ia, motivos_ia, acciones_recomendadas y confianza. "
-        "Si algun campo esta incompleto, completalo de forma breve y consistente. "
-        f"Texto a corregir: {texto}"
-    )
-
-
 def construir_prompt_gemini(operacion, analisis):
     contexto = {
         "operacion": operacion,
@@ -208,7 +197,7 @@ def consultar_gemini(operacion, analisis):
         ],
         "generationConfig": {
             "temperature": 0,
-            "maxOutputTokens": 3000,
+            "maxOutputTokens": 8192,
             "responseMimeType": "application/json",
         },
     }
@@ -226,32 +215,7 @@ def consultar_gemini(operacion, analisis):
             resultado = parsear_json_modelo(texto)
         except json.JSONDecodeError as error:
             print(f"[Gemini] JSON invalido: {texto[:1000]}", flush=True)
-            reparacion_payload = {
-                "contents": [
-                    {
-                        "role": "user",
-                        "parts": [{"text": construir_prompt_reparacion(texto)}],
-                    }
-                ],
-                "generationConfig": {
-                    "temperature": 0,
-                    "maxOutputTokens": 3000,
-                    "responseMimeType": "application/json",
-                },
-            }
-            print("[Gemini] Reintentando reparacion de JSON", flush=True)
-            reparacion = post_json(
-                url,
-                reparacion_payload,
-                headers={"x-goog-api-key": GEMINI_API_KEY},
-                timeout=GEMINI_TIMEOUT,
-            )
-            texto_reparado = extraer_texto_gemini(reparacion)
-            try:
-                resultado = parsear_json_modelo(texto_reparado)
-            except json.JSONDecodeError as repair_error:
-                print(f"[Gemini] JSON reparado invalido: {texto_reparado[:1000]}", flush=True)
-                return None, f"Gemini devolvio JSON invalido: {repair_error}"
+            return None, f"Gemini devolvio JSON invalido: {error}"
 
         resultado = normalizar_recomendacion_ia(resultado)
         if not resultado:

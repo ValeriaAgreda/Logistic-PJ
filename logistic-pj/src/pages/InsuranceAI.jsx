@@ -46,6 +46,7 @@ const InsuranceAI = () => {
   const [resultado, setResultado] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
+  const [loadingSaved, setLoadingSaved] = useState(false);
   const [error, setError] = useState("");
 
   const cargarDatos = useCallback(async () => {
@@ -85,7 +86,37 @@ const InsuranceAI = () => {
   );
 
   useEffect(() => {
-    setResultado(null);
+    const cargarRecomendacionGuardada = async () => {
+      setResultado(null);
+
+      if (!idOperacion) return;
+
+      setLoadingSaved(true);
+      try {
+        const res = await fetch(
+          `${API_BASE_URL}/recomendacion-seguro/operacion/${idOperacion}`,
+          {
+            credentials: "include",
+            headers: {
+              ...authHeaders(),
+            },
+          }
+        );
+        const data = await res.json();
+
+        if (res.ok) {
+          setResultado(data);
+        } else if (res.status !== 404) {
+          setError(data?.detalle || data?.error || "No se pudo cargar la recomendacion guardada.");
+        }
+      } catch (err) {
+        setError(err.message || "No se pudo cargar la recomendacion guardada.");
+      } finally {
+        setLoadingSaved(false);
+      }
+    };
+
+    cargarRecomendacionGuardada();
   }, [idOperacion]);
 
   const generarRecomendacion = async () => {
@@ -211,9 +242,15 @@ const InsuranceAI = () => {
               className="btn btn-orange w-100 mt-3"
               type="button"
               onClick={generarRecomendacion}
-              disabled={loading || loadingData || !idOperacion}
+              disabled={loading || loadingData || loadingSaved || !idOperacion || Boolean(resultado?.almacenada)}
             >
-              {loading ? "Generando..." : "Generar recomendacion"}
+              {loading
+                ? "Generando..."
+                : loadingSaved
+                  ? "Buscando recomendacion..."
+                  : resultado?.almacenada
+                    ? "Recomendacion guardada"
+                    : "Generar recomendacion"}
             </button>
           </div>
         </div>

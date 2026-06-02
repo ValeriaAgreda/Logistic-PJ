@@ -5,6 +5,119 @@ const db = require("../db");
 
 const FLASK_IA_URL = process.env.FLASK_IA_URL || "http://localhost:5000/api/recomendar-seguro";
 
+const parseJsonField = (value, fallback) => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === "object") return value;
+
+  try {
+    return JSON.parse(value);
+  } catch (_error) {
+    return fallback;
+  }
+};
+
+const mapearRecomendacion = (row) => {
+  if (!row) return null;
+
+  const respuesta = parseJsonField(row.respuesta_ia, {});
+
+  return {
+    ...respuesta,
+    id_recomendacion_seguro: row.id_recomendacion_seguro,
+    id_operacion: row.id_operacion,
+    fecha_recomendacion: row.fecha_recomendacion,
+    requiere_seguro: Boolean(row.requiere_seguro),
+    nivel_riesgo: row.nivel_riesgo,
+    puntaje_riesgo: row.puntaje_riesgo === null ? null : Number(row.puntaje_riesgo),
+    tipo_seguro_recomendado: row.tipo_seguro_recomendado,
+    resumen_ia: row.resumen_ia || respuesta.resumen_ia || "",
+    motivos_ia: parseJsonField(row.motivos_ia, respuesta.motivos_ia || []),
+    acciones_recomendadas: parseJsonField(
+      row.acciones_recomendadas,
+      respuesta.acciones_recomendadas || []
+    ),
+    motivos: parseJsonField(row.metricas_usadas, respuesta.motivos || []),
+    metricas_usadas: parseJsonField(row.metricas_usadas, respuesta.metricas_usadas || []),
+    modelo_ia: row.modelo_ia || respuesta.modelo_ia || null,
+    fuente_recomendacion: row.fuente_recomendacion || respuesta.fuente_recomendacion || "gemini",
+    almacenada: true,
+  };
+};
+
+const obtenerRecomendacionGuardada = async (idOperacion) => {
+  const [rows] = await db.query(
+    `SELECT *
+     FROM recomendacion_seguro
+     WHERE id_operacion = ?
+       AND estado = 1
+     LIMIT 1`,
+    [Number(idOperacion)]
+  );
+
+  return mapearRecomendacion(rows[0]);
+};
+
+const guardarRecomendacion = async (operacion, recomendacion) => {
+  const fechaRecomendacion = new Date();
+  const respuesta = {
+    ...recomendacion,
+    id_operacion: Number(operacion.id_operacion),
+    codigo_operacion: operacion.codigo_operacion,
+    fecha_recomendacion: fechaRecomendacion.toISOString(),
+    almacenada: true,
+  };
+
+  await db.query(
+    `INSERT INTO recomendacion_seguro (
+       id_operacion,
+       fecha_recomendacion,
+       requiere_seguro,
+       nivel_riesgo,
+       puntaje_riesgo,
+       tipo_seguro_recomendado,
+       resumen_ia,
+       motivos_ia,
+       acciones_recomendadas,
+       metricas_usadas,
+       respuesta_ia,
+       modelo_ia,
+       fuente_recomendacion,
+       estado
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+     ON DUPLICATE KEY UPDATE
+       fecha_recomendacion = VALUES(fecha_recomendacion),
+       requiere_seguro = VALUES(requiere_seguro),
+       nivel_riesgo = VALUES(nivel_riesgo),
+       puntaje_riesgo = VALUES(puntaje_riesgo),
+       tipo_seguro_recomendado = VALUES(tipo_seguro_recomendado),
+       resumen_ia = VALUES(resumen_ia),
+       motivos_ia = VALUES(motivos_ia),
+       acciones_recomendadas = VALUES(acciones_recomendadas),
+       metricas_usadas = VALUES(metricas_usadas),
+       respuesta_ia = VALUES(respuesta_ia),
+       modelo_ia = VALUES(modelo_ia),
+       fuente_recomendacion = VALUES(fuente_recomendacion),
+       estado = 1`,
+    [
+      Number(operacion.id_operacion),
+      fechaRecomendacion,
+      recomendacion.requiere_seguro ? 1 : 0,
+      recomendacion.nivel_riesgo || "",
+      recomendacion.puntaje_riesgo ?? null,
+      recomendacion.tipo_seguro_recomendado || "",
+      recomendacion.resumen_ia || "",
+      JSON.stringify(recomendacion.motivos_ia || []),
+      JSON.stringify(recomendacion.acciones_recomendadas || []),
+      JSON.stringify(recomendacion.motivos || recomendacion.metricas_usadas || []),
+      JSON.stringify(respuesta),
+      recomendacion.modelo_ia || null,
+      recomendacion.fuente_recomendacion || "gemini",
+    ]
+  );
+
+  return obtenerRecomendacionGuardada(operacion.id_operacion);
+};
+
 const obtenerOperacionConContenedores = async (idOperacion) => {
   const [operaciones] = await db.query(
     `SELECT
@@ -70,9 +183,23 @@ router.get("/", async (_req, res) => {
 });
 
 router.get("/operacion/:id_operacion", async (req, res) => {
-  res.status(404).json({
-    error: "La recomendacion de seguro no se almacena. Genera una nueva recomendacion para verla.",
-  });
+  try {
+    const recomendacion = await obtenerRecomendacionGuardada(req.params.id_operacion);
+
+    if (!recomendacion) {
+      return res.status(404).json({
+        error: "Esta operacion aun no tiene recomendacion de seguro.",
+      });
+    }
+
+    res.json(recomendacion);
+  } catch (error) {
+    console.error("Error al obtener recomendacion de seguro:", error);
+    res.status(500).json({
+      error: "Error al obtener recomendacion de seguro",
+      detalle: error.message,
+    });
+  }
 });
 
 router.post("/operacion/:id_operacion", async (req, res) => {
@@ -81,6 +208,11 @@ router.post("/operacion/:id_operacion", async (req, res) => {
 
     if (!operacion) {
       return res.status(404).json({ error: "Operacion no encontrada." });
+    }
+
+    const recomendacionGuardada = await obtenerRecomendacionGuardada(operacion.id_operacion);
+    if (recomendacionGuardada && req.query.regenerar !== "1") {
+      return res.status(200).json(recomendacionGuardada);
     }
 
     const tipoServicio = String(operacion.tipo_servicio || "").trim().toLowerCase();
@@ -147,12 +279,15 @@ router.post("/operacion/:id_operacion", async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    const recomendacionGenerada = {
       id_operacion: Number(operacion.id_operacion),
       codigo_operacion: operacion.codigo_operacion,
       fecha_recomendacion: new Date().toISOString(),
       ...recomendacion,
-    });
+    };
+
+    const recomendacionGuardadaNueva = await guardarRecomendacion(operacion, recomendacionGenerada);
+    res.status(200).json(recomendacionGuardadaNueva || recomendacionGenerada);
   } catch (error) {
     console.error("Error al generar recomendacion de seguro:", error);
     res.status(500).json({
