@@ -323,6 +323,12 @@ const Operations = () => {
     if (!v.omitir_validacion_estado && !v.id_estado_operacion) {
       e.id_estado_operacion = "Selecciona un estado.";
     }
+    if (v.fecha_asignacion && v.etd && v.etd < v.fecha_asignacion) {
+      e.etd = "La fecha de salida ETD no puede ser anterior a la fecha de asignacion.";
+    }
+    if (v.fecha_asignacion && v.eta && v.eta < v.fecha_asignacion) {
+      e.eta = "La fecha de llegada ETA no puede ser anterior a la fecha de asignacion.";
+    }
     if (v.etd && v.eta && v.eta < v.etd) {
       e.eta = "La fecha de llegada ETA no puede ser anterior a la fecha de salida ETD.";
     }
@@ -1899,8 +1905,8 @@ const Operations = () => {
         <div className="col-md-6">{field(state, setter, "nro_hijo", etiquetasDocumento.hijo)}</div>
       ) : null}
       <div className="col-12">{textareaField(state, setter, "observacion", "Observaciones")}</div>
-      <div className="col-md-4">{field(state, setter, "etd", "ETD", "date")}</div>
-      <div className="col-md-4">{field(state, setter, "eta", "ETA", "date")}</div>
+      <div className="col-md-4">{field(state, setter, "etd", "ETD (fecha de salida)", "date")}</div>
+      <div className="col-md-4">{field(state, setter, "eta", "ETA (fecha de llegada)", "date")}</div>
       <div className="col-md-4">{selectField(state, setter, "id_tipo_nacionalizacion", "Tipo de nacionalizacion", nationalizations, "id_tipo_nacionalizacion", "descripcion", "nationalization")}</div>
       <div className="col-12">
         {isNew ? (
