@@ -330,17 +330,34 @@ const Operations = () => {
   };
   const validateClient = (v) => {
     const e = {};
+    const nit = String(v.nit || "").trim();
+
     if (!text(v.razon_social)) e.razon_social = "Razon social obligatoria.";
-    if (!NIT.test(String(v.nit).trim())) e.nit = "El NIT debe tener entre 5 y 12 digitos, solo numeros.";
+    if (!NIT.test(nit)) {
+      e.nit = "El NIT debe tener entre 5 y 12 digitos, solo numeros.";
+    } else if (
+      clients.some((client) => String(client.nit || "").trim() === nit)
+    ) {
+      e.nit = "Ya existe un cliente registrado con ese NIT.";
+    }
     if (!text(v.contacto)) e.contacto = "Contacto obligatorio.";
     if (String(v.telefono || "").trim() && !PHONE.test(String(v.telefono).trim())) e.telefono = "Telefono invalido.";
     if (String(v.correo || "").trim() && !EMAIL.test(String(v.correo).trim())) e.correo = "Correo invalido.";
     return e;
   };
   const validateSupplier = (v) => {
-    const e = validateClient({ ...v, razon_social: v.empresa });
-    delete e.razon_social;
+    const e = {};
+    const nit = String(v.nit || "").trim();
+
     if (!text(v.empresa)) e.empresa = "Empresa obligatoria.";
+    if (!NIT.test(nit)) {
+      e.nit = "El NIT debe tener entre 5 y 12 digitos, solo numeros.";
+    } else if (
+      suppliers.some((supplier) => String(supplier.nit || "").trim() === nit)
+    ) {
+      e.nit = "Ya existe un proveedor registrado con ese NIT.";
+    }
+    if (!text(v.contacto)) e.contacto = "Contacto obligatorio.";
     if (!SUPPLIER_PHONE.test(String(v.telefono).trim())) e.telefono = "Incluye codigo de pais. Ej: +59171234567.";
     if (!EMAIL.test(String(v.correo).trim())) e.correo = "Correo invalido.";
     if (!text(v.direccion)) e.direccion = "Direccion obligatoria.";
