@@ -225,6 +225,7 @@ const Operations = () => {
   const [pendingContainerAssignments, setPendingContainerAssignments] = useState([]);
   const [quickContainer, setQuickContainer] = useState(contenedorInit);
   const [quickContainerErrors, setQuickContainerErrors] = useState({});
+  const [quickContainerType, setQuickContainerType] = useState(itemInit);
   const [pendingOperationCosts, setPendingOperationCosts] = useState([]);
   const [pendingOperationSales, setPendingOperationSales] = useState([]);
   const [pendingOperationDocuments, setPendingOperationDocuments] = useState([]);
@@ -1140,6 +1141,33 @@ const Operations = () => {
       alert(error.message || "Error al crear contenedor");
     }
   };
+  const openQuickContainerType = () => {
+    setQuickContainerType(itemInit);
+    setQuickErrors({});
+    modal("quickContainerTypeFromOperationModal");
+  };
+  const saveQuickContainerType = async () => {
+    const e = validateItem(quickContainerType);
+    if (Object.keys(e).length) return setQuickErrors(e);
+
+    try {
+      const data = await request(`${API}/tipo-contenedor`, {
+        method: "POST",
+        body: JSON.stringify({ descripcion: text(quickContainerType.descripcion) }),
+      });
+      const typesData = await request(`${API}/tipo-contenedor`);
+      setContainerTypes(Array.isArray(typesData) ? typesData : []);
+      setQuickContainer((current) => ({
+        ...current,
+        id_tipo_contenedor: String(data.id_tipo_contenedor),
+      }));
+      hideModal("quickContainerTypeFromOperationModal");
+      setQuickContainerType(itemInit);
+      setQuickErrors({});
+    } catch (error) {
+      alert(error.message || "Error al crear tipo de contenedor");
+    }
+  };
 
   const field = (state, setter, name, label, type = "text", errs = errors) => {
     const isNit = name === "nit";
@@ -1968,7 +1996,8 @@ const Operations = () => {
       <div className="modal fade" id="addCostFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{costMode === "edit" ? "Editar costo" : "Agregar costo"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(costForm, setCostForm, costErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveCostFromOperation}>{costMode === "edit" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
       <div className="modal fade" id="addSaleFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{saleMode === "edit" ? "Editar venta" : "Agregar venta"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(saleForm, setSaleForm, saleErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveSaleFromOperation}>{saleMode === "edit" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
       <div className="modal fade" id="addDocumentFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{documentMode === "edit" || documentMode === "edit-pending" ? "Editar documento" : "Agregar documento"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{documentoFormView(documentForm, setDocumentForm, documentErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className={documentMode === "edit" || documentMode === "edit-pending" ? "btn btn-primary" : "btn btn-success"} onClick={saveDocumentFromOperation}>{documentMode === "edit" || documentMode === "edit-pending" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
-      <div className="modal fade" id="quickContainerFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body"><ContainerFormFields contenedor={quickContainer} setContenedor={setQuickContainer} errores={quickContainerErrors} tiposContenedor={containerTypes} /></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickContainer}>Guardar</button></div></div></div></div>
+      <div className="modal fade" id="quickContainerFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body"><ContainerFormFields contenedor={quickContainer} setContenedor={setQuickContainer} errores={quickContainerErrors} tiposContenedor={containerTypes} onCreateTipoContenedor={openQuickContainerType} /></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickContainer}>Guardar</button></div></div></div></div>
+      <div className="modal fade" id="quickContainerTypeFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Nuevo tipo de contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickContainerType, setQuickContainerType, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickContainerType}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>
       <div className="modal fade" id="quickClientModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear cliente rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickClient, setQuickClient, "razon_social", "Razon social", "text", quickErrors)}{field(quickClient, setQuickClient, "nit", "NIT", "text", quickErrors)}{field(quickClient, setQuickClient, "contacto", "Contacto", "text", quickErrors)}{field(quickClient, setQuickClient, "telefono", "Telefono", "text", quickErrors)}{field(quickClient, setQuickClient, "correo", "Correo", "email", quickErrors)}{field(quickClient, setQuickClient, "direccion", "Direccion", "text", quickErrors)}<div className="mb-3"><label className="form-label">Observacion</label><textarea className="form-control" rows="3" value={quickClient.observacion} onChange={(e) => setQuickClient({ ...quickClient, observacion: e.target.value })} /></div></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickClient}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="quickServiceModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear tipo de servicio rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickService, setQuickService, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={() => saveQuickService()}>Guardar</button></div></div></div></div>

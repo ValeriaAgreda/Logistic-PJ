@@ -1,6 +1,12 @@
 import React from "react";
 
-const ContainerFormFields = ({ contenedor, setContenedor, errores = {}, tiposContenedor = [] }) => {
+const ContainerFormFields = ({
+  contenedor,
+  setContenedor,
+  errores = {},
+  tiposContenedor = [],
+  onCreateTipoContenedor,
+}) => {
   const update = (campo, valor) => {
     setContenedor({
       ...contenedor,
@@ -23,21 +29,34 @@ const ContainerFormFields = ({ contenedor, setContenedor, errores = {}, tiposCon
       </div>
 
       <div className="mb-3">
-        <label className="form-label">Tipo de contenedor</label>
-        <select
-          className={`form-select ${errores.id_tipo_contenedor ? "is-invalid" : ""}`}
-          value={contenedor.id_tipo_contenedor || ""}
-          onChange={(e) => update("id_tipo_contenedor", e.target.value)}
-        >
-          <option value="">Seleccionar</option>
-          {tiposContenedor.map((tipo) => (
-            <option key={tipo.id_tipo_contenedor} value={tipo.id_tipo_contenedor}>
-              {tipo.descripcion}
-            </option>
-          ))}
-        </select>
+        <div className="d-flex justify-content-between align-items-center gap-2 mb-1">
+          <label className="form-label m-0">Tipo de contenedor</label>
+          {onCreateTipoContenedor && (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-primary"
+              onClick={onCreateTipoContenedor}
+            >
+              Nuevo tipo
+            </button>
+          )}
+        </div>
+        <div>
+          <select
+            className={`form-select ${errores.id_tipo_contenedor ? "is-invalid" : ""}`}
+            value={contenedor.id_tipo_contenedor || ""}
+            onChange={(e) => update("id_tipo_contenedor", e.target.value)}
+          >
+            <option value="">Seleccionar</option>
+            {tiposContenedor.map((tipo) => (
+              <option key={tipo.id_tipo_contenedor} value={tipo.id_tipo_contenedor}>
+                {tipo.descripcion}
+              </option>
+            ))}
+          </select>
+        </div>
         {errores.id_tipo_contenedor && (
-          <div className="invalid-feedback">{errores.id_tipo_contenedor}</div>
+          <div className="invalid-feedback d-block">{errores.id_tipo_contenedor}</div>
         )}
       </div>
 

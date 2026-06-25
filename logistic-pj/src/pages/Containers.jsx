@@ -9,6 +9,10 @@ const contenedorInicial = {
   peso_bruto: "",
 };
 
+const tipoContenedorInicial = {
+  descripcion: "",
+};
+
 const obtenerUsuarioLogueado = () => {
   try {
     const usuario = localStorage.getItem("user");
@@ -31,6 +35,9 @@ const Containers = () => {
   const [nuevoContenedor, setNuevoContenedor] = useState(contenedorInicial);
   const [contenedorSeleccionado, setContenedorSeleccionado] = useState(null);
   const [contenedorAEliminar, setContenedorAEliminar] = useState(null);
+  const [nuevoTipoContenedor, setNuevoTipoContenedor] = useState(tipoContenedorInicial);
+  const [erroresTipoContenedor, setErroresTipoContenedor] = useState({});
+  const [tipoTarget, setTipoTarget] = useState("add");
   const [errores, setErrores] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
@@ -137,6 +144,63 @@ const Containers = () => {
     if (!contenedor) return;
     setContenedorAEliminar(contenedor);
     new bootstrap.Modal(document.getElementById("deleteContainerModal")).show();
+  };
+
+  const abrirNuevoTipoContenedor = (target) => {
+    setTipoTarget(target);
+    setNuevoTipoContenedor(tipoContenedorInicial);
+    setErroresTipoContenedor({});
+    new bootstrap.Modal(document.getElementById("quickContainerTypeModal")).show();
+  };
+
+  const guardarTipoContenedorRapido = async () => {
+    const descripcion = nuevoTipoContenedor.descripcion.trim();
+
+    if (!descripcion) {
+      setErroresTipoContenedor({
+        descripcion: "La descripcion es obligatoria.",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch("http://localhost:3001/api/tipo-contenedor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ descripcion }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data?.error || "Error al crear tipo de contenedor");
+        return;
+      }
+
+      await cargarTiposContenedor();
+      const nuevoId = String(data.id_tipo_contenedor);
+
+      if (tipoTarget === "edit") {
+        setContenedorSeleccionado((current) =>
+          current ? { ...current, id_tipo_contenedor: nuevoId } : current
+        );
+      } else {
+        setNuevoContenedor((current) => ({
+          ...current,
+          id_tipo_contenedor: nuevoId,
+        }));
+      }
+
+      bootstrap.Modal.getInstance(
+        document.getElementById("quickContainerTypeModal")
+      )?.hide();
+      setNuevoTipoContenedor(tipoContenedorInicial);
+      setErroresTipoContenedor({});
+    } catch (error) {
+      console.error("Error al crear tipo de contenedor:", error);
+      alert("Error en el servidor");
+    }
   };
 
   const guardarNuevo = async () => {
@@ -422,6 +486,7 @@ const Containers = () => {
                 setContenedor={setNuevoContenedor}
                 errores={errores}
                 tiposContenedor={tiposContenedor}
+                onCreateTipoContenedor={() => abrirNuevoTipoContenedor("add")}
               />
             </div>
             <div className="modal-footer">
@@ -450,6 +515,7 @@ const Containers = () => {
                   setContenedor={setContenedorSeleccionado}
                   errores={errores}
                   tiposContenedor={tiposContenedor}
+                  onCreateTipoContenedor={() => abrirNuevoTipoContenedor("edit")}
                 />
               )}
             </div>
@@ -486,6 +552,47 @@ const Containers = () => {
               </button>
               <button className="btn btn-danger" onClick={eliminarContenedor}>
                 Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="modal fade" id="quickContainerTypeModal" tabIndex="-1" aria-hidden="true">
+        <div className="modal-dialog modal-dialog-centered">
+          <div className="modal-content shadow rounded-3">
+            <div className="modal-header">
+              <h5 className="modal-title">Nuevo tipo de contenedor</h5>
+              <button className="btn-close" data-bs-dismiss="modal" />
+            </div>
+            <div className="modal-body">
+              <div className="mb-3">
+                <label className="form-label">Descripcion</label>
+                <input
+                  className={`form-control ${
+                    erroresTipoContenedor.descripcion ? "is-invalid" : ""
+                  }`}
+                  value={nuevoTipoContenedor.descripcion}
+                  onChange={(e) =>
+                    setNuevoTipoContenedor({
+                      ...nuevoTipoContenedor,
+                      descripcion: e.target.value,
+                    })
+                  }
+                />
+                {erroresTipoContenedor.descripcion && (
+                  <div className="invalid-feedback">
+                    {erroresTipoContenedor.descripcion}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" data-bs-dismiss="modal">
+                Cancelar
+              </button>
+              <button className="btn btn-success" onClick={guardarTipoContenedorRapido}>
+                Guardar
               </button>
             </div>
           </div>
