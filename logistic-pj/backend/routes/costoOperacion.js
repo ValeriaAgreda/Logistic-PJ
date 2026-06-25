@@ -3,7 +3,6 @@ const cookieParser = require("cookie-parser");
 
 const router = express.Router();
 const db = require("../db");
-const { tieneOperacionAbiertaPorCosto } = require("../utils/deleteGuards");
 
 router.use(cookieParser());
 
@@ -99,6 +98,7 @@ router.get("/", async (_req, res) => {
       LEFT JOIN usuario ur ON ur.id_usuario = co.id_usuario_registro
       LEFT JOIN usuario um ON um.id_usuario = co.id_usuario_modificacion
       WHERE co.estado = 1
+        AND o.estado = 1
       ORDER BY co.id_costo DESC`
     );
 
@@ -242,8 +242,6 @@ router.delete("/:id_costo", async (req, res) => {
   try {
     const { id_costo } = req.params;
     const idUsuarioModificacion = obtenerIdUsuarioAutenticado(req);
-
-    if (await tieneOperacionAbiertaPorCosto(db, res, id_costo)) return;
 
     const [result] = await db.query(
       `UPDATE costo_operacion

@@ -578,11 +578,15 @@ router.put("/:id_operacion", async (req, res) => {
 });
 
 router.delete("/:id_operacion", async (req, res) => {
+  const connection = await db.getConnection();
+
   try {
     const { id_operacion } = req.params;
     const idUsuarioModificacion = obtenerIdUsuarioAutenticado(req);
 
-    const [result] = await db.query(
+    await connection.beginTransaction();
+
+    const [result] = await connection.query(
       `UPDATE operacion
        SET estado = 0,
            fecha_modificacion = NOW(),
@@ -593,16 +597,50 @@ router.delete("/:id_operacion", async (req, res) => {
     );
 
     if (result.affectedRows === 0) {
+      await connection.rollback();
       return res.status(404).json({ error: "Operacion no encontrada." });
     }
 
+    await connection.query(
+      `UPDATE costo_operacion
+       SET estado = 0,
+           fecha_modificacion = NOW(),
+           id_usuario_modificacion = ?
+       WHERE id_operacion = ?
+         AND estado = 1`,
+      [idUsuarioModificacion, Number(id_operacion)]
+    );
+
+    await connection.query(
+      `UPDATE venta_operacion
+       SET estado = 0,
+           fecha_modificacion = NOW(),
+           id_usuario_modificacion = ?
+       WHERE id_operacion = ?
+         AND estado = 1`,
+      [idUsuarioModificacion, Number(id_operacion)]
+    );
+
+    await connection.query(
+      `UPDATE operacion_contenedor
+       SET estado = 0
+       WHERE id_operacion = ?
+         AND estado = 1`,
+      [Number(id_operacion)]
+    );
+
+    await connection.commit();
+
     res.json({ mensaje: "Operacion eliminada correctamente." });
   } catch (err) {
+    await connection.rollback();
     console.error("Error al eliminar operacion:", err);
     res.status(500).json({
       error: "Error al eliminar operacion",
       detalle: err.message,
     });
+  } finally {
+    connection.release();
   }
 });
 
