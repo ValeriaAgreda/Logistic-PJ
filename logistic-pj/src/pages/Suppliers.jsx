@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "../styles/suppliers.css";
 import * as bootstrap from "bootstrap";
+import { PHONE_COUNTRIES } from "../data/phoneCountries";
 
 const proveedorInicial = {
   empresa: "",
@@ -15,49 +16,14 @@ const proveedorInicial = {
   estado: 1,
 };
 
-const COUNTRY_API_URL =
-  "https://restcountries.com/v3.1/all?fields=name,cca2,idd,flags,translations";
-const FALLBACK_PHONE_COUNTRIES = [
-  {
-    country: "Bolivia",
-    iso: "bo",
-    code: "+591",
-    flag: "https://flagcdn.com/w40/bo.png",
-  },
-];
 const DEFAULT_PHONE_COUNTRY_ID = "bo";
-const DEFAULT_PHONE_COUNTRY = FALLBACK_PHONE_COUNTRIES[0];
+const DEFAULT_PHONE_COUNTRY =
+  PHONE_COUNTRIES.find((country) => country.iso === DEFAULT_PHONE_COUNTRY_ID) ||
+  PHONE_COUNTRIES[0];
 const INTERNATIONAL_PHONE = /^\+\d{8,15}$/;
 const NIT_REGEX = /^\d{5,12}$/;
 
 const onlyDigits = (value) => String(value || "").replace(/\D/g, "");
-
-const buildDialCode = (idd) => {
-  if (!idd?.root || !Array.isArray(idd.suffixes) || idd.suffixes.length === 0) {
-    return "";
-  }
-
-  return `${idd.root}${idd.suffixes[0]}`;
-};
-
-const normalizeCountries = (countries) =>
-  countries
-    .map((country) => ({
-      country:
-        country.translations?.spa?.common ||
-        country.name?.common ||
-        country.cca2 ||
-        "",
-      iso: String(country.cca2 || "").toLowerCase(),
-      code: buildDialCode(country.idd),
-      flag: country.flags?.svg || country.flags?.png || "",
-    }))
-    .filter((country) => country.country && country.iso && country.code)
-    .sort((a, b) => {
-      if (a.iso === DEFAULT_PHONE_COUNTRY_ID) return -1;
-      if (b.iso === DEFAULT_PHONE_COUNTRY_ID) return 1;
-      return a.country.localeCompare(b.country, "es");
-    });
 
 const findPhoneCountry = (
   countries,
@@ -71,7 +37,7 @@ const findPhoneCountry = (
 const getPhoneParts = (
   value,
   fallbackCountryId = DEFAULT_PHONE_COUNTRY_ID,
-  countries = FALLBACK_PHONE_COUNTRIES
+  countries = PHONE_COUNTRIES
 ) => {
   const raw = String(value || "").trim();
   const fallbackCountry = findPhoneCountry(countries, fallbackCountryId);
@@ -121,7 +87,7 @@ const buildPhone = (countryCode, localNumber) =>
 const normalizePhoneForSave = (
   phone,
   fallbackCountryId = DEFAULT_PHONE_COUNTRY_ID,
-  countries = FALLBACK_PHONE_COUNTRIES
+  countries = PHONE_COUNTRIES
 ) => {
   const { countryCode, localNumber } = getPhoneParts(
     phone,
@@ -146,7 +112,7 @@ const Suppliers = () => {
   const [errores, setErrores] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [phoneMenuOpen, setPhoneMenuOpen] = useState(null);
-  const [phoneCountries, setPhoneCountries] = useState(FALLBACK_PHONE_COUNTRIES);
+  const [phoneCountries] = useState(PHONE_COUNTRIES);
 
   const [search, setSearch] = useState("");
   const [tipoServicioFiltro, setTipoServicioFiltro] = useState("ALL");
@@ -249,38 +215,9 @@ const Suppliers = () => {
     }
   };
 
-  const cargarPaisesTelefono = async () => {
-    try {
-      const res = await fetch(COUNTRY_API_URL);
-      const data = await res.json();
-
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error("No se pudo obtener el catalogo de paises.");
-      }
-
-      const countries = normalizeCountries(data);
-      const nextCountries =
-        countries.length > 0 ? countries : FALLBACK_PHONE_COUNTRIES;
-      const defaultCountry = findPhoneCountry(
-        nextCountries,
-        DEFAULT_PHONE_COUNTRY_ID
-      );
-
-      setPhoneCountries(nextCountries);
-      setNuevoProveedor((current) => ({
-        ...current,
-        telefonoPais: current.telefonoPais || defaultCountry.iso,
-      }));
-    } catch (error) {
-      console.error("Error al cargar paises para telefono:", error);
-      setPhoneCountries(FALLBACK_PHONE_COUNTRIES);
-    }
-  };
-
   useEffect(() => {
     cargarProveedores();
     cargarTiposServicio();
-    cargarPaisesTelefono();
   }, []);
 
   const abrirNuevo = () => {
