@@ -261,6 +261,16 @@ const Sales = () => {
     return ventas.filter((venta) => String(venta.codigo_operacion || "").toLowerCase() === codigo);
   }, [codigoOperacionAplicado, ventas, busquedaRealizada]);
 
+  const operacionFiltradaExiste = useMemo(() => {
+    if (!busquedaRealizada) return true;
+    const codigo = codigoOperacionAplicado.trim().toLowerCase();
+    if (!codigo) return false;
+
+    return operaciones.some(
+      (operacion) => String(operacion.codigo_operacion || "").toLowerCase() === codigo
+    );
+  }, [busquedaRealizada, codigoOperacionAplicado, operaciones]);
+
   const resumenMontos = useMemo(
     () =>
       ventasFiltradas.reduce(
@@ -420,7 +430,9 @@ const Sales = () => {
                   {ventasFiltradas.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-4 text-muted">
-                        No hay ventas activas con los filtros actuales.
+                        {operacionFiltradaExiste
+                          ? "No hay ventas activas registradas para esa operacion."
+                          : "No hay ninguna operacion activa con ese codigo."}
                       </td>
                     </tr>
                   ) : null}

@@ -325,6 +325,16 @@ const Costs = () => {
     return costos.filter((costo) => String(costo.codigo_operacion || "").toLowerCase() === codigo);
   }, [codigoOperacionAplicado, costos, busquedaRealizada]);
 
+  const operacionFiltradaExiste = useMemo(() => {
+    if (!busquedaRealizada) return true;
+    const codigo = codigoOperacionAplicado.trim().toLowerCase();
+    if (!codigo) return false;
+
+    return operaciones.some(
+      (operacion) => String(operacion.codigo_operacion || "").toLowerCase() === codigo
+    );
+  }, [busquedaRealizada, codigoOperacionAplicado, operaciones]);
+
   const resumenMontos = useMemo(
     () =>
       costosFiltrados.reduce(
@@ -551,7 +561,9 @@ const Costs = () => {
                   {costosFiltrados.length === 0 && (
                     <tr>
                       <td colSpan={8} className="text-center py-4 text-muted">
-                        No hay costos activos con los filtros actuales.
+                        {operacionFiltradaExiste
+                          ? "No hay costos activos registrados para esa operacion."
+                          : "No hay ninguna operacion activa con ese codigo."}
                       </td>
                     </tr>
                   )}
