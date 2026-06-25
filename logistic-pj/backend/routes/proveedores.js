@@ -7,12 +7,15 @@ const { tieneOperacionAbiertaPorProveedor } = require("../utils/deleteGuards");
 router.use(cookieParser());
 
 const TELEFONO_INTERNACIONAL = /^\+\d{8,15}$/;
+const NIT_REGEX = /^\d{5,12}$/;
 
 const normalizarTelefono = (telefono) => String(telefono || "").trim();
 const normalizarNit = (nit) => String(nit || "").trim();
 
 const validarTelefono = (telefono) =>
   TELEFONO_INTERNACIONAL.test(normalizarTelefono(telefono));
+
+const validarNit = (nit) => NIT_REGEX.test(normalizarNit(nit));
 
 const existeNitActivo = async (nit, idProveedorExcluir = null) => {
   const params = [normalizarNit(nit)];
@@ -99,6 +102,12 @@ router.post("/", async (req, res) => {
       });
     }
 
+    if (!validarNit(nit)) {
+      return res.status(400).json({
+        error: "El NIT debe tener entre 5 y 12 digitos, solo numeros.",
+      });
+    }
+
     if (await existeNitActivo(nit)) {
       return res.status(400).json({
         error: "Ya existe un proveedor activo registrado con ese NIT.",
@@ -179,6 +188,12 @@ router.put("/:id_proveedor", async (req, res) => {
     if (!validarTelefono(telefono)) {
       return res.status(400).json({
         error: "El telefono debe incluir codigo de pais y entre 8 y 15 digitos.",
+      });
+    }
+
+    if (!validarNit(nit)) {
+      return res.status(400).json({
+        error: "El NIT debe tener entre 5 y 12 digitos, solo numeros.",
       });
     }
 

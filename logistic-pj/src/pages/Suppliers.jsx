@@ -28,6 +28,7 @@ const FALLBACK_PHONE_COUNTRIES = [
 const DEFAULT_PHONE_COUNTRY_ID = "bo";
 const DEFAULT_PHONE_COUNTRY = FALLBACK_PHONE_COUNTRIES[0];
 const INTERNATIONAL_PHONE = /^\+\d{8,15}$/;
+const NIT_REGEX = /^\d{5,12}$/;
 
 const onlyDigits = (value) => String(value || "").replace(/\D/g, "");
 
@@ -158,11 +159,11 @@ const Suppliers = () => {
       e.empresa = "La empresa es obligatoria.";
     }
 
-    if (!/^\d{5,15}$/.test(nitNormalizado)) {
-      e.nit = "El NIT debe tener entre 5 y 15 dígitos.";
+    if (!NIT_REGEX.test(nitNormalizado)) {
+      e.nit = "El NIT debe tener entre 5 y 12 digitos, solo numeros.";
     }
 
-    if (/^\d{5,15}$/.test(nitNormalizado)) {
+    if (NIT_REGEX.test(nitNormalizado)) {
       const nitDuplicado = proveedores.some(
         (proveedor) =>
           String(proveedor.nit || "").trim() === nitNormalizado &&
@@ -325,6 +326,7 @@ const Suppliers = () => {
 
     const body = {
       ...nuevoProveedor,
+      nit: onlyDigits(nuevoProveedor.nit),
       telefono: normalizePhoneForSave(
         nuevoProveedor.telefono,
         nuevoProveedor.telefonoPais,
@@ -373,6 +375,7 @@ const Suppliers = () => {
 
     const body = {
       ...proveedorSeleccionado,
+      nit: onlyDigits(proveedorSeleccionado.nit),
       telefono: normalizePhoneForSave(
         proveedorSeleccionado.telefono,
         proveedorSeleccionado.telefonoPais,
@@ -448,18 +451,25 @@ const Suppliers = () => {
     }
   };
 
-  const input = (label, value, onChange, error, type = "text") => (
-    <div className="mb-3">
-      <label className="form-label">{label}</label>
-      <input
-        type={type}
-        className={`form-control ${error ? "is-invalid" : ""}`}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {error && <div className="invalid-feedback">{error}</div>}
-    </div>
-  );
+  const input = (label, value, onChange, error, type = "text") => {
+    const isNit = label === "NIT";
+
+    return (
+      <div className="mb-3">
+        <label className="form-label">{label}</label>
+        <input
+          type={isNit ? "tel" : type}
+          className={`form-control ${error ? "is-invalid" : ""}`}
+          value={value}
+          inputMode={isNit ? "numeric" : undefined}
+          pattern={isNit ? "\\d{5,12}" : undefined}
+          maxLength={isNit ? 12 : undefined}
+          onChange={(e) => onChange(isNit ? onlyDigits(e.target.value) : e.target.value)}
+        />
+        {error && <div className="invalid-feedback">{error}</div>}
+      </div>
+    );
+  };
 
   const phoneInput = (value, onChange, error, selectedCountryId, menuId) => {
     const parts = getPhoneParts(

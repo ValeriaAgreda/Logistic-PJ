@@ -13,7 +13,7 @@ const clientInit = { razon_social: "", nit: "", contacto: "", telefono: "", corr
 const supplierInit = { empresa: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", lugar_origen: "", id_tipo_servicio: "" };
 const itemInit = { descripcion: "" };
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const NIT = /^\d{5,15}$/;
+const NIT = /^\d{5,12}$/;
 const PHONE = /^[67]\d{7}$/;
 const SUPPLIER_PHONE = /^\+\d{8,15}$/;
 const EXTENSIONES_DOCUMENTO_PERMITIDAS = [".doc", ".docx", ".xls", ".xlsx", ".pdf", ".jpg", ".jpeg", ".png"];
@@ -46,6 +46,7 @@ const parse = async (res) => {
 const fmtDate = (v) => (v ? new Date(v).toLocaleDateString("es-BO") : "-");
 const fmtDateTime = (v) => (v ? new Date(v).toLocaleString("es-BO") : "-");
 const text = (value) => String(value ?? "").trim();
+const onlyDigits = (value) => String(value || "").replace(/\D/g, "");
 const obtenerNombreDocumento = (ruta = "") => {
   const partes = String(ruta || "").split(/[\\/]/);
   const nombre = partes[partes.length - 1] || "";
@@ -329,7 +330,7 @@ const Operations = () => {
   const validateClient = (v) => {
     const e = {};
     if (!text(v.razon_social)) e.razon_social = "Razon social obligatoria.";
-    if (!NIT.test(String(v.nit).trim())) e.nit = "NIT invalido.";
+    if (!NIT.test(String(v.nit).trim())) e.nit = "El NIT debe tener entre 5 y 12 digitos, solo numeros.";
     if (!text(v.contacto)) e.contacto = "Contacto obligatorio.";
     if (String(v.telefono || "").trim() && !PHONE.test(String(v.telefono).trim())) e.telefono = "Telefono invalido.";
     if (String(v.correo || "").trim() && !EMAIL.test(String(v.correo).trim())) e.correo = "Correo invalido.";
@@ -1071,7 +1072,7 @@ const Operations = () => {
     const e = validateClient(quickClient);
     if (Object.keys(e).length) return setQuickErrors(e);
     try {
-      const data = await request(`${API}/clientes`, { method: "POST", body: JSON.stringify({ ...quickClient, telefono: text(quickClient.telefono), correo: text(quickClient.correo).toLowerCase(), direccion: text(quickClient.direccion), observacion: text(quickClient.observacion) }) });
+      const data = await request(`${API}/clientes`, { method: "POST", body: JSON.stringify({ ...quickClient, nit: onlyDigits(quickClient.nit), telefono: text(quickClient.telefono), correo: text(quickClient.correo).toLowerCase(), direccion: text(quickClient.direccion), observacion: text(quickClient.observacion) }) });
       await loadAll(); activeSetter((c) => ({ ...c, id_cliente: String(data.id_cliente) })); hideModal("quickClientModal");
     } catch (error) { alert(error.message); }
   };
@@ -1090,7 +1091,7 @@ const Operations = () => {
     const e = validateSupplier(quickSupplier);
     if (Object.keys(e).length) return setQuickErrors(e);
     try {
-      const data = await request(`${API}/proveedores`, { method: "POST", body: JSON.stringify({ ...quickSupplier, telefono: text(quickSupplier.telefono), correo: text(quickSupplier.correo).toLowerCase(), id_tipo_servicio: Number(quickSupplier.id_tipo_servicio) }) });
+      const data = await request(`${API}/proveedores`, { method: "POST", body: JSON.stringify({ ...quickSupplier, nit: onlyDigits(quickSupplier.nit), telefono: text(quickSupplier.telefono), correo: text(quickSupplier.correo).toLowerCase(), id_tipo_servicio: Number(quickSupplier.id_tipo_servicio) }) });
       await loadAll(); activeSetter((c) => ({ ...c, id_proveedor: String(data.id_proveedor) })); hideModal("quickSupplierModal");
     } catch (error) { alert(error.message); }
   };
@@ -1140,13 +1141,30 @@ const Operations = () => {
     }
   };
 
-  const field = (state, setter, name, label, type = "text", errs = errors) => (
-    <div className="mb-3">
-      <label className="form-label">{label}</label>
-      <input type={type} className={`form-control ${errs[name] ? "is-invalid" : ""}`} value={state[name] || ""} onChange={(e) => setter({ ...state, [name]: e.target.value })} />
-      {errs[name] ? <div className="invalid-feedback">{errs[name]}</div> : null}
-    </div>
-  );
+  const field = (state, setter, name, label, type = "text", errs = errors) => {
+    const isNit = name === "nit";
+
+    return (
+      <div className="mb-3">
+        <label className="form-label">{label}</label>
+        <input
+          type={isNit ? "tel" : type}
+          className={`form-control ${errs[name] ? "is-invalid" : ""}`}
+          value={state[name] || ""}
+          inputMode={isNit ? "numeric" : undefined}
+          pattern={isNit ? "\\d{5,12}" : undefined}
+          maxLength={isNit ? 12 : undefined}
+          onChange={(e) =>
+            setter({
+              ...state,
+              [name]: isNit ? onlyDigits(e.target.value) : e.target.value,
+            })
+          }
+        />
+        {errs[name] ? <div className="invalid-feedback">{errs[name]}</div> : null}
+      </div>
+    );
+  };
   const textareaField = (state, setter, name, label, errs = errors) => (
     <div className="mb-3">
       <label className="form-label">{label}</label>

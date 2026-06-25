@@ -13,6 +13,9 @@ const clienteInicial = {
   estado: 1,
 };
 
+const onlyDigits = (value) => String(value || "").replace(/\D/g, "");
+const NIT_REGEX = /^\d{5,12}$/;
+
 const Clients = () => {
   const [clients, setClients] = useState([]);
   const [nuevoCliente, setNuevoCliente] = useState(clienteInicial);
@@ -74,13 +77,11 @@ const Clients = () => {
       e.razon_social = "La razón social es obligatoria.";
     }
 
-    if (nit.startsWith("-")) {
-      e.nit = "El NIT no puede ser negativo.";
-    } else if (!/^\d{5,15}$/.test(nit)) {
-      e.nit = "El NIT debe tener entre 5 y 15 dígitos.";
+    if (!NIT_REGEX.test(nit)) {
+      e.nit = "El NIT debe tener entre 5 y 12 digitos, solo numeros.";
     }
 
-    if (/^\d{5,15}$/.test(nit)) {
+    if (NIT_REGEX.test(nit)) {
       const nitDuplicado = clients.some(
         (cliente) =>
           String(cliente.nit || "").trim() === nit &&
@@ -121,6 +122,7 @@ const Clients = () => {
 
     const body = {
       ...nuevoCliente,
+      nit: onlyDigits(nuevoCliente.nit),
       telefono: nuevoCliente.telefono.trim(),
       correo: nuevoCliente.correo.trim().toLowerCase(),
       direccion: nuevoCliente.direccion.trim(),
@@ -163,6 +165,7 @@ const Clients = () => {
 
     const body = {
       ...clienteSeleccionado,
+      nit: onlyDigits(clienteSeleccionado.nit),
       telefono: String(clienteSeleccionado.telefono || "").trim(),
       correo: String(clienteSeleccionado.correo || "").trim().toLowerCase(),
       direccion: String(clienteSeleccionado.direccion || "").trim(),
@@ -391,7 +394,7 @@ const Clients = () => {
               <form>
                 {[
                   ["razon_social", "Razón social", "text"],
-                  ["nit", "NIT", "text"],
+                  ["nit", "NIT", "tel"],
                   ["contacto", "Contacto", "text"],
                   ["telefono", "Teléfono", "text"],
                   ["correo", "Correo", "email"],
@@ -403,8 +406,14 @@ const Clients = () => {
                       type={type}
                       className={`form-control ${errores[field] ? "is-invalid" : ""}`}
                       value={nuevoCliente[field]}
+                      inputMode={field === "nit" ? "numeric" : undefined}
+                      pattern={field === "nit" ? "\\d{5,12}" : undefined}
+                      maxLength={field === "nit" ? 12 : undefined}
                       onChange={(e) =>
-                        setNuevoCliente({ ...nuevoCliente, [field]: e.target.value })
+                        setNuevoCliente({
+                          ...nuevoCliente,
+                          [field]: field === "nit" ? onlyDigits(e.target.value) : e.target.value,
+                        })
                       }
                     />
                     {errores[field] && (
@@ -453,7 +462,7 @@ const Clients = () => {
                 <form>
                   {[
                     ["razon_social", "Razón social", "text"],
-                    ["nit", "NIT", "text"],
+                    ["nit", "NIT", "tel"],
                     ["contacto", "Contacto", "text"],
                     ["telefono", "Teléfono", "text"],
                     ["correo", "Correo", "email"],
@@ -465,10 +474,13 @@ const Clients = () => {
                         type={type}
                         className={`form-control ${errores[field] ? "is-invalid" : ""}`}
                         value={clienteSeleccionado[field] || ""}
+                        inputMode={field === "nit" ? "numeric" : undefined}
+                        pattern={field === "nit" ? "\\d{5,12}" : undefined}
+                        maxLength={field === "nit" ? 12 : undefined}
                         onChange={(e) =>
                           setClienteSeleccionado({
                             ...clienteSeleccionado,
-                            [field]: e.target.value,
+                            [field]: field === "nit" ? onlyDigits(e.target.value) : e.target.value,
                           })
                         }
                       />

@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import time
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.error import URLError
 from urllib.parse import urlencode
@@ -14,11 +16,31 @@ app = Flask(__name__)
 CORS(app)
 
 
+def cargar_env_local():
+    env_path = Path(__file__).with_name(".env")
+    if not env_path.exists():
+        return
+
+    for linea in env_path.read_text(encoding="utf-8").splitlines():
+        linea = linea.strip()
+        if not linea or linea.startswith("#") or "=" not in linea:
+            continue
+
+        clave, valor = linea.split("=", 1)
+        clave = clave.strip()
+        valor = valor.strip().strip('"').strip("'")
+        os.environ.setdefault(clave, valor)
+
+
+cargar_env_local()
+
+
 HTTP_TIMEOUT = 6
 USER_AGENT = "logistic-pj-insurance-ai/1.0"
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_FALLBACK_MODELS = os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash")
+GEMINI_RETRY_DELAYS = (2, 5)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_TIMEOUT = int(os.getenv("GEMINI_TIMEOUT", "30"))
 GEMINI_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -75,7 +97,12 @@ def post_json(url, payload, headers=None, timeout=HTTP_TIMEOUT):
         method="POST",
     )
 
-    with urlopen(req, timeout=timeout) as response:
+    if timeout is None:
+        response_context = urlopen(req)
+    else:
+        response_context = urlopen(req, timeout=timeout)
+
+    with response_context as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -184,10 +211,6 @@ def consultar_gemini(operacion, analisis):
     if not GEMINI_API_KEY:
         return None, "GEMINI_API_KEY no configurada"
 
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{GEMINI_MODEL}:generateContent"
-    )
     payload = {
         "contents": [
             {
@@ -201,16 +224,54 @@ def consultar_gemini(operacion, analisis):
             "responseMimeType": "application/json",
         },
     }
+    modelos = []
+    for modelo in [GEMINI_MODEL, *GEMINI_FALLBACK_MODELS.split(",")]:
+        modelo = modelo.strip()
+        if modelo and modelo not in modelos:
+            modelos.append(modelo)
 
-    try:
-        print(f"[Gemini] Consultando modelo {GEMINI_MODEL}", flush=True)
-        data = post_json(
-            url,
-            payload,
-            headers={"x-goog-api-key": GEMINI_API_KEY},
-            timeout=GEMINI_TIMEOUT,
+    ultimo_error = None
+    for modelo in modelos:
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{modelo}:generateContent"
         )
-        texto = extraer_texto_gemini(data)
+
+        for intento in range(len(GEMINI_RETRY_DELAYS) + 1):
+            try:
+                print(f"[Gemini] Consultando modelo {modelo}", flush=True)
+                data = post_json(
+                    url,
+                    payload,
+                    headers={"x-goog-api-key": GEMINI_API_KEY},
+                    timeout=None,
+                )
+                texto = extraer_texto_gemini(data)
+                break
+            except HTTPError as error:
+                detalle = error.read().decode("utf-8", errors="replace")
+                ultimo_error = f"Gemini HTTP {error.code}"
+                print(f"[Gemini] HTTP error: {detalle}", flush=True)
+
+                if error.code not in {429, 500, 502, 503, 504}:
+                    return None, ultimo_error
+
+                if intento < len(GEMINI_RETRY_DELAYS):
+                    espera = GEMINI_RETRY_DELAYS[intento]
+                    print(f"[Gemini] Reintentando en {espera}s", flush=True)
+                    time.sleep(espera)
+                    continue
+
+                print(f"[Gemini] Modelo {modelo} no disponible, probando fallback", flush=True)
+                texto = None
+                break
+            except (OSError, URLError, TimeoutError, json.JSONDecodeError) as error:
+                print(f"[Gemini] Error: {error}", flush=True)
+                return None, str(error)
+
+        if not texto:
+            continue
+
         try:
             resultado = parsear_json_modelo(texto)
         except json.JSONDecodeError as error:
@@ -220,14 +281,10 @@ def consultar_gemini(operacion, analisis):
         resultado = normalizar_recomendacion_ia(resultado)
         if not resultado:
             return None, "Gemini no devolvio un objeto JSON"
+        resultado["modelo_ia"] = modelo
         return resultado, None
-    except HTTPError as error:
-        detalle = error.read().decode("utf-8", errors="replace")
-        print(f"[Gemini] HTTP error: {detalle}", flush=True)
-        return None, f"Gemini HTTP {error.code}"
-    except (OSError, URLError, TimeoutError, json.JSONDecodeError) as error:
-        print(f"[Gemini] Error: {error}", flush=True)
-        return None, str(error)
+
+    return None, ultimo_error or "Gemini no disponible"
 
 
 def geocodificar_lugar(lugar):
@@ -504,7 +561,7 @@ def recomendar_seguro():
             "error": "Gemini no pudo generar la recomendacion.",
             "detalle": error_ia,
             "fuente_recomendacion": "gemini",
-            "modelo_ia": GEMINI_MODEL,
+            "modelo_ia": ", ".join([GEMINI_MODEL, GEMINI_FALLBACK_MODELS]),
             "metricas_enviadas": analisis_base,
         }), 503
 
@@ -520,7 +577,7 @@ def recomendar_seguro():
         "confianza": recomendacion_ia.get("confianza", "media"),
         "motivos": metricas_usadas,
         "fuente_recomendacion": "gemini",
-        "modelo_ia": GEMINI_MODEL,
+        "modelo_ia": recomendacion_ia.get("modelo_ia", GEMINI_MODEL),
         "error_ia": None,
     }
 

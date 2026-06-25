@@ -9,7 +9,7 @@ router.use(cookieParser());
 const optionalText = (value) => (value == null ? "" : String(value).trim());
 const optionalEmail = (value) => optionalText(value).toLowerCase();
 const normalizarNit = (value) => String(value || "").trim();
-const NIT_REGEX = /^\d{5,15}$/;
+const NIT_REGEX = /^\d{5,12}$/;
 const PHONE_REGEX = /^[67]\d{7}$/;
 
 const existeNitActivo = async (nit, idClienteExcluir = null) => {
@@ -43,7 +43,7 @@ const validarCliente = async (body, idClienteExcluir = null) => {
   }
 
   if (nit && !NIT_REGEX.test(nit)) {
-    errores.push("El NIT debe tener entre 5 y 15 digitos y no puede ser negativo.");
+    errores.push("El NIT debe tener entre 5 y 12 digitos, solo numeros.");
   }
 
   if (telefono && !PHONE_REGEX.test(telefono)) {
