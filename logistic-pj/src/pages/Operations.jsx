@@ -143,6 +143,7 @@ const calcularDiasDemora = (fechaDevolucion, fechaLimite) => {
   const diferencia = Math.ceil((devolucion - limite) / (1000 * 60 * 60 * 24));
   return Math.max(0, diferencia);
 };
+const etaOperacion = (operacion) => toDateInputValue(operacion?.eta);
 const mensajeDemora = (fechaDevolucion, fechaLimite) => {
   const diasDemora = calcularDiasDemora(fechaDevolucion, fechaLimite);
   if (diasDemora === null) return "";
@@ -403,16 +404,16 @@ const Operations = () => {
     if (contenedor.peso_bruto !== "" && Number.isNaN(Number(contenedor.peso_bruto))) e.peso_bruto = "El peso bruto debe ser numerico.";
     return e;
   };
+  const obtenerOperacionAsignacion = (assignment = assignmentForm) => {
+    if (assignmentContext === "new") return form;
+    if (assignmentContext === "edit-pending") return editForm;
+    if (!assignment.id_operacion) return null;
+
+    return rows.find((row) => String(row.id_operacion) === String(assignment.id_operacion)) || null;
+  };
   const validateAssignment = (v) => {
     const e = {};
-    const operacion =
-      assignmentContext === "new"
-        ? form
-        : assignmentContext === "edit-pending"
-          ? editForm
-          : v.id_operacion
-            ? rows.find((row) => String(row.id_operacion) === String(v.id_operacion))
-            : null;
+    const operacion = obtenerOperacionAsignacion(v);
     if (!v.id_contenedor) e.id_contenedor = "Selecciona un contenedor.";
     if (!v.id_operacion && assignmentContext !== "new" && assignmentContext !== "edit-pending") {
       e.id_operacion = "Selecciona una operacion.";
@@ -420,7 +421,11 @@ const Operations = () => {
     if (!permiteAsignarContenedor(operacion, services, statuses)) {
       e.id_operacion = "Solo se puede asignar contenedor a operaciones no LCL, no cerradas, con servicio Maritimo, Terrestre o Bimodal.";
     }
-    if (!v.fecha_llegada_puerto) e.fecha_llegada_puerto = "Fecha de llegada al puerto obligatoria.";
+    if (!etaOperacion(operacion)) {
+      e.fecha_llegada_puerto = "Completa la ETA de la operacion para asignar un contenedor.";
+    } else if (!v.fecha_llegada_puerto) {
+      e.fecha_llegada_puerto = "Fecha de llegada al puerto obligatoria.";
+    }
     if (v.fecha_devolucion && v.fecha_devolucion < v.fecha_llegada_puerto) {
       e.fecha_devolucion = "La fecha de devolucion no puede ser menor a la fecha de llegada al puerto.";
     }
@@ -710,13 +715,14 @@ const Operations = () => {
     const context = esOperacionNueva || cambioServicioPendiente || cambioEstadoPendiente || cambioLclPendiente
       ? (esOperacionNueva ? "new" : "edit-pending")
       : "existing";
+    const eta = etaOperacion(state);
     setAssignmentContext(context);
     setAssignmentMode("create");
     setAssignmentForm({
       ...asignacionInit,
       id_operacion: state.id_operacion ? String(state.id_operacion) : "",
-      fecha_llegada_puerto: "",
-      fecha_devolucion_limite: "",
+      fecha_llegada_puerto: eta,
+      fecha_devolucion_limite: calcularFechaLimite(eta),
     });
     setAssignmentErrors({});
     modal("assignContainerModal");
@@ -724,20 +730,27 @@ const Operations = () => {
   const editPendingContainerAssignment = (assignment) => {
     setAssignmentContext("new");
     setAssignmentMode("edit-pending");
-    setAssignmentForm({ ...assignment });
+    const eta = etaOperacion(form);
+    setAssignmentForm({
+      ...assignment,
+      fecha_llegada_puerto: eta,
+      fecha_devolucion_limite: calcularFechaLimite(eta),
+    });
     setAssignmentErrors({});
     modal("assignContainerModal");
   };
   const editExistingContainerAssignment = (assignment) => {
     setAssignmentContext("existing");
     setAssignmentMode("edit-existing");
+    const operacionAsignada = rows.find((row) => String(row.id_operacion) === String(assignment.id_operacion));
+    const eta = etaOperacion(operacionAsignada);
     setAssignmentForm({
       ...asignacionInit,
       ...assignment,
       id_contenedor: String(assignment.id_contenedor ?? ""),
       id_operacion: String(assignment.id_operacion ?? ""),
-      fecha_llegada_puerto: assignment.fecha_llegada_puerto || "",
-      fecha_devolucion_limite: assignment.fecha_devolucion_limite || "",
+      fecha_llegada_puerto: eta,
+      fecha_devolucion_limite: calcularFechaLimite(eta),
       fecha_devolucion: assignment.fecha_devolucion || "",
     });
     setAssignmentErrors({});
@@ -2012,8 +2025,8 @@ const Operations = () => {
         </div>
         <div className="mb-3">
           <label className="form-label">Fecha de llegada al puerto</label>
-          <input type="date" className={`form-control ${assignmentErrors.fecha_llegada_puerto ? "is-invalid" : ""}`} value={assignmentForm.fecha_llegada_puerto} onChange={(e) => setAssignmentForm({ ...assignmentForm, fecha_llegada_puerto: e.target.value, fecha_devolucion_limite: calcularFechaLimite(e.target.value) })} />
-          {assignmentErrors.fecha_llegada_puerto ? <div className="invalid-feedback">{assignmentErrors.fecha_llegada_puerto}</div> : null}
+          <input type="date" className={`form-control ${assignmentErrors.fecha_llegada_puerto ? "is-invalid" : ""}`} value={assignmentForm.fecha_llegada_puerto} readOnly disabled />
+          {assignmentErrors.fecha_llegada_puerto ? <div className="invalid-feedback d-block">{assignmentErrors.fecha_llegada_puerto}</div> : null}
         </div>
         <div className="mb-3">
           <label className="form-label">Fecha de devolucion limite</label>

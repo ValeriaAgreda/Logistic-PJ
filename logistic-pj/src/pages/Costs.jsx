@@ -85,27 +85,97 @@ const Costs = () => {
     return data;
   };
 
-  const validar = (costo) => {
+  const validarMovimiento = (movimiento) => {
     const e = {};
 
-    if (!costo.id_operacion) {
+    if (!movimiento.id_operacion) {
       e.id_operacion = "Selecciona una operacion.";
     }
 
-    if (!costo.id_tipo_costo) {
+    if (!movimiento.id_tipo_costo) {
       e.id_tipo_costo = "Selecciona un tipo de costo.";
     }
 
-    if (!costo.id_moneda) {
+    if (!movimiento.id_moneda) {
       e.id_moneda = "Selecciona una moneda.";
     }
 
     if (
-      costo.monto === "" ||
-      Number.isNaN(Number(costo.monto)) ||
-      Number(costo.monto) < 0
+      movimiento.monto === "" ||
+      Number.isNaN(Number(movimiento.monto)) ||
+      Number(movimiento.monto) < 0
     ) {
       e.monto = "Ingresa un monto valido.";
+    }
+
+    return e;
+  };
+
+  const buscarCostoMismaOperacionTipo = (movimiento, idCostoExcluir = null) =>
+    costos.find(
+      (costo) =>
+        String(costo.id_operacion) === String(movimiento.id_operacion) &&
+        String(costo.id_tipo_costo) === String(movimiento.id_tipo_costo) &&
+        (!idCostoExcluir || String(costo.id_costo) !== String(idCostoExcluir))
+    );
+
+  const buscarVentaMismaOperacionTipo = (movimiento, idVentaExcluir = null) =>
+    ventas.find(
+      (venta) =>
+        String(venta.id_operacion) === String(movimiento.id_operacion) &&
+        String(venta.id_tipo_costo) === String(movimiento.id_tipo_costo) &&
+        (!idVentaExcluir || String(venta.id_venta) !== String(idVentaExcluir))
+    );
+
+  const validarCosto = (costo, idCostoExcluir = null) => {
+    const e = validarMovimiento(costo);
+
+    if (!e.id_operacion && !e.id_tipo_costo) {
+      const costoExistente = buscarCostoMismaOperacionTipo(costo, idCostoExcluir);
+
+      if (costoExistente) {
+        e.id_tipo_costo =
+          "Ya existe un costo con ese tipo de costo para esta operacion.";
+      }
+    }
+
+    const ventaExistente = buscarVentaMismaOperacionTipo(costo);
+
+    if (
+      ventaExistente &&
+      !e.monto &&
+      String(ventaExistente.id_moneda) === String(costo.id_moneda) &&
+      Number(costo.monto) > Number(ventaExistente.monto)
+    ) {
+      e.monto =
+        "El monto del costo debe ser menor o igual al monto de la venta cuando usan la misma moneda.";
+    }
+
+    return e;
+  };
+
+  const validarVenta = (venta, idVentaExcluir = null) => {
+    const e = validarMovimiento(venta);
+
+    if (!e.id_operacion && !e.id_tipo_costo) {
+      const ventaExistente = buscarVentaMismaOperacionTipo(venta, idVentaExcluir);
+
+      if (ventaExistente) {
+        e.id_tipo_costo =
+          "Ya existe una venta con ese tipo de costo para esta operacion.";
+      }
+    }
+
+    const costoExistente = buscarCostoMismaOperacionTipo(venta);
+
+    if (
+      costoExistente &&
+      !e.monto &&
+      String(costoExistente.id_moneda) === String(venta.id_moneda) &&
+      Number(venta.monto) < Number(costoExistente.monto)
+    ) {
+      e.monto =
+        "El monto de la venta debe ser mayor o igual al monto del costo cuando usan la misma moneda.";
     }
 
     return e;
@@ -220,7 +290,7 @@ const Costs = () => {
     );
 
   const guardarNuevo = async () => {
-    const e = validar(nuevoCosto);
+    const e = validarCosto(nuevoCosto);
     if (Object.keys(e).length > 0) {
       setErrores(e);
       return;
@@ -242,7 +312,7 @@ const Costs = () => {
     }
   };
   const guardarVentaDesdeCosto = async () => {
-    const e = validar(ventaDesdeCosto);
+    const e = validarVenta(ventaDesdeCosto);
     if (Object.keys(e).length > 0) {
       setErroresVenta(e);
       return;
@@ -267,7 +337,7 @@ const Costs = () => {
   const guardarEdicion = async () => {
     if (!costoSeleccionado) return;
 
-    const e = validar(costoSeleccionado);
+    const e = validarCosto(costoSeleccionado, costoSeleccionado.id_costo);
     if (Object.keys(e).length > 0) {
       setErrores(e);
       return;

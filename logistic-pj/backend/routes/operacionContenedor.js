@@ -40,7 +40,6 @@ const sumarDias = (fecha, dias) => {
 
 const validarAsignacion = (body) => {
   const errores = [];
-  const fechaLlegadaPuerto = normalizarTexto(body.fecha_llegada_puerto);
 
   if (!body.id_contenedor || Number.isNaN(Number(body.id_contenedor))) {
     errores.push("Selecciona un contenedor valido.");
@@ -48,14 +47,6 @@ const validarAsignacion = (body) => {
 
   if (!body.id_operacion || Number.isNaN(Number(body.id_operacion))) {
     errores.push("Selecciona una operacion valida.");
-  }
-
-  if (!fechaLlegadaPuerto) {
-    errores.push("La fecha de llegada al puerto es obligatoria.");
-  }
-
-  if (body.fecha_devolucion && fechaLlegadaPuerto && body.fecha_devolucion < fechaLlegadaPuerto) {
-    errores.push("La fecha de devolucion no puede ser menor a la fecha de llegada al puerto.");
   }
 
   return errores;
@@ -92,6 +83,19 @@ const validarOperacionPermiteContenedor = async (idOperacion) => {
   return !esLcl &&
     estadoOperacion !== "cerrado" &&
     (tipoServicio === "maritimo" || tipoServicio === "terrestre" || tipoServicio === "bimodal");
+};
+
+const obtenerEtaOperacion = async (idOperacion) => {
+  const [rows] = await db.query(
+    `SELECT DATE_FORMAT(eta, '%Y-%m-%d') AS eta
+     FROM operacion
+     WHERE id_operacion = ?
+       AND estado = 1
+     LIMIT 1`,
+    [Number(idOperacion)]
+  );
+
+  return normalizarTexto(rows[0]?.eta);
 };
 
 const validarContenedorDisponible = async (idContenedor, idAsignacionExcluir = null) => {
@@ -196,7 +200,20 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const fechaLlegadaPuerto = normalizarTexto(req.body.fecha_llegada_puerto);
+    const fechaLlegadaPuerto = await obtenerEtaOperacion(req.body.id_operacion);
+
+    if (!fechaLlegadaPuerto) {
+      return res.status(400).json({
+        error: "La operacion debe tener ETA para asignar un contenedor.",
+      });
+    }
+
+    if (req.body.fecha_devolucion && req.body.fecha_devolucion < fechaLlegadaPuerto) {
+      return res.status(400).json({
+        error: "La fecha de devolucion no puede ser menor a la ETA de la operacion.",
+      });
+    }
+
     const fechaDevolucionLimite = sumarDias(fechaLlegadaPuerto, 21);
 
     const [result] = await db.query(
@@ -265,7 +282,20 @@ router.put("/:id_asignacion", async (req, res) => {
       });
     }
 
-    const fechaLlegadaPuerto = normalizarTexto(req.body.fecha_llegada_puerto);
+    const fechaLlegadaPuerto = await obtenerEtaOperacion(req.body.id_operacion);
+
+    if (!fechaLlegadaPuerto) {
+      return res.status(400).json({
+        error: "La operacion debe tener ETA para asignar un contenedor.",
+      });
+    }
+
+    if (req.body.fecha_devolucion && req.body.fecha_devolucion < fechaLlegadaPuerto) {
+      return res.status(400).json({
+        error: "La fecha de devolucion no puede ser menor a la ETA de la operacion.",
+      });
+    }
+
     const fechaDevolucionLimite = sumarDias(fechaLlegadaPuerto, 21);
 
     const [result] = await db.query(

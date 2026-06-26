@@ -71,6 +71,60 @@ const validarRelacionActiva = async (tabla, idCampo, valor) => {
   return rows.length > 0;
 };
 
+const existeCostoActivo = async (idOperacion, idTipoCosto, idCostoExcluir = null) => {
+  const params = [Number(idOperacion), Number(idTipoCosto)];
+  let filtroExcluir = "";
+
+  if (idCostoExcluir) {
+    filtroExcluir = " AND id_costo <> ?";
+    params.push(Number(idCostoExcluir));
+  }
+
+  const [rows] = await db.query(
+    `SELECT id_costo
+     FROM costo_operacion
+     WHERE id_operacion = ?
+       AND id_tipo_costo = ?
+       AND estado = 1${filtroExcluir}
+     LIMIT 1`,
+    params
+  );
+
+  return rows.length > 0;
+};
+
+const obtenerVentaActivaMismaOperacionTipo = async (idOperacion, idTipoCosto) => {
+  const [rows] = await db.query(
+    `SELECT id_venta, id_moneda, monto
+     FROM venta_operacion
+     WHERE id_operacion = ?
+       AND id_tipo_costo = ?
+       AND estado = 1
+     LIMIT 1`,
+    [Number(idOperacion), Number(idTipoCosto)]
+  );
+
+  return rows[0] || null;
+};
+
+const validarReglasNegocioCosto = async (body, idCostoExcluir = null) => {
+  if (await existeCostoActivo(body.id_operacion, body.id_tipo_costo, idCostoExcluir)) {
+    return "Ya existe un costo activo con ese tipo de costo para esa operacion.";
+  }
+
+  const venta = await obtenerVentaActivaMismaOperacionTipo(body.id_operacion, body.id_tipo_costo);
+
+  if (
+    venta &&
+    Number(venta.id_moneda) === Number(body.id_moneda) &&
+    Number(body.monto) > Number(venta.monto)
+  ) {
+    return "El monto del costo debe ser menor o igual al monto de la venta cuando usan la misma moneda.";
+  }
+
+  return null;
+};
+
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
@@ -137,6 +191,12 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const errorReglaNegocio = await validarReglasNegocioCosto(req.body);
+
+    if (errorReglaNegocio) {
+      return res.status(400).json({ error: errorReglaNegocio });
+    }
+
     const [result] = await db.query(
       `INSERT INTO costo_operacion (
         id_operacion,
@@ -200,6 +260,12 @@ router.put("/:id_costo", async (req, res) => {
       return res.status(400).json({
         error: "Uno de los registros relacionados no existe o esta inactivo.",
       });
+    }
+
+    const errorReglaNegocio = await validarReglasNegocioCosto(req.body, id_costo);
+
+    if (errorReglaNegocio) {
+      return res.status(400).json({ error: errorReglaNegocio });
     }
 
     const [result] = await db.query(

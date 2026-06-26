@@ -71,6 +71,60 @@ const validarRelacionActiva = async (tabla, idCampo, valor) => {
   return rows.length > 0;
 };
 
+const existeVentaActiva = async (idOperacion, idTipoCosto, idVentaExcluir = null) => {
+  const params = [Number(idOperacion), Number(idTipoCosto)];
+  let filtroExcluir = "";
+
+  if (idVentaExcluir) {
+    filtroExcluir = " AND id_venta <> ?";
+    params.push(Number(idVentaExcluir));
+  }
+
+  const [rows] = await db.query(
+    `SELECT id_venta
+     FROM venta_operacion
+     WHERE id_operacion = ?
+       AND id_tipo_costo = ?
+       AND estado = 1${filtroExcluir}
+     LIMIT 1`,
+    params
+  );
+
+  return rows.length > 0;
+};
+
+const obtenerCostoActivoMismaOperacionTipo = async (idOperacion, idTipoCosto) => {
+  const [rows] = await db.query(
+    `SELECT id_costo, id_moneda, monto
+     FROM costo_operacion
+     WHERE id_operacion = ?
+       AND id_tipo_costo = ?
+       AND estado = 1
+     LIMIT 1`,
+    [Number(idOperacion), Number(idTipoCosto)]
+  );
+
+  return rows[0] || null;
+};
+
+const validarReglasNegocioVenta = async (body, idVentaExcluir = null) => {
+  if (await existeVentaActiva(body.id_operacion, body.id_tipo_costo, idVentaExcluir)) {
+    return "Ya existe una venta activa con ese tipo de costo para esa operacion.";
+  }
+
+  const costo = await obtenerCostoActivoMismaOperacionTipo(body.id_operacion, body.id_tipo_costo);
+
+  if (
+    costo &&
+    Number(costo.id_moneda) === Number(body.id_moneda) &&
+    Number(body.monto) < Number(costo.monto)
+  ) {
+    return "El monto de la venta debe ser mayor o igual al monto del costo cuando usan la misma moneda.";
+  }
+
+  return null;
+};
+
 router.get("/", async (_req, res) => {
   try {
     const [rows] = await db.query(
@@ -135,6 +189,12 @@ router.post("/", async (req, res) => {
       return res.status(400).json({
         error: "Uno de los registros relacionados no existe o esta inactivo.",
       });
+    }
+
+    const errorReglaNegocio = await validarReglasNegocioVenta(req.body);
+
+    if (errorReglaNegocio) {
+      return res.status(400).json({ error: errorReglaNegocio });
     }
 
     const [maxRows] = await db.query(
@@ -209,6 +269,12 @@ router.put("/:id_venta", async (req, res) => {
       return res.status(400).json({
         error: "Uno de los registros relacionados no existe o esta inactivo.",
       });
+    }
+
+    const errorReglaNegocio = await validarReglasNegocioVenta(req.body, id_venta);
+
+    if (errorReglaNegocio) {
+      return res.status(400).json({ error: errorReglaNegocio });
     }
 
     const [result] = await db.query(

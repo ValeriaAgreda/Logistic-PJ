@@ -43,6 +43,7 @@ const Sales = () => {
   const [searchParams] = useSearchParams();
   const autoOpenKeyRef = useRef("");
   const [ventas, setVentas] = useState([]);
+  const [costos, setCostos] = useState([]);
   const [operaciones, setOperaciones] = useState([]);
   const [tiposCosto, setTiposCosto] = useState([]);
   const [monedas, setMonedas] = useState([]);
@@ -75,7 +76,22 @@ const Sales = () => {
     return data;
   };
 
-  const validar = (venta) => {
+  const buscarVentaMismaOperacionTipo = (venta, idVentaExcluir = null) =>
+    ventas.find(
+      (item) =>
+        String(item.id_operacion) === String(venta.id_operacion) &&
+        String(item.id_tipo_costo) === String(venta.id_tipo_costo) &&
+        (!idVentaExcluir || String(item.id_venta) !== String(idVentaExcluir))
+    );
+
+  const buscarCostoMismaOperacionTipo = (venta) =>
+    costos.find(
+      (costo) =>
+        String(costo.id_operacion) === String(venta.id_operacion) &&
+        String(costo.id_tipo_costo) === String(venta.id_tipo_costo)
+    );
+
+  const validar = (venta, idVentaExcluir = null) => {
     const e = {};
 
     if (!venta.id_operacion) e.id_operacion = "Selecciona una operacion.";
@@ -90,20 +106,43 @@ const Sales = () => {
       e.monto = "Ingresa un monto valido.";
     }
 
+    if (!e.id_operacion && !e.id_tipo_costo) {
+      const ventaExistente = buscarVentaMismaOperacionTipo(venta, idVentaExcluir);
+
+      if (ventaExistente) {
+        e.id_tipo_costo =
+          "Ya existe una venta con ese tipo de costo para esta operacion.";
+      }
+    }
+
+    const costoExistente = buscarCostoMismaOperacionTipo(venta);
+
+    if (
+      costoExistente &&
+      !e.monto &&
+      String(costoExistente.id_moneda) === String(venta.id_moneda) &&
+      Number(venta.monto) < Number(costoExistente.monto)
+    ) {
+      e.monto =
+        "El monto de la venta debe ser mayor o igual al monto del costo cuando usan la misma moneda.";
+    }
+
     return e;
   };
 
   const cargarDatos = useCallback(async () => {
     try {
-      const [ventasData, operacionesData, tiposCostoData, monedasData] =
+      const [ventasData, costosData, operacionesData, tiposCostoData, monedasData] =
         await Promise.all([
           request("http://localhost:3001/api/venta-operacion"),
+          request("http://localhost:3001/api/costo-operacion"),
           request("http://localhost:3001/api/operaciones"),
           request("http://localhost:3001/api/tipo-costo"),
           request("http://localhost:3001/api/moneda"),
         ]);
 
       setVentas(Array.isArray(ventasData) ? ventasData : []);
+      setCostos(Array.isArray(costosData) ? costosData : []);
       setOperaciones(Array.isArray(operacionesData) ? operacionesData : []);
       setTiposCosto(Array.isArray(tiposCostoData) ? tiposCostoData : []);
       setMonedas(Array.isArray(monedasData) ? monedasData : []);
@@ -206,7 +245,7 @@ const Sales = () => {
   const guardarEdicion = async () => {
     if (!ventaSeleccionada) return;
 
-    const e = validar(ventaSeleccionada);
+    const e = validar(ventaSeleccionada, ventaSeleccionada.id_venta);
     if (Object.keys(e).length > 0) return setErrores(e);
 
     try {
