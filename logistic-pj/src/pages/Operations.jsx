@@ -4,7 +4,15 @@ import ContainerFormFields from "../components/ContainerFormFields";
 import "../styles/operations.css";
 
 const API = "http://localhost:3001/api";
-const opInit = { fecha_asignacion: "", id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", lcl: false, cantidad: "", volumen: "", peso: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" };
+const fechaHoyInput = () => {
+  const fecha = new Date();
+  const year = fecha.getFullYear();
+  const month = String(fecha.getMonth() + 1).padStart(2, "0");
+  const day = String(fecha.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+const crearOperacionInicial = () => ({ fecha_asignacion: fechaHoyInput(), id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", lcl: false, cantidad: "", volumen: "", peso: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" });
+const opInit = crearOperacionInicial();
 const asignacionInit = { id_contenedor: "", id_operacion: "", fecha_llegada_puerto: "", fecha_devolucion_limite: "", fecha_devolucion: "" };
 const contenedorInit = { numero_contenedor: "", id_tipo_contenedor: "", naviera: "", peso_bruto: "" };
 const movimientoInit = { id_operacion: "", id_tipo_costo: "", id_moneda: "", monto: "", observacion: "" };
@@ -204,7 +212,7 @@ const Operations = () => {
   const [services, setServices] = useState([]);
   const [nationalizations, setNationalizations] = useState([]);
   const [statuses, setStatuses] = useState([]);
-  const [form, setForm] = useState(opInit);
+  const [form, setForm] = useState(() => crearOperacionInicial());
   const [editForm, setEditForm] = useState(null);
   const [toDelete, setToDelete] = useState(null);
   const [search, setSearch] = useState("");
@@ -504,7 +512,7 @@ const Operations = () => {
   };
   const openNew = () => {
     setEditForm(null);
-    setForm(opInit);
+    setForm(crearOperacionInicial());
     setAssignmentForm(asignacionInit);
     setAssignmentContext("new");
     setPendingContainerAssignments([]);
@@ -1019,7 +1027,7 @@ const Operations = () => {
 
       await loadAll();
       hideModal("addOperationModal");
-      setForm(opInit);
+      setForm(crearOperacionInicial());
       setAssignmentForm(asignacionInit);
       setPendingContainerAssignments([]);
       setPendingOperationCosts([]);
@@ -1029,7 +1037,7 @@ const Operations = () => {
     } catch (error) { alert(error.message); }
   };
   const saveEdit = async () => {
-    const e = validateOp(editForm || opInit);
+    const e = validateOp(editForm || crearOperacionInicial());
     if (Object.keys(e).length) return setErrors(e);
     const debeConservarContenedores =
       !(Number(editForm.lcl) === 1 || editForm.lcl === true) &&
@@ -1870,7 +1878,21 @@ const Operations = () => {
           <input className="form-control" value={state.id_operacion ? state.codigo_operacion || "" : nextCode} readOnly disabled />
         </div>
       </div>
-      <div className="col-md-6">{field(state, setter, "fecha_asignacion", "Fecha de asignacion", "date")}</div>
+      <div className="col-md-6">
+        <div className="mb-3">
+          <label className="form-label">Fecha de asignacion</label>
+          <input
+            type="date"
+            className={`form-control ${errors.fecha_asignacion ? "is-invalid" : ""}`}
+            value={state.fecha_asignacion || ""}
+            readOnly
+            disabled
+          />
+          {errors.fecha_asignacion ? (
+            <div className="invalid-feedback d-block">{errors.fecha_asignacion}</div>
+          ) : null}
+        </div>
+      </div>
       <div className="col-md-6">{selectField(state, setter, "id_cliente", "Cliente", clients, "id_cliente", "razon_social", "client")}</div>
       <div className="col-md-6">{selectField(state, setter, "id_proveedor", "Proveedor", suppliers, "id_proveedor", "empresa", "supplier")}</div>
       <div className="col-12">{supplierRouteField(state, setter)}</div>

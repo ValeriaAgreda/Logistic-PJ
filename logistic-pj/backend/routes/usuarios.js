@@ -135,7 +135,8 @@ router.post("/", async (req, res) => {
     const [duplicados] = await db.query(
       `SELECT id_usuario
        FROM usuario
-       WHERE LOWER(correo) = ? OR usuario = ?`,
+       WHERE (LOWER(correo) = ? OR usuario = ?)
+         AND estado = 1`,
       [correoNormalizado, usuarioNormalizado]
     );
 
@@ -222,6 +223,7 @@ router.put("/:id_usuario", async (req, res) => {
       `SELECT id_usuario
        FROM usuario
        WHERE (LOWER(correo) = ? OR usuario = ?)
+         AND estado = 1
          AND id_usuario <> ?`,
       [correoNormalizado, usuarioNormalizado, id_usuario]
     );
@@ -285,10 +287,34 @@ router.put("/:id_usuario", async (req, res) => {
 });
 
 router.delete("/:id_usuario", async (req, res) => {
+  const connection = await db.getConnection();
+
   try {
     const { id_usuario } = req.params;
+    const confirmarCascada =
+      req.query.confirmar_cascada === "1" || req.body?.confirmar_cascada === true;
 
-    const [result] = await db.query(
+    const [asignacionesActivas] = await connection.query(
+      `SELECT COUNT(*) AS total
+       FROM rol_usuario
+       WHERE id_usuario = ?
+         AND estado = 1`,
+      [id_usuario]
+    );
+
+    const totalAsignaciones = Number(asignacionesActivas[0]?.total || 0);
+
+    if (totalAsignaciones > 0 && !confirmarCascada) {
+      return res.status(409).json({
+        error: "Este usuario tiene un rol asignado. Desea eliminarlo?",
+        requiere_confirmacion: true,
+        total_asignaciones: totalAsignaciones,
+      });
+    }
+
+    await connection.beginTransaction();
+
+    const [result] = await connection.query(
       `UPDATE usuario
        SET estado = 0,
            fecha_inactivo = NOW()
@@ -297,13 +323,28 @@ router.delete("/:id_usuario", async (req, res) => {
     );
 
     if (result.affectedRows === 0) {
+      await connection.rollback();
       return res.status(404).json({ error: "Usuario no encontrado." });
     }
 
+    await connection.query(
+      `UPDATE rol_usuario
+       SET estado = 0,
+           fecha_fin = CURDATE()
+       WHERE id_usuario = ?
+         AND estado = 1`,
+      [id_usuario]
+    );
+
+    await connection.commit();
+
     res.json({ mensaje: "Usuario desactivado correctamente." });
   } catch (err) {
+    await connection.rollback();
     console.error("Error al eliminar usuario:", err);
     res.status(500).json({ error: "Error al eliminar usuario" });
+  } finally {
+    connection.release();
   }
 });
 

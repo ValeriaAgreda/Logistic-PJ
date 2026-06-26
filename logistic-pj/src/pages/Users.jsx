@@ -33,6 +33,8 @@ const Users = () => {
   const [nuevoUsuario, setNuevoUsuario] = useState(usuarioInicial);
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
   const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
+  const [confirmarEliminacionRoles, setConfirmarEliminacionRoles] = useState(false);
+  const [totalRolesAEliminar, setTotalRolesAEliminar] = useState(0);
   const [errores, setErrores] = useState({});
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState("");
@@ -129,6 +131,8 @@ const Users = () => {
   const abrirEliminar = (usuario) => {
     if (!usuario) return;
     setUsuarioAEliminar(usuario);
+    setConfirmarEliminacionRoles(false);
+    setTotalRolesAEliminar(0);
     new bootstrap.Modal(document.getElementById("deleteUsuarioModal")).show();
   };
 
@@ -231,15 +235,25 @@ const Users = () => {
     if (!usuarioAEliminar) return;
 
     try {
-      const res = await fetch(
-        `http://localhost:3001/api/usuarios/${usuarioAEliminar.id_usuario}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
-      );
+      const eliminar = (confirmarCascada = false) =>
+        fetch(
+          `http://localhost:3001/api/usuarios/${usuarioAEliminar.id_usuario}${
+            confirmarCascada ? "?confirmar_cascada=1" : ""
+          }`,
+          {
+            method: "DELETE",
+            credentials: "include",
+          }
+        );
 
-      const data = await res.json();
+      let res = await eliminar(confirmarEliminacionRoles);
+      let data = await res.json();
+
+      if (res.status === 409 && data?.requiere_confirmacion) {
+        setConfirmarEliminacionRoles(true);
+        setTotalRolesAEliminar(Number(data.total_asignaciones || 0));
+        return;
+      }
 
       if (!res.ok) {
         alert(data?.error || "Error al eliminar usuario");
@@ -251,6 +265,8 @@ const Users = () => {
         document.getElementById("deleteUsuarioModal")
       )?.hide();
       setUsuarioAEliminar(null);
+      setConfirmarEliminacionRoles(false);
+      setTotalRolesAEliminar(0);
       setSelectedId(null);
     } catch (error) {
       console.error("Error al eliminar usuario:", error);
@@ -521,10 +537,24 @@ const Users = () => {
             </div>
             <div className="modal-body">
               {usuarioAEliminar && (
-                <p>
-                  Seguro que deseas desactivar a{" "}
-                  <strong>{usuarioAEliminar.nombre_completo}</strong>?
-                </p>
+                <>
+                  {confirmarEliminacionRoles ? (
+                    <p>
+                      Este usuario tiene{" "}
+                      <strong>
+                        {totalRolesAEliminar === 1
+                          ? "un rol asignado"
+                          : `${totalRolesAEliminar} roles asignados`}
+                      </strong>
+                      . Deseas eliminarlo junto con sus asignaciones de roles?
+                    </p>
+                  ) : (
+                    <p>
+                      Seguro que deseas desactivar a{" "}
+                      <strong>{usuarioAEliminar.nombre_completo}</strong>?
+                    </p>
+                  )}
+                </>
               )}
             </div>
             <div className="modal-footer">
@@ -532,7 +562,7 @@ const Users = () => {
                 Cancelar
               </button>
               <button className="btn btn-danger" onClick={eliminarUsuario}>
-                Eliminar
+                {confirmarEliminacionRoles ? "Si, eliminar" : "Eliminar"}
               </button>
             </div>
           </div>

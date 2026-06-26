@@ -45,6 +45,7 @@ router.get("/", async (_req, res) => {
       INNER JOIN rol r ON r.id_rol = ru.id_rol
       LEFT JOIN usuario ua ON ua.id_usuario = ru.id_usuario_asignacion
       WHERE ru.estado = 1
+        AND u.estado = 1
       ORDER BY ru.id_rol_usuario DESC`
     );
 
