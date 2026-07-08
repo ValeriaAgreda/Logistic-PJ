@@ -249,6 +249,9 @@ const Operations = () => {
   const [documentMode, setDocumentMode] = useState("create");
   const [documentFileInputKey, setDocumentFileInputKey] = useState(0);
   const [movementView, setMovementView] = useState("costs");
+  const [savingOperation, setSavingOperation] = useState(false);
+  const [savingAssignment, setSavingAssignment] = useState(false);
+  const [savingQuickContainer, setSavingQuickContainer] = useState(false);
 
   const request = async (url, options = {}) =>
     parse(
@@ -429,6 +432,14 @@ const Operations = () => {
     if (v.fecha_devolucion && v.fecha_devolucion < v.fecha_llegada_puerto) {
       e.fecha_devolucion = "La fecha de devolucion no puede ser menor a la fecha de llegada al puerto.";
     }
+    const yaPendiente = pendingContainerAssignments.some(
+      (assignment) =>
+        String(assignment.id_contenedor) === String(v.id_contenedor) &&
+        (!v.tempId || assignment.tempId !== v.tempId)
+    );
+    if (yaPendiente) {
+      e.id_contenedor = "Ese contenedor ya esta agregado a esta operacion.";
+    }
     return e;
   };
   const validateMovimiento = (v) => {
@@ -439,6 +450,90 @@ const Operations = () => {
     if (v.monto === "" || Number.isNaN(Number(v.monto)) || Number(v.monto) < 0) {
       e.monto = "Ingresa un monto valido.";
     }
+    return e;
+  };
+  const movimientosDeOperacion = (items, movimiento, esPendiente) =>
+    items.filter((item) =>
+      esPendiente
+        ? true
+        : String(item.id_operacion) === String(movimiento.id_operacion)
+    );
+
+  const validarCostoOperacion = (costo, modo) => {
+    const esPendiente = modo === "create-pending" || modo === "edit-pending";
+    const e = validateMovimiento(esPendiente ? { ...costo, id_operacion: "pendiente" } : costo);
+    const costosBase = esPendiente
+      ? pendingOperationCosts
+      : movimientosDeOperacion(operationCosts, costo, false);
+    const ventasBase = esPendiente
+      ? pendingOperationSales
+      : movimientosDeOperacion(operationSales, costo, false);
+
+    const costoExistente = costosBase.find(
+      (item) =>
+        String(item.id_tipo_costo) === String(costo.id_tipo_costo) &&
+        (esPendiente
+          ? item.tempId !== costo.tempId
+          : String(item.id_costo) !== String(costo.id_costo || ""))
+    );
+
+    if (!e.id_tipo_costo && costoExistente) {
+      e.id_tipo_costo = "Ya existe un costo con ese tipo de costo para esta operacion.";
+    }
+
+    const ventaExistente = ventasBase.find(
+      (item) => String(item.id_tipo_costo) === String(costo.id_tipo_costo)
+    );
+
+    if (
+      ventaExistente &&
+      !e.monto &&
+      String(ventaExistente.id_moneda) === String(costo.id_moneda) &&
+      Number(costo.monto) > Number(ventaExistente.monto)
+    ) {
+      e.monto =
+        "El monto del costo debe ser menor o igual al monto de la venta cuando usan la misma moneda.";
+    }
+
+    return e;
+  };
+
+  const validarVentaOperacion = (venta, modo) => {
+    const esPendiente = modo === "create-pending" || modo === "edit-pending";
+    const e = validateMovimiento(esPendiente ? { ...venta, id_operacion: "pendiente" } : venta);
+    const ventasBase = esPendiente
+      ? pendingOperationSales
+      : movimientosDeOperacion(operationSales, venta, false);
+    const costosBase = esPendiente
+      ? pendingOperationCosts
+      : movimientosDeOperacion(operationCosts, venta, false);
+
+    const ventaExistente = ventasBase.find(
+      (item) =>
+        String(item.id_tipo_costo) === String(venta.id_tipo_costo) &&
+        (esPendiente
+          ? item.tempId !== venta.tempId
+          : String(item.id_venta) !== String(venta.id_venta || ""))
+    );
+
+    if (!e.id_tipo_costo && ventaExistente) {
+      e.id_tipo_costo = "Ya existe una venta con ese tipo de costo para esta operacion.";
+    }
+
+    const costoExistente = costosBase.find(
+      (item) => String(item.id_tipo_costo) === String(venta.id_tipo_costo)
+    );
+
+    if (
+      costoExistente &&
+      !e.monto &&
+      String(costoExistente.id_moneda) === String(venta.id_moneda) &&
+      Number(venta.monto) < Number(costoExistente.monto)
+    ) {
+      e.monto =
+        "El monto de la venta debe ser mayor o igual al monto del costo cuando usan la misma moneda.";
+    }
+
     return e;
   };
   const validateDocumento = (v, isPending = false) => {
@@ -757,9 +852,11 @@ const Operations = () => {
     modal("assignContainerModal");
   };
   const saveAssignment = async () => {
+    if (savingAssignment) return;
     const e = validateAssignment(assignmentForm);
     if (Object.keys(e).length) return setAssignmentErrors(e);
 
+    setSavingAssignment(true);
     if (assignmentContext === "new" || assignmentContext === "edit-pending") {
       const container = containers.find((item) => String(item.id_contenedor) === String(assignmentForm.id_contenedor));
       if (assignmentMode === "edit-pending") {
@@ -793,6 +890,7 @@ const Operations = () => {
       setAssignmentForm(asignacionInit);
       setAssignmentMode("create");
       setAssignmentErrors({});
+      setSavingAssignment(false);
       return;
     }
 
@@ -814,6 +912,8 @@ const Operations = () => {
         setAssignmentErrors({});
       } catch (error) {
         alert(error.message || "Error al actualizar asignacion");
+      } finally {
+        setSavingAssignment(false);
       }
       return;
     }
@@ -835,11 +935,13 @@ const Operations = () => {
       setAssignmentErrors({});
     } catch (error) {
       alert(error.message || "Error al asignar contenedor");
+    } finally {
+      setSavingAssignment(false);
     }
   };
   const saveCostFromOperation = async () => {
     const isPending = costMode === "create-pending" || costMode === "edit-pending";
-    const e = validateMovimiento(isPending ? { ...costForm, id_operacion: "pendiente" } : costForm);
+    const e = validarCostoOperacion(costForm, costMode);
     if (Object.keys(e).length) return setCostErrors(e);
 
     if (isPending) {
@@ -873,7 +975,7 @@ const Operations = () => {
   };
   const saveSaleFromOperation = async () => {
     const isPending = saleMode === "create-pending" || saleMode === "edit-pending";
-    const e = validateMovimiento(isPending ? { ...saleForm, id_operacion: "pendiente" } : saleForm);
+    const e = validarVentaOperacion(saleForm, saleMode);
     if (Object.keys(e).length) return setSaleErrors(e);
 
     if (isPending) {
@@ -967,6 +1069,7 @@ const Operations = () => {
   };
 
   const saveNew = async () => {
+    if (savingOperation) return;
     const e = validateOp({ ...form, omitir_validacion_estado: true });
     if (Object.keys(e).length) return setErrors(e);
     const debeAsignarContenedores =
@@ -975,6 +1078,7 @@ const Operations = () => {
       permiteAsignarContenedor(form, services, statuses);
 
     try {
+      setSavingOperation(true);
       const operacionCreada = await request(`${API}/operaciones`, {
         method: "POST",
         body: JSON.stringify(payload(form)),
@@ -1047,9 +1151,14 @@ const Operations = () => {
       setPendingOperationSales([]);
       setPendingOperationDocuments([]);
       setAssignmentErrors({});
-    } catch (error) { alert(error.message); }
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setSavingOperation(false);
+    }
   };
   const saveEdit = async () => {
+    if (savingOperation) return;
     const e = validateOp(editForm || crearOperacionInicial());
     if (Object.keys(e).length) return setErrors(e);
     const debeConservarContenedores =
@@ -1057,6 +1166,7 @@ const Operations = () => {
       permiteAsignarContenedor(editForm, services, statuses);
 
     try {
+      setSavingOperation(true);
       await request(`${API}/operaciones/${editForm.id_operacion}`, {
         method: "PUT",
         body: JSON.stringify(payload(editForm)),
@@ -1096,7 +1206,11 @@ const Operations = () => {
       hideModal("editOperationModal");
       setPendingContainerAssignments([]);
       setPendingOperationDocuments([]);
-    } catch (error) { alert(error.message); }
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setSavingOperation(false);
+    }
   };
   const remove = async () => {
     try { await request(`${API}/operaciones/${toDelete.id_operacion}`, { method: "DELETE" }); await loadAll(); hideModal("deleteOperationModal"); setSelectedId(null); } catch (error) { alert(error.message); }
@@ -1162,10 +1276,12 @@ const Operations = () => {
     modal("quickContainerFromOperationModal");
   };
   const saveQuickContainer = async () => {
+    if (savingQuickContainer) return;
     const e = validateQuickContainer(quickContainer);
     if (Object.keys(e).length) return setQuickContainerErrors(e);
 
     try {
+      setSavingQuickContainer(true);
       const data = await request(`${API}/contenedores`, {
         method: "POST",
         body: JSON.stringify({
@@ -1183,6 +1299,8 @@ const Operations = () => {
       setQuickContainerErrors({});
     } catch (error) {
       alert(error.message || "Error al crear contenedor");
+    } finally {
+      setSavingQuickContainer(false);
     }
   };
   const openQuickContainerType = () => {
@@ -1998,8 +2116,8 @@ const Operations = () => {
         <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>LCL</th><th>Cantidad</th><th>Volumen</th><th>Peso</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{Number(r.lcl) === 1 ? "Si" : "No"}</td><td>{r.cantidad || "-"}</td><td>{r.volumen ?? "-"}</td><td>{r.peso ?? "-"}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={21} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
       </div>
 
-      <div className="modal fade" id="addOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Nueva operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{opForm(form, setForm, { isNew: true })}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveNew}>Guardar</button></div></div></div></div>
-      <div className="modal fade" id="editOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Editar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{editForm ? opForm(editForm, setEditForm) : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-primary" onClick={saveEdit}>Guardar cambios</button></div></div></div></div>
+      <div className="modal fade" id="addOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Nueva operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{opForm(form, setForm, { isNew: true })}</div><div className="modal-footer"><button type="button" className="btn btn-secondary" data-bs-dismiss="modal" disabled={savingOperation}>Cancelar</button><button type="button" className="btn btn-success" onClick={saveNew} disabled={savingOperation}>{savingOperation ? "Guardando..." : "Guardar"}</button></div></div></div></div>
+      <div className="modal fade" id="editOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Editar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{editForm ? opForm(editForm, setEditForm) : null}</div><div className="modal-footer"><button type="button" className="btn btn-secondary" data-bs-dismiss="modal" disabled={savingOperation}>Cancelar</button><button type="button" className="btn btn-primary" onClick={saveEdit} disabled={savingOperation}>{savingOperation ? "Guardando..." : "Guardar cambios"}</button></div></div></div></div>
       <div className="modal fade" id="operationInfoModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Informacion de operacion {selected?.codigo_operacion || ""}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{operationInfoSection(selected)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>
       <div className="modal fade" id="assignContainerModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Asignar contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">
         {assignmentErrors.id_operacion ? <div className="alert alert-warning py-2">{assignmentErrors.id_operacion}</div> : null}
@@ -2048,13 +2166,13 @@ const Operations = () => {
             </small>
           ) : null}
         </div>
-      </div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveAssignment}>{assignmentMode === "create" ? (assignmentContext === "new" || assignmentContext === "edit-pending" ? "Aceptar" : "Guardar asignacion") : "Guardar cambios"}</button></div></div></div></div>
+      </div><div className="modal-footer"><button type="button" className="btn btn-secondary" data-bs-dismiss="modal" disabled={savingAssignment}>Cancelar</button><button type="button" className="btn btn-success" onClick={saveAssignment} disabled={savingAssignment}>{savingAssignment ? "Guardando..." : assignmentMode === "create" ? (assignmentContext === "new" || assignmentContext === "edit-pending" ? "Aceptar" : "Guardar asignacion") : "Guardar cambios"}</button></div></div></div></div>
       <div className="modal fade" id="operationMovementsModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{movementView === "costs" ? "Costos" : "Ventas"} de operacion {selected?.codigo_operacion || ""}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{selected && movementView === "costs" ? movementTable("Costos asociados", "Nuevo costo", costsByOperation(selected.id_operacion), () => openCostForOperation(selected), editOperationCost, deleteOperationCost, "id_costo") : null}{selected && movementView === "sales" ? movementTable("Ventas asociadas", "Nueva venta", salesByOperation(selected.id_operacion), () => openSaleForOperation(selected), editOperationSale, deleteOperationSale, "id_venta") : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>
       <div className="modal fade" id="operationDocumentsModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Documentos de operacion {selected?.codigo_operacion || ""}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{selected ? documentTable("Documentos asociados", documentsByOperation(selected.id_operacion), () => openDocumentForOperation(selected), editOperationDocument, deleteOperationDocument, "id_documento") : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button></div></div></div></div>
       <div className="modal fade" id="addCostFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{costMode === "edit" ? "Editar costo" : "Agregar costo"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(costForm, setCostForm, costErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveCostFromOperation}>{costMode === "edit" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
       <div className="modal fade" id="addSaleFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{saleMode === "edit" ? "Editar venta" : "Agregar venta"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{movimientoForm(saleForm, setSaleForm, saleErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveSaleFromOperation}>{saleMode === "edit" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
       <div className="modal fade" id="addDocumentFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">{documentMode === "edit" || documentMode === "edit-pending" ? "Editar documento" : "Agregar documento"}</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{documentoFormView(documentForm, setDocumentForm, documentErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className={documentMode === "edit" || documentMode === "edit-pending" ? "btn btn-primary" : "btn btn-success"} onClick={saveDocumentFromOperation}>{documentMode === "edit" || documentMode === "edit-pending" ? "Guardar cambios" : "Guardar"}</button></div></div></div></div>
-      <div className="modal fade" id="quickContainerFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body"><ContainerFormFields contenedor={quickContainer} setContenedor={setQuickContainer} errores={quickContainerErrors} tiposContenedor={containerTypes} onCreateTipoContenedor={openQuickContainerType} /></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickContainer}>Guardar</button></div></div></div></div>
+      <div className="modal fade" id="quickContainerFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body"><ContainerFormFields contenedor={quickContainer} setContenedor={setQuickContainer} errores={quickContainerErrors} tiposContenedor={containerTypes} onCreateTipoContenedor={openQuickContainerType} /></div><div className="modal-footer"><button type="button" className="btn btn-secondary" data-bs-dismiss="modal" disabled={savingQuickContainer}>Cancelar</button><button type="button" className="btn btn-success" onClick={saveQuickContainer} disabled={savingQuickContainer}>{savingQuickContainer ? "Guardando..." : "Guardar"}</button></div></div></div></div>
       <div className="modal fade" id="quickContainerTypeFromOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Nuevo tipo de contenedor</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickContainerType, setQuickContainerType, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickContainerType}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="deleteOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Eliminar operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{toDelete ? <p>Seguro que deseas desactivar la operacion <strong>{toDelete.codigo_operacion}</strong>?</p> : null}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-danger" onClick={remove}>Eliminar</button></div></div></div></div>
       <div className="modal fade" id="quickClientModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear cliente rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickClient, setQuickClient, "razon_social", "Razon social", "text", quickErrors)}{field(quickClient, setQuickClient, "nit", "NIT", "text", quickErrors)}{field(quickClient, setQuickClient, "contacto", "Contacto", "text", quickErrors)}{field(quickClient, setQuickClient, "telefono", "Telefono", "text", quickErrors)}{field(quickClient, setQuickClient, "correo", "Correo", "email", quickErrors)}{field(quickClient, setQuickClient, "direccion", "Direccion", "text", quickErrors)}<div className="mb-3"><label className="form-label">Observacion</label><textarea className="form-control" rows="3" value={quickClient.observacion} onChange={(e) => setQuickClient({ ...quickClient, observacion: e.target.value })} /></div></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickClient}>Guardar</button></div></div></div></div>
