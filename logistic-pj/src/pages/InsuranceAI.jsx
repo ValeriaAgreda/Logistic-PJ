@@ -321,6 +321,12 @@ const InsuranceAI = () => {
                     <span>Seguro recomendado</span>
                     <strong>{resultado.tipo_seguro_recomendado}</strong>
                   </div>
+                  {resultado.codigo_seguro_recomendado ? (
+                    <div>
+                      <span>Codigo de cobertura</span>
+                      <strong>{resultado.codigo_seguro_recomendado}</strong>
+                    </div>
+                  ) : null}
                   <div>
                     <span>Fuente</span>
                     <strong>{resultado.fuente_recomendacion === "gemini" ? "Gemini" : "Reglas"}</strong>
@@ -358,6 +364,20 @@ const InsuranceAI = () => {
                     <ul className="insurance-motives">
                       {resultado.acciones_recomendadas.map((accion) => (
                         <li key={accion}>{accion}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                {Array.isArray(resultado.coberturas_adicionales) &&
+                resultado.coberturas_adicionales.length ? (
+                  <div className="mt-3">
+                    <span className="insurance-label">Coberturas adicionales sugeridas</span>
+                    <ul className="insurance-motives">
+                      {resultado.coberturas_adicionales.map((cobertura) => (
+                        <li key={cobertura.codigo || cobertura}>
+                          {cobertura.nombre || cobertura}
+                        </li>
                       ))}
                     </ul>
                   </div>
