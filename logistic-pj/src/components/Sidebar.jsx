@@ -268,6 +268,13 @@ const Sidebar = () => {
             path: "/tipo-nacionalizacion",
             roles: [ROLE_KEYS.ADMIN],
           },
+          {
+            id: "incoterms",
+            label: "Incoterms",
+            icon: "pi pi-tags",
+            path: "/incoterms",
+            roles: [ROLE_KEYS.ADMIN],
+          },
         ],
       },
       {

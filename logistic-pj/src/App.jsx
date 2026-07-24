@@ -28,6 +28,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./components/AppLayout";
 import AppAlert from "./components/AppAlert";
+import Incoterms from "./pages/Incoterms";
 
 function App() {
   return (
@@ -68,6 +69,7 @@ function App() {
               <Route path="/ruta" element={<RouteCatalog />} />
               <Route path="/tipo-documento" element={<DocumentType />} />
               <Route path="/tipo-nacionalizacion" element={<NationalizationType />} />
+              <Route path="/incoterms" element={<Incoterms />} />
               <Route path="/rol" element={<Roles />} />
             </Route>
           </Route>

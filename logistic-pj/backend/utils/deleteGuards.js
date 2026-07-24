@@ -32,6 +32,7 @@ const tieneOperacionAbiertaPorCliente = porCampoOperacion("id_cliente", "el clie
 const tieneOperacionAbiertaPorProveedor = porCampoOperacion("id_proveedor", "el proveedor");
 const tieneOperacionAbiertaPorTipoServicio = porCampoOperacion("id_tipo_servicio", "el tipo de servicio");
 const tieneOperacionAbiertaPorTipoNacionalizacion = porCampoOperacion("id_tipo_nacionalizacion", "el tipo de nacionalizacion");
+const tieneOperacionAbiertaPorIncoterm = porCampoOperacion("id_incoterm", "el Incoterm");
 const tieneOperacionAbiertaPorEstadoOperacion = porCampoOperacion("id_estado_operacion", "el estado de operacion");
 
 const tieneOperacionAbiertaPorContenedor = async (db, res, idContenedor) =>
@@ -199,6 +200,7 @@ module.exports = {
   tieneOperacionAbiertaPorProveedor,
   tieneOperacionAbiertaPorTipoServicio,
   tieneOperacionAbiertaPorTipoNacionalizacion,
+  tieneOperacionAbiertaPorIncoterm,
   tieneOperacionAbiertaPorEstadoOperacion,
   tieneOperacionAbiertaPorContenedor,
   tieneOperacionAbiertaPorTipoContenedor,
