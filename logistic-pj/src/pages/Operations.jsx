@@ -16,7 +16,7 @@ const fechaHoyInput = () => {
   const day = String(fecha.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
-const crearOperacionInicial = () => ({ fecha_asignacion: fechaHoyInput(), id_cliente: "", id_proveedor: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", lcl: false, cantidad: "", volumen: "", peso: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" });
+const crearOperacionInicial = () => ({ fecha_asignacion: fechaHoyInput(), id_cliente: "", id_proveedor: "", id_incoterm: "", id_tipo_servicio: "", porducto: "", origen: "", destino: "", lcl: false, cantidad: "", volumen: "", peso: "", nro_madre: "", nro_hijo: "", observacion: "", etd: "", eta: "", id_tipo_nacionalizacion: "", id_estado_operacion: "" });
 const opInit = crearOperacionInicial();
 const asignacionInit = { id_contenedor: "", id_operacion: "", fecha_llegada_puerto: "", fecha_devolucion_limite: "", fecha_devolucion: "" };
 const contenedorInit = { numero_contenedor: "", id_tipo_contenedor: "", naviera: "", peso_bruto: "" };
@@ -39,6 +39,7 @@ const quickIcons = {
   "service-supplier": "pi pi-wrench",
   nationalization: "pi pi-globe",
   status: "pi pi-sync",
+  incoterm: "pi pi-tags",
 };
 
 const modal = (id) => new bootstrap.Modal(document.getElementById(id)).show();
@@ -197,6 +198,7 @@ const normalizeOperationForm = (value) => ({
   id_cliente: value?.id_cliente ? String(value.id_cliente) : "",
   id_proveedor: value?.id_proveedor ? String(value.id_proveedor) : "",
   id_tipo_servicio: value?.id_tipo_servicio ? String(value.id_tipo_servicio) : "",
+  id_incoterm: value?.id_incoterm ? String(value.id_incoterm) : "",
   id_tipo_nacionalizacion: value?.id_tipo_nacionalizacion ? String(value.id_tipo_nacionalizacion) : "",
   id_estado_operacion: value?.id_estado_operacion ? String(value.id_estado_operacion) : "",
 });
@@ -217,6 +219,7 @@ const Operations = () => {
   const [supplierRoutes, setSupplierRoutes] = useState([]);
   const [services, setServices] = useState([]);
   const [nationalizations, setNationalizations] = useState([]);
+  const [incoterms, setIncoterms] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [form, setForm] = useState(() => crearOperacionInicial());
   const [editForm, setEditForm] = useState(null);
@@ -229,6 +232,7 @@ const Operations = () => {
   const [quickSupplier, setQuickSupplier] = useState(supplierInit);
   const [quickService, setQuickService] = useState(itemInit);
   const [quickNationalization, setQuickNationalization] = useState(itemInit);
+  const [quickIncoterm, setQuickIncoterm] = useState(itemInit);
   const [quickStatus, setQuickStatus] = useState(itemInit);
   const [quickServiceTarget, setQuickServiceTarget] = useState("operation");
   const [nextCode, setNextCode] = useState("");
@@ -280,7 +284,7 @@ const Operations = () => {
     });
 
   const loadAll = useCallback(async () => {
-    const [ops, cont, asg, cty, costsData, salesData, docsData, tc, td, mon, c, p, pr, s, n, st] = await Promise.all([
+    const [ops, cont, asg, cty, costsData, salesData, docsData, tc, td, mon, c, p, pr, s, n, st, inc] = await Promise.all([
       request(`${API}/operaciones`),
       request(`${API}/contenedores`),
       request(`${API}/operacion-contenedor`),
@@ -297,6 +301,7 @@ const Operations = () => {
       request(`${API}/tipo-servicio`),
       request(`${API}/tipo-nacionalizacion`),
       request(`${API}/estado-operacion`),
+      request(`${API}/incoterms`),
     ]);
     setRows(Array.isArray(ops) ? ops : []);
     setContainers(Array.isArray(cont) ? cont : []);
@@ -314,6 +319,7 @@ const Operations = () => {
     setServices(Array.isArray(s) ? s : []);
     setNationalizations(Array.isArray(n) ? n : []);
     setStatuses(Array.isArray(st) ? st : []);
+    setIncoterms(Array.isArray(inc) ? inc : []);
   }, []);
 
   useEffect(() => {
@@ -329,6 +335,7 @@ const Operations = () => {
     if (!v.fecha_asignacion) e.fecha_asignacion = "Fecha obligatoria.";
     if (!v.id_cliente) e.id_cliente = "Selecciona un cliente.";
     if (!v.id_proveedor) e.id_proveedor = "Selecciona un proveedor.";
+    if (!v.id_incoterm) e.id_incoterm = "Selecciona un Incoterm.";
     if (!v.id_tipo_servicio) e.id_tipo_servicio = "Selecciona un tipo de servicio.";
     if (!text(v.porducto)) e.porducto = "Producto obligatorio.";
     if (!text(v.origen)) e.origen = "Origen obligatorio.";
@@ -582,6 +589,7 @@ const Operations = () => {
     peso: Number(v.lcl) === 1 || v.lcl === true ? v.peso || null : null,
     id_cliente: Number(v.id_cliente),
     id_proveedor: Number(v.id_proveedor),
+    id_incoterm: Number(v.id_incoterm),
     id_tipo_servicio: Number(v.id_tipo_servicio),
     id_tipo_nacionalizacion: Number(v.id_tipo_nacionalizacion),
     id_estado_operacion: Number(v.id_estado_operacion),
@@ -625,7 +633,7 @@ const Operations = () => {
       ),
     [containerAssignments, containers, pendingContainerAssignments]
   );
-  const filtered = useMemo(() => rows.filter((r) => [r.codigo_operacion, r.cliente, r.proveedor, r.tipo_servicio, r.porducto, r.origen, r.destino, r.cantidad, r.observacion, r.estado_operacion].some((x) => String(x || "").toLowerCase().includes(search.trim().toLowerCase()))), [rows, search]);
+  const filtered = useMemo(() => rows.filter((r) => [r.codigo_operacion, r.cliente, r.proveedor, r.incoterm, r.tipo_servicio, r.porducto, r.origen, r.destino, r.cantidad, r.observacion, r.estado_operacion].some((x) => String(x || "").toLowerCase().includes(search.trim().toLowerCase()))), [rows, search]);
 
   const loadNextCode = async () => {
     const data = await request(`${API}/operaciones/siguiente-codigo`);
@@ -1250,6 +1258,7 @@ const Operations = () => {
     if (type === "service") { setQuickServiceTarget("operation"); setQuickService(itemInit); return modal("quickServiceModal"); }
     if (type === "service-supplier") { setQuickServiceTarget("supplier"); setQuickService(itemInit); return modal("quickServiceModal"); }
     if (type === "nationalization") { setQuickNationalization(itemInit); return modal("quickNationalizationModal"); }
+    if (type === "incoterm") { setQuickIncoterm(itemInit); return modal("quickIncotermModal"); }
     setQuickStatus(itemInit); modal("quickStatusModal");
   };
 
@@ -1287,6 +1296,25 @@ const Operations = () => {
       const data = await request(`${API}/tipo-nacionalizacion`, { method: "POST", body: JSON.stringify({ descripcion: text(quickNationalization.descripcion) }) });
       await loadAll(); activeSetter((c) => ({ ...c, id_tipo_nacionalizacion: String(data.id_tipo_nacionalizacion) })); hideModal("quickNationalizationModal");
     } catch (error) { alert(error.message); }
+  };
+  const saveQuickIncoterm = async () => {
+    const descripcion = text(quickIncoterm.descripcion);
+    const e = {};
+    if (!descripcion) e.descripcion = "La descripcion es obligatoria.";
+    else if (descripcion.length > 50) e.descripcion = "La descripcion no puede superar 50 caracteres.";
+    else if (!/^[A-Za-z]+$/.test(descripcion)) e.descripcion = "La descripcion solo puede contener letras.";
+    if (Object.keys(e).length) return setQuickErrors(e);
+    try {
+      const data = await request(`${API}/incoterms`, {
+        method: "POST",
+        body: JSON.stringify({ descripcion: descripcion.toUpperCase() }),
+      });
+      await loadAll();
+      activeSetter((actual) => ({ ...actual, id_incoterm: String(data.id_incoterm) }));
+      hideModal("quickIncotermModal");
+    } catch (error) {
+      alert(error.message);
+    }
   };
   const saveQuickStatus = async () => {
     const e = validateItem(quickStatus);
@@ -1960,6 +1988,7 @@ const Operations = () => {
           {infoField("ETD", fmtDate(operation.etd))}
           {infoField("ETA", fmtDate(operation.eta))}
           {infoField("Nacionalizacion", operation.tipo_nacionalizacion)}
+          {infoField("Incoterm", operation.incoterm)}
           {infoField("Estado", operation.estado_operacion)}
           <div className="col-12">
             <div className="border rounded p-2 text-center">
@@ -2077,7 +2106,10 @@ const Operations = () => {
       </div>
       <div className="col-md-6">{selectField(state, setter, "id_cliente", "Cliente", clients, "id_cliente", "razon_social", "client")}</div>
       <div className="col-md-6">{selectField(state, setter, "id_proveedor", "Proveedor", suppliers, "id_proveedor", "empresa", "supplier")}</div>
+      <div className="col-md-6">{selectField(state, setter, "id_incoterm", "Incoterm", incoterms, "id_incoterm", "descripcion", "incoterm")}</div>
       <div className="col-12">{supplierRouteField(state, setter)}</div>
+      <div className="col-md-6">{field(state, setter, "origen", "Origen")}</div>
+      <div className="col-md-6">{field(state, setter, "destino", "Destino")}</div>
       <div className="col-md-6">
         <div className="mb-3">
           <label className="form-label">Tipo de servicio</label>
@@ -2094,8 +2126,6 @@ const Operations = () => {
         </div>
       </div>
       <div className="col-md-6">{field(state, setter, "porducto", "Producto")}</div>
-      <div className="col-md-6">{field(state, setter, "origen", "Origen")}</div>
-      <div className="col-md-6">{field(state, setter, "destino", "Destino")}</div>
       <div className="col-12">{checkboxField(state, setter, "lcl", "LCL (Less than Container Load)")}</div>
       {(Number(state.lcl) === 1 || state.lcl === true) ? (
         <>
@@ -2163,8 +2193,8 @@ const Operations = () => {
           <small className="text-muted">{selected ? <>Seleccionado: <strong>{selected.codigo_operacion}</strong></> : "Selecciona una operacion para Editar o Eliminar"}</small>
         </div>
         <div className="ui-card mb-3"><div className="d-flex flex-wrap gap-2"><button className="btn btn-orange" type="button" onClick={openNew}>Nuevo</button><button className="btn btn-primary" type="button" onClick={() => openEdit(selected)} disabled={!selected}>Editar</button><button className="btn btn-danger" type="button" onClick={() => openDelete(selected)} disabled={!selected}>Eliminar</button><button className="btn btn-info-operation" type="button" onClick={openInfoForSelected} disabled={!selected}>Informacion</button><button className="btn btn-costs" type="button" onClick={openCostForSelected} disabled={!selected}>Costos</button><button className="btn btn-sales" type="button" onClick={openSaleForSelected} disabled={!selected}>Ventas</button><button className="btn btn-documents" type="button" onClick={openDocumentsForSelected} disabled={!selected}>Documentos</button></div></div>
-        <div className="ui-card mb-3"><div className="row g-2 align-items-end"><div className="col-md-9"><label className="form-label">Buscar</label><input className="form-control" placeholder="Codigo, cliente, proveedor, servicio, producto, origen, destino..." value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="col-md-3 d-flex gap-2"><button className="btn btn-secondary w-100" type="button" onClick={() => setSearch("")}>Limpiar</button></div></div></div>
-        <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>LCL</th><th>Cantidad</th><th>Volumen</th><th>Peso</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{Number(r.lcl) === 1 ? "Si" : "No"}</td><td>{r.cantidad || "-"}</td><td>{r.volumen ?? "-"}</td><td>{r.peso ?? "-"}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={21} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
+        <div className="ui-card mb-3"><div className="row g-2 align-items-end"><div className="col-md-9"><label className="form-label">Buscar</label><input className="form-control" placeholder="Codigo, cliente, proveedor, Incoterm, servicio, producto, origen, destino..." value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="col-md-3 d-flex gap-2"><button className="btn btn-secondary w-100" type="button" onClick={() => setSearch("")}>Limpiar</button></div></div></div>
+        <div className="table-responsive ui-card"><table className="table table-hover table-bordered align-middle m-0"><thead className="table-light"><tr><th style={{ width: 48 }} className="text-center">#</th><th>Codigo</th><th>Fecha de asignación</th><th>Cliente</th><th>Proveedor</th><th>Incoterm</th><th>Servicio</th><th>Producto</th><th>Origen</th><th>Destino</th><th>LCL</th><th>Cantidad</th><th>Volumen</th><th>Peso</th><th>Nro. madre</th><th>Nro. hijo</th><th>Observaciones</th><th>ETD</th><th>ETA</th><th>Nacionalización</th><th>Estado</th><th>Registro</th></tr></thead><tbody>{filtered.map((r, i) => <tr key={r.id_operacion} className={r.id_operacion === selectedId ? "row-selected" : ""} onClick={() => setSelectedId(r.id_operacion)} style={{ cursor: "pointer" }}><td className="text-center">{i + 1}</td><td>{r.codigo_operacion}</td><td>{fmtDate(r.fecha_asignacion)}</td><td>{r.cliente}</td><td>{r.proveedor}</td><td>{r.incoterm}</td><td>{r.tipo_servicio}</td><td>{r.porducto}</td><td>{r.origen}</td><td>{r.destino}</td><td>{Number(r.lcl) === 1 ? "Si" : "No"}</td><td>{r.cantidad || "-"}</td><td>{r.volumen ?? "-"}</td><td>{r.peso ?? "-"}</td><td>{r.nro_madre || "-"}</td><td>{r.nro_hijo || "-"}</td><td>{r.observacion || "-"}</td><td>{fmtDate(r.etd)}</td><td>{fmtDate(r.eta)}</td><td>{r.tipo_nacionalizacion}</td><td>{r.estado_operacion}</td><td>{fmtDateTime(r.fecha_registro)}</td></tr>)}{filtered.length === 0 ? <tr><td colSpan={22} className="text-center py-4 text-muted">No hay operaciones activas con los filtros actuales.</td></tr> : null}</tbody></table></div>
       </div>
 
       <div className="modal fade" id="addOperationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-xl"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Nueva operacion</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{opForm(form, setForm, { isNew: true })}</div><div className="modal-footer"><button type="button" className="btn btn-secondary" data-bs-dismiss="modal" disabled={savingOperation}>Cancelar</button><button type="button" className="btn btn-success" onClick={saveNew} disabled={savingOperation}>{savingOperation ? "Guardando..." : "Guardar"}</button></div></div></div></div>
@@ -2229,6 +2259,7 @@ const Operations = () => {
       <div className="modal fade" id="quickClientModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear cliente rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickClient, setQuickClient, "razon_social", "Razon social", "text", quickErrors)}{field(quickClient, setQuickClient, "nit", "NIT", "text", quickErrors)}{field(quickClient, setQuickClient, "contacto", "Contacto", "text", quickErrors)}{field(quickClient, setQuickClient, "telefono", "Telefono", "text", quickErrors)}{field(quickClient, setQuickClient, "correo", "Correo", "email", quickErrors)}{field(quickClient, setQuickClient, "direccion", "Direccion", "text", quickErrors)}<div className="mb-3"><label className="form-label">Observacion</label><textarea className="form-control" rows="3" value={quickClient.observacion} onChange={(e) => setQuickClient({ ...quickClient, observacion: e.target.value })} /></div></div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickClient}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="quickServiceModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear tipo de servicio rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickService, setQuickService, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={() => saveQuickService()}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="quickSupplierModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered modal-lg"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear proveedor rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickSupplier, setQuickSupplier, "empresa", "Empresa", "text", quickErrors)}{field(quickSupplier, setQuickSupplier, "nit", "NIT", "text", quickErrors)}{field(quickSupplier, setQuickSupplier, "contacto", "Contacto", "text", quickErrors)}{field(quickSupplier, setQuickSupplier, "telefono", "Telefono internacional", "tel", quickErrors)}{field(quickSupplier, setQuickSupplier, "correo", "Correo", "email", quickErrors)}{field(quickSupplier, setQuickSupplier, "direccion", "Direccion", "text", quickErrors)}{field(quickSupplier, setQuickSupplier, "lugar_origen", "Lugar de origen", "text", quickErrors)}{selectField(quickSupplier, setQuickSupplier, "id_tipo_servicio", "Tipo de servicio", services, "id_tipo_servicio", "descripcion", "service-supplier", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickSupplier}>Guardar</button></div></div></div></div>
+      <div className="modal fade" id="quickIncotermModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear Incoterm rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickIncoterm, setQuickIncoterm, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickIncoterm}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="quickNationalizationModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear tipo de nacionalizacion rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickNationalization, setQuickNationalization, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickNationalization}>Guardar</button></div></div></div></div>
       <div className="modal fade" id="quickStatusModal" tabIndex="-1" aria-hidden="true"><div className="modal-dialog modal-dialog-centered"><div className="modal-content shadow rounded-3"><div className="modal-header"><h5 className="modal-title">Crear estado de operacion rapido</h5><button className="btn-close" data-bs-dismiss="modal" /></div><div className="modal-body">{field(quickStatus, setQuickStatus, "descripcion", "Descripcion", "text", quickErrors)}</div><div className="modal-footer"><button className="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button><button className="btn btn-success" onClick={saveQuickStatus}>Guardar</button></div></div></div></div>
     </>

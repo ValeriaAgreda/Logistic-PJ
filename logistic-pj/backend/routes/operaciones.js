@@ -56,6 +56,10 @@ const validarOperacion = (body) => {
     errores.push("Selecciona un proveedor valido.");
   }
 
+  if (!body.id_incoterm || Number.isNaN(Number(body.id_incoterm))) {
+    errores.push("Selecciona un Incoterm valido.");
+  }
+
   if (!body.id_tipo_servicio || Number.isNaN(Number(body.id_tipo_servicio))) {
     errores.push("Selecciona un tipo de servicio valido.");
   }
@@ -257,6 +261,8 @@ router.get("/", async (_req, res) => {
         c.razon_social AS cliente,
         o.id_proveedor,
         p.empresa AS proveedor,
+        o.id_incoterm,
+        i.descripcion AS incoterm,
         o.id_tipo_servicio,
         ts.descripcion AS tipo_servicio,
         o.porducto,
@@ -284,6 +290,7 @@ router.get("/", async (_req, res) => {
       FROM operacion o
       INNER JOIN cliente c ON c.id_cliente = o.id_cliente
       INNER JOIN proveedor p ON p.id_proveedor = o.id_proveedor
+      INNER JOIN incoterms i ON i.id_incoterm = o.id_incoterm
       INNER JOIN tipo_servicio ts ON ts.id_tipo_servicio = o.id_tipo_servicio
       INNER JOIN tipo_nacionalizacion tn ON tn.id_tipo_nacionalizacion = o.id_tipo_nacionalizacion
       INNER JOIN estado_operacion eo ON eo.id_estado_operacion = o.id_estado_operacion
@@ -339,6 +346,7 @@ router.post("/", async (req, res) => {
     const relaciones = await Promise.all([
       validarRelacionActiva("cliente", "id_cliente", req.body.id_cliente),
       validarRelacionActiva("proveedor", "id_proveedor", req.body.id_proveedor),
+      validarRelacionActiva("incoterms", "id_incoterm", req.body.id_incoterm),
       validarRelacionActiva("tipo_servicio", "id_tipo_servicio", req.body.id_tipo_servicio),
       validarRelacionActiva(
         "tipo_nacionalizacion",
@@ -363,6 +371,7 @@ router.post("/", async (req, res) => {
         fecha_asignacion,
         id_cliente,
         id_proveedor,
+        id_incoterm,
         id_tipo_servicio,
         porducto,
         origen,
@@ -383,12 +392,13 @@ router.post("/", async (req, res) => {
         fecha_modificacion,
         id_usuario_modificacion,
         estado
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NULL, NULL, 1)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NULL, NULL, 1)`,
       [
         codigoOperacion,
         req.body.fecha_asignacion,
         Number(req.body.id_cliente),
         Number(req.body.id_proveedor),
+        Number(req.body.id_incoterm),
         Number(req.body.id_tipo_servicio),
         String(req.body.porducto).trim(),
         String(req.body.origen).trim(),
@@ -456,6 +466,7 @@ router.put("/:id_operacion", async (req, res) => {
     const relaciones = await Promise.all([
       validarRelacionActiva("cliente", "id_cliente", req.body.id_cliente),
       validarRelacionActiva("proveedor", "id_proveedor", req.body.id_proveedor),
+      validarRelacionActiva("incoterms", "id_incoterm", req.body.id_incoterm),
       validarRelacionActiva("tipo_servicio", "id_tipo_servicio", req.body.id_tipo_servicio),
       validarRelacionActiva(
         "tipo_nacionalizacion",
@@ -482,6 +493,7 @@ router.put("/:id_operacion", async (req, res) => {
        SET fecha_asignacion = ?,
            id_cliente = ?,
            id_proveedor = ?,
+           id_incoterm = ?,
            id_tipo_servicio = ?,
            porducto = ?,
            origen = ?,
@@ -505,6 +517,7 @@ router.put("/:id_operacion", async (req, res) => {
         req.body.fecha_asignacion,
         Number(req.body.id_cliente),
         Number(req.body.id_proveedor),
+        Number(req.body.id_incoterm),
         Number(req.body.id_tipo_servicio),
         String(req.body.porducto).trim(),
         String(req.body.origen).trim(),
