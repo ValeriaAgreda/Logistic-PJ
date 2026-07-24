@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as bootstrap from "bootstrap";
 import { useSearchParams } from "react-router-dom";
+import {
+  monedaSeleccionadaEsDolar,
+  montoEnBolivianos,
+  validarTipoCambio,
+} from "../utils/currency";
 import "../styles/costs.css";
 
 const ventaInicial = {
@@ -8,6 +13,7 @@ const ventaInicial = {
   id_tipo_costo: "",
   id_moneda: "",
   monto: "",
+  tipo_cambio: "",
   observacion: "",
 };
 
@@ -18,25 +24,6 @@ const obtenerHeadersAuth = () => {
   } catch {
     return {};
   }
-};
-
-const normalizarMoneda = (valor = "") =>
-  String(valor || "")
-    .trim()
-    .toUpperCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-const esBoliviano = (item) => {
-  const codigo = normalizarMoneda(item.codigo_moneda);
-  const descripcion = normalizarMoneda(item.moneda);
-  return ["BOB", "BS", "BOL"].includes(codigo) || descripcion.includes("BOLIVIANO");
-};
-
-const esDolar = (item) => {
-  const codigo = normalizarMoneda(item.codigo_moneda);
-  const descripcion = normalizarMoneda(item.moneda);
-  return ["USD", "$US", "SUS", "DOL"].includes(codigo) || descripcion.includes("DOLAR");
 };
 
 const Sales = () => {
@@ -55,6 +42,11 @@ const Sales = () => {
   const [busquedaCodigoOperacion, setBusquedaCodigoOperacion] = useState("");
   const [codigoOperacionAplicado, setCodigoOperacionAplicado] = useState("");
   const [busquedaRealizada, setBusquedaRealizada] = useState(false);
+  const montoFormularioEnBolivianos = (movimiento) =>
+    Number(movimiento.monto || 0) *
+    (monedaSeleccionadaEsDolar(movimiento.id_moneda, monedas)
+      ? Number(movimiento.tipo_cambio || 0)
+      : 1);
 
   const request = async (url, options = {}) => {
     const res = await fetch(url, {
@@ -106,6 +98,9 @@ const Sales = () => {
       e.monto = "Ingresa un monto valido.";
     }
 
+    const errorTipoCambio = validarTipoCambio(venta, monedas);
+    if (errorTipoCambio) e.tipo_cambio = errorTipoCambio;
+
     if (!e.id_operacion && !e.id_tipo_costo) {
       const ventaExistente = buscarVentaMismaOperacionTipo(venta, idVentaExcluir);
 
@@ -120,11 +115,11 @@ const Sales = () => {
     if (
       costoExistente &&
       !e.monto &&
-      String(costoExistente.id_moneda) === String(venta.id_moneda) &&
-      Number(venta.monto) < Number(costoExistente.monto)
+      !e.tipo_cambio &&
+      montoFormularioEnBolivianos(venta) < montoEnBolivianos(costoExistente)
     ) {
       e.monto =
-        "El monto de la venta debe ser mayor o igual al monto del costo cuando usan la misma moneda.";
+        "El monto de la venta en bolivianos debe ser mayor o igual al monto del costo.";
     }
 
     return e;
@@ -202,6 +197,7 @@ const Sales = () => {
       id_tipo_costo: String(venta.id_tipo_costo ?? ""),
       id_moneda: String(venta.id_moneda ?? ""),
       monto: venta.monto ?? "",
+      tipo_cambio: venta.tipo_cambio ?? "",
       observacion: venta.observacion || "",
     });
     setErrores({});
@@ -219,6 +215,9 @@ const Sales = () => {
     id_tipo_costo: Number(venta.id_tipo_costo),
     id_moneda: Number(venta.id_moneda),
     monto: Number(venta.monto),
+    tipo_cambio: monedaSeleccionadaEsDolar(venta.id_moneda, monedas)
+      ? Number(venta.tipo_cambio)
+      : null,
     observacion: venta.observacion?.trim() || "",
   });
 
@@ -310,21 +309,8 @@ const Sales = () => {
     );
   }, [busquedaRealizada, codigoOperacionAplicado, operaciones]);
 
-  const resumenMontos = useMemo(
-    () =>
-      ventasFiltradas.reduce(
-        (resumen, venta) => {
-          const monto = Number(venta.monto || 0);
-          if (esBoliviano(venta)) {
-            return { ...resumen, bolivianos: resumen.bolivianos + monto };
-          }
-          if (esDolar(venta)) {
-            return { ...resumen, dolares: resumen.dolares + monto };
-          }
-          return resumen;
-        },
-        { bolivianos: 0, dolares: 0 }
-      ),
+  const totalBolivianos = useMemo(
+    () => ventasFiltradas.reduce((total, venta) => total + montoEnBolivianos(venta), 0),
     [ventasFiltradas]
   );
 
@@ -346,6 +332,24 @@ const Sales = () => {
       {errores[field] ? <div className="invalid-feedback">{errores[field]}</div> : null}
     </div>
   );
+  const renderTipoCambio = (state, setState) =>
+    monedaSeleccionadaEsDolar(state.id_moneda, monedas) ? (
+      <div className="mb-3">
+        <label className="form-label">Tipo de cambio (Bs por USD)</label>
+        <input
+          type="number"
+          min="0.0001"
+          step="0.0001"
+          inputMode="decimal"
+          className={`form-control ${errores.tipo_cambio ? "is-invalid" : ""}`}
+          value={state.tipo_cambio ?? ""}
+          onChange={(event) => setState({ ...state, tipo_cambio: event.target.value })}
+        />
+        {errores.tipo_cambio ? (
+          <div className="invalid-feedback">{errores.tipo_cambio}</div>
+        ) : null}
+      </div>
+    ) : null;
 
   return (
     <>
@@ -438,6 +442,8 @@ const Sales = () => {
                     <th>Tipo de costo</th>
                     <th>Moneda</th>
                     <th>Monto</th>
+                    <th>Tipo de cambio</th>
+                    <th>Monto en Bs</th>
                     <th>Observacion</th>
                     <th>Registro</th>
                   </tr>
@@ -457,6 +463,8 @@ const Sales = () => {
                         {venta.moneda} ({venta.codigo_moneda})
                       </td>
                       <td>{Number(venta.monto || 0).toFixed(2)}</td>
+                      <td>{venta.tipo_cambio ? Number(venta.tipo_cambio).toFixed(4) : "-"}</td>
+                      <td>{montoEnBolivianos(venta).toFixed(2)}</td>
                       <td>{venta.observacion || "-"}</td>
                       <td>
                         {venta.fecha_registro
@@ -468,7 +476,7 @@ const Sales = () => {
 
                   {ventasFiltradas.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-4 text-muted">
+                      <td colSpan={9} className="text-center py-4 text-muted">
                         {operacionFiltradaExiste
                           ? "No hay ventas activas registradas para esa operacion."
                           : "No hay ninguna operacion activa con ese codigo."}
@@ -489,11 +497,7 @@ const Sales = () => {
               </div>
               <div className="summary-row">
                 <span>Total bolivianos</span>
-                <strong>{resumenMontos.bolivianos.toFixed(2)}</strong>
-              </div>
-              <div className="summary-row">
-                <span>Total dolares</span>
-                <strong>{resumenMontos.dolares.toFixed(2)}</strong>
+                <strong>{totalBolivianos.toFixed(2)}</strong>
               </div>
             </div>
           </div>
@@ -512,6 +516,7 @@ const Sales = () => {
               {renderSelect("Operacion", "id_operacion", nuevaVenta, setNuevaVenta, operaciones, "id_operacion", "codigo_operacion")}
               {renderSelect("Tipo de costo", "id_tipo_costo", nuevaVenta, setNuevaVenta, tiposCosto, "id_tipo_costo", "descripcion")}
               {renderSelect("Moneda", "id_moneda", nuevaVenta, setNuevaVenta, monedas, "id_moneda", "descripcion")}
+              {renderTipoCambio(nuevaVenta, setNuevaVenta)}
 
               <div className="mb-3">
                 <label className="form-label">Monto</label>
@@ -562,6 +567,7 @@ const Sales = () => {
                   {renderSelect("Operacion", "id_operacion", ventaSeleccionada, setVentaSeleccionada, operaciones, "id_operacion", "codigo_operacion")}
                   {renderSelect("Tipo de costo", "id_tipo_costo", ventaSeleccionada, setVentaSeleccionada, tiposCosto, "id_tipo_costo", "descripcion")}
                   {renderSelect("Moneda", "id_moneda", ventaSeleccionada, setVentaSeleccionada, monedas, "id_moneda", "descripcion")}
+                  {renderTipoCambio(ventaSeleccionada, setVentaSeleccionada)}
 
                   <div className="mb-3">
                     <label className="form-label">Monto</label>

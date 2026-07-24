@@ -3,6 +3,10 @@ const cookieParser = require("cookie-parser");
 
 const router = express.Router();
 const db = require("../db");
+const {
+  convertirABolivianos,
+  validarYNormalizarTipoCambio,
+} = require("../utils/currency");
 
 router.use(cookieParser());
 
@@ -71,6 +75,17 @@ const validarRelacionActiva = async (tabla, idCampo, valor) => {
   return rows.length > 0;
 };
 
+const obtenerMonedaActiva = async (idMoneda) => {
+  const [rows] = await db.query(
+    `SELECT id_moneda, codigo, descripcion
+     FROM moneda
+     WHERE id_moneda = ? AND estado = 1
+     LIMIT 1`,
+    [Number(idMoneda)]
+  );
+  return rows[0] || null;
+};
+
 const existeVentaActiva = async (idOperacion, idTipoCosto, idVentaExcluir = null) => {
   const params = [Number(idOperacion), Number(idTipoCosto)];
   let filtroExcluir = "";
@@ -95,11 +110,13 @@ const existeVentaActiva = async (idOperacion, idTipoCosto, idVentaExcluir = null
 
 const obtenerCostoActivoMismaOperacionTipo = async (idOperacion, idTipoCosto) => {
   const [rows] = await db.query(
-    `SELECT id_costo, id_moneda, monto
-     FROM costo_operacion
-     WHERE id_operacion = ?
-       AND id_tipo_costo = ?
-       AND estado = 1
+    `SELECT co.id_costo, co.id_moneda, co.monto, co.tipo_cambio,
+            m.codigo AS codigo_moneda, m.descripcion AS moneda
+     FROM costo_operacion co
+     INNER JOIN moneda m ON m.id_moneda = co.id_moneda
+     WHERE co.id_operacion = ?
+       AND co.id_tipo_costo = ?
+       AND co.estado = 1
      LIMIT 1`,
     [Number(idOperacion), Number(idTipoCosto)]
   );
@@ -107,7 +124,7 @@ const obtenerCostoActivoMismaOperacionTipo = async (idOperacion, idTipoCosto) =>
   return rows[0] || null;
 };
 
-const validarReglasNegocioVenta = async (body, idVentaExcluir = null) => {
+const validarReglasNegocioVenta = async (body, moneda, tipoCambio, idVentaExcluir = null) => {
   if (await existeVentaActiva(body.id_operacion, body.id_tipo_costo, idVentaExcluir)) {
     return "Ya existe una venta activa con ese tipo de costo para esa operacion.";
   }
@@ -116,10 +133,10 @@ const validarReglasNegocioVenta = async (body, idVentaExcluir = null) => {
 
   if (
     costo &&
-    Number(costo.id_moneda) === Number(body.id_moneda) &&
-    Number(body.monto) < Number(costo.monto)
+    convertirABolivianos(body.monto, tipoCambio, moneda) <
+      convertirABolivianos(costo.monto, costo.tipo_cambio, costo)
   ) {
-    return "El monto de la venta debe ser mayor o igual al monto del costo cuando usan la misma moneda.";
+    return "El monto de la venta en bolivianos debe ser mayor o igual al monto del costo.";
   }
 
   return null;
@@ -138,6 +155,16 @@ router.get("/", async (_req, res) => {
         m.descripcion AS moneda,
         m.codigo AS codigo_moneda,
         vo.monto,
+        vo.tipo_cambio,
+        ROUND(
+          CASE
+            WHEN UPPER(m.codigo) IN ('USD', '$US', 'SUS', 'DOL')
+              OR UPPER(m.descripcion) LIKE '%DOLAR%'
+              THEN vo.monto * vo.tipo_cambio
+            ELSE vo.monto
+          END,
+          2
+        ) AS monto_bolivianos,
         vo.observacion,
         vo.fecha_registro,
         vo.id_usuario_registro,
@@ -191,7 +218,17 @@ router.post("/", async (req, res) => {
       });
     }
 
-    const errorReglaNegocio = await validarReglasNegocioVenta(req.body);
+    const moneda = await obtenerMonedaActiva(req.body.id_moneda);
+    const tipoCambio = validarYNormalizarTipoCambio(req.body.tipo_cambio, moneda);
+    if (tipoCambio.error) {
+      return res.status(400).json({ error: tipoCambio.error });
+    }
+
+    const errorReglaNegocio = await validarReglasNegocioVenta(
+      req.body,
+      moneda,
+      tipoCambio.valor
+    );
 
     if (errorReglaNegocio) {
       return res.status(400).json({ error: errorReglaNegocio });
@@ -211,19 +248,21 @@ router.post("/", async (req, res) => {
         id_tipo_costo,
         id_moneda,
         monto,
+        tipo_cambio,
         observacion,
         fecha_registro,
         id_usuario_registro,
         fecha_modificacion,
         id_usuario_modificacion,
         estado
-      ) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, NULL, NULL, 1)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, NULL, NULL, 1)`,
       [
         siguienteId,
         Number(req.body.id_operacion),
         Number(req.body.id_tipo_costo),
         Number(req.body.id_moneda),
         Number(req.body.monto),
+        tipoCambio.valor,
         normalizarTexto(req.body.observacion),
         Number(idUsuarioRegistro),
       ]
@@ -271,7 +310,18 @@ router.put("/:id_venta", async (req, res) => {
       });
     }
 
-    const errorReglaNegocio = await validarReglasNegocioVenta(req.body, id_venta);
+    const moneda = await obtenerMonedaActiva(req.body.id_moneda);
+    const tipoCambio = validarYNormalizarTipoCambio(req.body.tipo_cambio, moneda);
+    if (tipoCambio.error) {
+      return res.status(400).json({ error: tipoCambio.error });
+    }
+
+    const errorReglaNegocio = await validarReglasNegocioVenta(
+      req.body,
+      moneda,
+      tipoCambio.valor,
+      id_venta
+    );
 
     if (errorReglaNegocio) {
       return res.status(400).json({ error: errorReglaNegocio });
@@ -283,6 +333,7 @@ router.put("/:id_venta", async (req, res) => {
            id_tipo_costo = ?,
            id_moneda = ?,
            monto = ?,
+           tipo_cambio = ?,
            observacion = ?,
            fecha_modificacion = NOW(),
            id_usuario_modificacion = ?
@@ -293,6 +344,7 @@ router.put("/:id_venta", async (req, res) => {
         Number(req.body.id_tipo_costo),
         Number(req.body.id_moneda),
         Number(req.body.monto),
+        tipoCambio.valor,
         normalizarTexto(req.body.observacion),
         Number(idUsuarioModificacion),
         Number(id_venta),

@@ -110,35 +110,43 @@ router.get("/", async (_req, res) => {
       ),
       db.query(
         `SELECT
-           moneda.codigo_moneda,
-           SUM(moneda.total_costos) AS total_costos,
-           SUM(moneda.total_ventas) AS total_ventas,
-           SUM(moneda.total_ventas - moneda.total_costos) AS utilidad
+           'BOB' AS codigo_moneda,
+           SUM(movimiento.total_costos) AS total_costos,
+           SUM(movimiento.total_ventas) AS total_ventas,
+           SUM(movimiento.total_ventas - movimiento.total_costos) AS utilidad
          FROM (
            SELECT
-             m.codigo AS codigo_moneda,
-             SUM(co.monto) AS total_costos,
+             SUM(
+               CASE
+                 WHEN UPPER(m.codigo) IN ('USD', '$US', 'SUS', 'DOL')
+                   OR UPPER(m.descripcion) LIKE '%DOLAR%'
+                   THEN co.monto * co.tipo_cambio
+                 ELSE co.monto
+               END
+             ) AS total_costos,
              0 AS total_ventas
            FROM costo_operacion co
            INNER JOIN moneda m ON m.id_moneda = co.id_moneda
            INNER JOIN operacion o ON o.id_operacion = co.id_operacion
            WHERE co.estado = 1
              AND o.estado = 1
-           GROUP BY m.codigo
            UNION ALL
            SELECT
-             m.codigo AS codigo_moneda,
              0 AS total_costos,
-             SUM(vo.monto) AS total_ventas
+             SUM(
+               CASE
+                 WHEN UPPER(m.codigo) IN ('USD', '$US', 'SUS', 'DOL')
+                   OR UPPER(m.descripcion) LIKE '%DOLAR%'
+                   THEN vo.monto * vo.tipo_cambio
+                 ELSE vo.monto
+               END
+             ) AS total_ventas
            FROM venta_operacion vo
            INNER JOIN moneda m ON m.id_moneda = vo.id_moneda
            INNER JOIN operacion o ON o.id_operacion = vo.id_operacion
            WHERE vo.estado = 1
              AND o.estado = 1
-           GROUP BY m.codigo
-         ) moneda
-         GROUP BY moneda.codigo_moneda
-         ORDER BY utilidad DESC, moneda.codigo_moneda ASC`
+         ) movimiento`
       ),
       db.query(
         `SELECT

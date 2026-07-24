@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import * as bootstrap from "bootstrap";
 import ContainerFormFields from "../components/ContainerFormFields";
+import {
+  monedaSeleccionadaEsDolar,
+  montoEnBolivianos,
+  validarTipoCambio,
+} from "../utils/currency";
 import "../styles/operations.css";
 
 const API = "http://localhost:3001/api";
@@ -15,7 +20,7 @@ const crearOperacionInicial = () => ({ fecha_asignacion: fechaHoyInput(), id_cli
 const opInit = crearOperacionInicial();
 const asignacionInit = { id_contenedor: "", id_operacion: "", fecha_llegada_puerto: "", fecha_devolucion_limite: "", fecha_devolucion: "" };
 const contenedorInit = { numero_contenedor: "", id_tipo_contenedor: "", naviera: "", peso_bruto: "" };
-const movimientoInit = { id_operacion: "", id_tipo_costo: "", id_moneda: "", monto: "", observacion: "" };
+const movimientoInit = { id_operacion: "", id_tipo_costo: "", id_moneda: "", monto: "", tipo_cambio: "", observacion: "" };
 const documentoInit = { id_tipo_documento: "", id_operacion: "", numero_documento: "", fecha_documento: "", ruta_documento: "", descripcion: "", archivo_nombre: "", archivo_base64: "" };
 const clientInit = { razon_social: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", observacion: "" };
 const supplierInit = { empresa: "", nit: "", contacto: "", telefono: "", correo: "", direccion: "", lugar_origen: "", id_tipo_servicio: "" };
@@ -450,7 +455,20 @@ const Operations = () => {
     if (v.monto === "" || Number.isNaN(Number(v.monto)) || Number(v.monto) < 0) {
       e.monto = "Ingresa un monto valido.";
     }
+    const errorTipoCambio = validarTipoCambio(v, monedas);
+    if (errorTipoCambio) e.tipo_cambio = errorTipoCambio;
     return e;
+  };
+  const montoMovimientoEnBolivianos = (movimiento) => {
+    if (movimiento.codigo_moneda || movimiento.moneda) {
+      return montoEnBolivianos(movimiento);
+    }
+    return (
+      Number(movimiento.monto || 0) *
+      (monedaSeleccionadaEsDolar(movimiento.id_moneda, monedas)
+        ? Number(movimiento.tipo_cambio || 0)
+        : 1)
+    );
   };
   const movimientosDeOperacion = (items, movimiento, esPendiente) =>
     items.filter((item) =>
@@ -488,11 +506,11 @@ const Operations = () => {
     if (
       ventaExistente &&
       !e.monto &&
-      String(ventaExistente.id_moneda) === String(costo.id_moneda) &&
-      Number(costo.monto) > Number(ventaExistente.monto)
+      !e.tipo_cambio &&
+      montoMovimientoEnBolivianos(costo) > montoMovimientoEnBolivianos(ventaExistente)
     ) {
       e.monto =
-        "El monto del costo debe ser menor o igual al monto de la venta cuando usan la misma moneda.";
+        "El monto del costo en bolivianos debe ser menor o igual al monto de la venta.";
     }
 
     return e;
@@ -527,11 +545,11 @@ const Operations = () => {
     if (
       costoExistente &&
       !e.monto &&
-      String(costoExistente.id_moneda) === String(venta.id_moneda) &&
-      Number(venta.monto) < Number(costoExistente.monto)
+      !e.tipo_cambio &&
+      montoMovimientoEnBolivianos(venta) < montoMovimientoEnBolivianos(costoExistente)
     ) {
       e.monto =
-        "El monto de la venta debe ser mayor o igual al monto del costo cuando usan la misma moneda.";
+        "El monto de la venta en bolivianos debe ser mayor o igual al monto del costo.";
     }
 
     return e;
@@ -575,6 +593,9 @@ const Operations = () => {
     id_tipo_costo: Number(v.id_tipo_costo),
     id_moneda: Number(v.id_moneda),
     monto: Number(v.monto),
+    tipo_cambio: monedaSeleccionadaEsDolar(v.id_moneda, monedas)
+      ? Number(v.tipo_cambio)
+      : null,
     observacion: text(v.observacion),
   });
   const documentoPayload = (v) => ({
@@ -680,6 +701,11 @@ const Operations = () => {
       tipo_costo: tipoCosto?.descripcion || "",
       moneda: moneda?.descripcion || "",
       codigo_moneda: moneda?.codigo || "",
+      monto_bolivianos:
+        Number(movement.monto || 0) *
+        (monedaSeleccionadaEsDolar(movement.id_moneda, monedas)
+          ? Number(movement.tipo_cambio || 0)
+          : 1),
     };
   };
   const buildPendingDocument = (documento, tempId = null) => {
@@ -1419,6 +1445,23 @@ const Operations = () => {
         </div>
         {selectSimple(state, setter, "id_tipo_costo", "Tipo de costo", tiposCosto, "id_tipo_costo", "descripcion", errs)}
         {selectSimple(state, setter, "id_moneda", "Moneda", monedas, "id_moneda", "descripcion", errs)}
+        {monedaSeleccionadaEsDolar(state.id_moneda, monedas) ? (
+          <div className="mb-3">
+            <label className="form-label">Tipo de cambio (Bs por USD)</label>
+            <input
+              type="number"
+              min="0.0001"
+              step="0.0001"
+              inputMode="decimal"
+              className={`form-control ${errs.tipo_cambio ? "is-invalid" : ""}`}
+              value={state.tipo_cambio ?? ""}
+              onChange={(event) => setter({ ...state, tipo_cambio: event.target.value })}
+            />
+            {errs.tipo_cambio ? (
+              <div className="invalid-feedback">{errs.tipo_cambio}</div>
+            ) : null}
+          </div>
+        ) : null}
         {field(state, setter, "monto", "Monto", "number", errs)}
         {textareaField(state, setter, "observacion", "Observacion", errs)}
       </>
@@ -1608,6 +1651,8 @@ const Operations = () => {
               <th>Tipo de costo</th>
               <th>Moneda</th>
               <th>Monto</th>
+              <th>Tipo de cambio</th>
+              <th>Monto en Bs</th>
               <th>Observacion</th>
               <th style={{ width: 150 }} className="text-center">Acciones</th>
             </tr>
@@ -1619,6 +1664,8 @@ const Operations = () => {
                 <td>{item.tipo_costo || "-"}</td>
                 <td>{item.moneda ? `${item.moneda} (${item.codigo_moneda})` : "-"}</td>
                 <td>{Number(item.monto || 0).toFixed(2)}</td>
+                <td>{item.tipo_cambio ? Number(item.tipo_cambio).toFixed(4) : "-"}</td>
+                <td>{montoMovimientoEnBolivianos(item).toFixed(2)}</td>
                 <td>{item.observacion || "-"}</td>
                 <td className="text-center">
                   <button type="button" className="btn btn-sm btn-outline-primary me-2" onClick={() => onEdit(item)}>
@@ -1632,7 +1679,7 @@ const Operations = () => {
             ))}
             {rowsData.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-3 text-muted">No hay registros asociados.</td>
+                <td colSpan={8} className="text-center py-3 text-muted">No hay registros asociados.</td>
               </tr>
             ) : null}
           </tbody>
@@ -1740,15 +1787,15 @@ const Operations = () => {
       </div>
     );
   };
-  const movementTotals = (items) =>
-    Object.values(
-      items.reduce((acc, item) => {
-        const key = item.moneda ? `${item.moneda}${item.codigo_moneda ? ` (${item.codigo_moneda})` : ""}` : "Sin moneda";
-        acc[key] = acc[key] || { label: key, total: 0 };
-        acc[key].total += Number(item.monto || 0);
-        return acc;
-      }, {})
-    );
+  const movementTotals = (items) => [
+    {
+      label: "Bolivianos (BOB)",
+      total: items.reduce(
+        (total, item) => total + montoMovimientoEnBolivianos(item),
+        0
+      ),
+    },
+  ];
   const infoField = (label, value) => (
     <div className="col-md-4">
       <div className="border rounded p-2 h-100 text-center">
@@ -1804,6 +1851,8 @@ const Operations = () => {
               <th className="text-center">Tipo de costo</th>
               <th className="text-center">Moneda</th>
               <th className="text-center">Monto</th>
+              <th className="text-center">Tipo de cambio</th>
+              <th className="text-center">Monto en Bs</th>
               <th className="text-center">Observacion</th>
             </tr>
           </thead>
@@ -1814,11 +1863,13 @@ const Operations = () => {
                 <td className="text-center">{item.tipo_costo || "-"}</td>
                 <td className="text-center">{item.moneda ? `${item.moneda} (${item.codigo_moneda})` : "-"}</td>
                 <td className="text-center">{Number(item.monto || 0).toFixed(2)}</td>
+                <td className="text-center">{item.tipo_cambio ? Number(item.tipo_cambio).toFixed(4) : "-"}</td>
+                <td className="text-center">{montoMovimientoEnBolivianos(item).toFixed(2)}</td>
                 <td className="text-center">{item.observacion || "-"}</td>
               </tr>
             ))}
             {items.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-3 text-muted">No hay registros asociados.</td></tr>
+              <tr><td colSpan={7} className="text-center py-3 text-muted">No hay registros asociados.</td></tr>
             ) : null}
           </tbody>
         </table>

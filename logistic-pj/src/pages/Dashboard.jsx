@@ -271,8 +271,8 @@ const Dashboard = () => {
         <div className="chart-card">
           <div className="section-header">
             <div>
-              <h5>Finanzas por moneda</h5>
-              <small>Ventas, costos y utilidad registrada</small>
+              <h5>Resumen financiero en bolivianos</h5>
+              <small>Ventas, costos y utilidad convertidos a BOB</small>
             </div>
           </div>
           <div className="finance-list">

@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as bootstrap from "bootstrap";
 import { useSearchParams } from "react-router-dom";
+import {
+  monedaSeleccionadaEsDolar,
+  montoEnBolivianos,
+  validarTipoCambio,
+} from "../utils/currency";
 import "../styles/costs.css";
 
 const costoInicial = {
@@ -8,6 +13,7 @@ const costoInicial = {
   id_tipo_costo: "",
   id_moneda: "",
   monto: "",
+  tipo_cambio: "",
   observacion: "",
 };
 const ventaInicial = {
@@ -15,6 +21,7 @@ const ventaInicial = {
   id_tipo_costo: "",
   id_moneda: "",
   monto: "",
+  tipo_cambio: "",
   observacion: "",
 };
 
@@ -25,25 +32,6 @@ const obtenerHeadersAuth = () => {
   } catch {
     return {};
   }
-};
-
-const normalizarMoneda = (valor = "") =>
-  String(valor || "")
-    .trim()
-    .toUpperCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-const esBoliviano = (item) => {
-  const codigo = normalizarMoneda(item.codigo_moneda);
-  const descripcion = normalizarMoneda(item.moneda);
-  return ["BOB", "BS", "BOL"].includes(codigo) || descripcion.includes("BOLIVIANO");
-};
-
-const esDolar = (item) => {
-  const codigo = normalizarMoneda(item.codigo_moneda);
-  const descripcion = normalizarMoneda(item.moneda);
-  return ["USD", "$US", "SUS", "DOL"].includes(codigo) || descripcion.includes("DOLAR");
 };
 
 const Costs = () => {
@@ -64,6 +52,11 @@ const Costs = () => {
   const [busquedaCodigoOperacion, setBusquedaCodigoOperacion] = useState("");
   const [codigoOperacionAplicado, setCodigoOperacionAplicado] = useState("");
   const [busquedaRealizada, setBusquedaRealizada] = useState(false);
+  const montoFormularioEnBolivianos = (movimiento) =>
+    Number(movimiento.monto || 0) *
+    (monedaSeleccionadaEsDolar(movimiento.id_moneda, monedas)
+      ? Number(movimiento.tipo_cambio || 0)
+      : 1);
 
   const request = async (url, options = {}) => {
     const res = await fetch(url, {
@@ -108,6 +101,9 @@ const Costs = () => {
       e.monto = "Ingresa un monto valido.";
     }
 
+    const errorTipoCambio = validarTipoCambio(movimiento, monedas);
+    if (errorTipoCambio) e.tipo_cambio = errorTipoCambio;
+
     return e;
   };
 
@@ -144,11 +140,11 @@ const Costs = () => {
     if (
       ventaExistente &&
       !e.monto &&
-      String(ventaExistente.id_moneda) === String(costo.id_moneda) &&
-      Number(costo.monto) > Number(ventaExistente.monto)
+      !e.tipo_cambio &&
+      montoFormularioEnBolivianos(costo) > montoEnBolivianos(ventaExistente)
     ) {
       e.monto =
-        "El monto del costo debe ser menor o igual al monto de la venta cuando usan la misma moneda.";
+        "El monto del costo en bolivianos debe ser menor o igual al monto de la venta.";
     }
 
     return e;
@@ -171,11 +167,11 @@ const Costs = () => {
     if (
       costoExistente &&
       !e.monto &&
-      String(costoExistente.id_moneda) === String(venta.id_moneda) &&
-      Number(venta.monto) < Number(costoExistente.monto)
+      !e.tipo_cambio &&
+      montoFormularioEnBolivianos(venta) < montoEnBolivianos(costoExistente)
     ) {
       e.monto =
-        "El monto de la venta debe ser mayor o igual al monto del costo cuando usan la misma moneda.";
+        "El monto de la venta en bolivianos debe ser mayor o igual al monto del costo.";
     }
 
     return e;
@@ -253,6 +249,7 @@ const Costs = () => {
       id_tipo_costo: String(costo.id_tipo_costo ?? ""),
       id_moneda: String(costo.id_moneda ?? ""),
       monto: costo.monto ?? "",
+      tipo_cambio: costo.tipo_cambio ?? "",
       observacion: costo.observacion || "",
     });
     setErrores({});
@@ -280,6 +277,9 @@ const Costs = () => {
     id_tipo_costo: Number(costo.id_tipo_costo),
     id_moneda: Number(costo.id_moneda),
     monto: Number(costo.monto),
+    tipo_cambio: monedaSeleccionadaEsDolar(costo.id_moneda, monedas)
+      ? Number(costo.tipo_cambio)
+      : null,
     observacion: costo.observacion?.trim() || "",
   });
   const existeVentaParaCosto = (costo) =>
@@ -405,21 +405,8 @@ const Costs = () => {
     );
   }, [busquedaRealizada, codigoOperacionAplicado, operaciones]);
 
-  const resumenMontos = useMemo(
-    () =>
-      costosFiltrados.reduce(
-        (resumen, costo) => {
-          const monto = Number(costo.monto || 0);
-          if (esBoliviano(costo)) {
-            return { ...resumen, bolivianos: resumen.bolivianos + monto };
-          }
-          if (esDolar(costo)) {
-            return { ...resumen, dolares: resumen.dolares + monto };
-          }
-          return resumen;
-        },
-        { bolivianos: 0, dolares: 0 }
-      ),
+  const totalBolivianos = useMemo(
+    () => costosFiltrados.reduce((total, costo) => total + montoEnBolivianos(costo), 0),
     [costosFiltrados]
   );
 
@@ -492,6 +479,24 @@ const Costs = () => {
       {erroresActuales[field] ? <div className="invalid-feedback">{erroresActuales[field]}</div> : null}
     </div>
   );
+  const renderTipoCambio = (state, setState, erroresActuales) =>
+    monedaSeleccionadaEsDolar(state.id_moneda, monedas) ? (
+      <div className="mb-3">
+        <label className="form-label">Tipo de cambio (Bs por USD)</label>
+        <input
+          type="number"
+          min="0.0001"
+          step="0.0001"
+          inputMode="decimal"
+          className={`form-control ${erroresActuales.tipo_cambio ? "is-invalid" : ""}`}
+          value={state.tipo_cambio ?? ""}
+          onChange={(event) => setState({ ...state, tipo_cambio: event.target.value })}
+        />
+        {erroresActuales.tipo_cambio ? (
+          <div className="invalid-feedback">{erroresActuales.tipo_cambio}</div>
+        ) : null}
+      </div>
+    ) : null;
 
   return (
     <>
@@ -577,6 +582,8 @@ const Costs = () => {
                     <th>Tipo de costo</th>
                     <th>Moneda</th>
                     <th>Monto</th>
+                    <th>Tipo de cambio</th>
+                    <th>Monto en Bs</th>
                     <th>Observacion</th>
                     <th className="text-center">Venta</th>
                     <th>Registro</th>
@@ -600,6 +607,8 @@ const Costs = () => {
                           {costo.moneda} ({costo.codigo_moneda})
                         </td>
                         <td>{Number(costo.monto || 0).toFixed(2)}</td>
+                        <td>{costo.tipo_cambio ? Number(costo.tipo_cambio).toFixed(4) : "-"}</td>
+                        <td>{montoEnBolivianos(costo).toFixed(2)}</td>
                         <td>{costo.observacion || "-"}</td>
                         <td>
                           <div className="d-flex justify-content-center">
@@ -630,7 +639,7 @@ const Costs = () => {
 
                   {costosFiltrados.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="text-center py-4 text-muted">
+                      <td colSpan={10} className="text-center py-4 text-muted">
                         {operacionFiltradaExiste
                           ? "No hay costos activos registrados para esa operacion."
                           : "No hay ninguna operacion activa con ese codigo."}
@@ -651,11 +660,7 @@ const Costs = () => {
               </div>
               <div className="summary-row">
                 <span>Total bolivianos</span>
-                <strong>{resumenMontos.bolivianos.toFixed(2)}</strong>
-              </div>
-              <div className="summary-row">
-                <span>Total dolares</span>
-                <strong>{resumenMontos.dolares.toFixed(2)}</strong>
+                <strong>{totalBolivianos.toFixed(2)}</strong>
               </div>
             </div>
           </div>
@@ -700,6 +705,7 @@ const Costs = () => {
                 "id_moneda",
                 "descripcion"
               )}
+              {renderTipoCambio(nuevoCosto, setNuevoCosto, errores)}
 
               <div className="mb-3">
                 <label className="form-label">Monto</label>
@@ -786,6 +792,7 @@ const Costs = () => {
                     "id_moneda",
                     "descripcion"
                   )}
+                  {renderTipoCambio(costoSeleccionado, setCostoSeleccionado, errores)}
 
                   <div className="mb-3">
                     <label className="form-label">Monto</label>
@@ -865,6 +872,7 @@ const Costs = () => {
                 "descripcion",
                 erroresVenta
               )}
+              {renderTipoCambio(ventaDesdeCosto, setVentaDesdeCosto, erroresVenta)}
 
               <div className="mb-3">
                 <label className="form-label">Monto</label>
