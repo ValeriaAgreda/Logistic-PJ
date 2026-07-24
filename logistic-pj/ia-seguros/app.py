@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.error import URLError
@@ -46,6 +47,9 @@ GEMINI_SEED = int(os.getenv("GEMINI_SEED", "42"))
 GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "8192"))
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "1024"))
 GEMINI_PROMPT_VERSION = "seguros-v3-catalogo"
+METRICAS_USO_PATH = Path(os.getenv("METRICAS_USO_PATH", "metricas_uso_gemini.jsonl"))
+if not METRICAS_USO_PATH.is_absolute():
+    METRICAS_USO_PATH = Path(__file__).parent / METRICAS_USO_PATH
 CATALOGO_SEGUROS = {
     "ICC_A": {
         "nombre": "Carga con cobertura amplia - ICC (A)",
@@ -373,9 +377,43 @@ def obtener_configuracion_generacion():
     }
 
 
+def obtener_tokens_uso(data):
+    uso = data.get("usageMetadata") or {}
+    return {
+        "tokens_entrada": int(uso.get("promptTokenCount") or 0),
+        "tokens_salida": int(uso.get("candidatesTokenCount") or 0),
+        "tokens_pensamiento": int(uso.get("thoughtsTokenCount") or 0),
+        "tokens_cache": int(uso.get("cachedContentTokenCount") or 0),
+        "tokens_totales": int(uso.get("totalTokenCount") or 0),
+    }
+
+
+def guardar_metrica_uso(metrica):
+    registro = {
+        "fecha_utc": datetime.now(timezone.utc).isoformat(),
+        **metrica,
+    }
+    with METRICAS_USO_PATH.open("a", encoding="utf-8") as archivo:
+        archivo.write(json.dumps(registro, ensure_ascii=False) + "\n")
+
+
+def leer_metricas_uso():
+    if not METRICAS_USO_PATH.exists():
+        return []
+
+    registros = []
+    for linea in METRICAS_USO_PATH.read_text(encoding="utf-8").splitlines():
+        try:
+            registro = json.loads(linea)
+            registros.append(registro)
+        except json.JSONDecodeError:
+            continue
+    return registros
+
+
 def consultar_gemini(operacion, analisis):
     if not GEMINI_API_KEY:
-        return None, "GEMINI_API_KEY no configurada"
+        return None, "GEMINI_API_KEY no configurada", None
 
     payload = {
         "contents": [
@@ -410,6 +448,7 @@ def consultar_gemini(operacion, analisis):
         )
 
         for intento in range(len(GEMINI_RETRY_DELAYS) + 1):
+            inicio_gemini = time.perf_counter()
             try:
                 print(f"[Gemini] Consultando modelo {modelo}", flush=True)
                 data = post_json(
@@ -418,15 +457,26 @@ def consultar_gemini(operacion, analisis):
                     headers={"x-goog-api-key": GEMINI_API_KEY},
                     timeout=None,
                 )
+                duracion_gemini = time.perf_counter() - inicio_gemini
                 texto = extraer_texto_gemini(data)
+                metrica_gemini = {
+                    "exitosa": False,
+                    "respuesta_api_exitosa": True,
+                    "modelo": modelo,
+                    "duracion_gemini_segundos": round(duracion_gemini, 3),
+                    **obtener_tokens_uso(data),
+                }
                 break
             except HTTPError as error:
                 detalle = error.read().decode("utf-8", errors="replace")
                 ultimo_error = f"Gemini HTTP {error.code}"
                 print(f"[Gemini] HTTP error: {detalle}", flush=True)
 
+                if error.code == 429:
+                    return None, ultimo_error, None
+
                 if error.code not in {429, 500, 502, 503, 504}:
-                    return None, ultimo_error
+                    return None, ultimo_error, None
 
                 if intento < len(GEMINI_RETRY_DELAYS):
                     espera = GEMINI_RETRY_DELAYS[intento]
@@ -439,7 +489,7 @@ def consultar_gemini(operacion, analisis):
                 break
             except (OSError, URLError, TimeoutError, json.JSONDecodeError) as error:
                 print(f"[Gemini] Error: {error}", flush=True)
-                return None, str(error)
+                return None, str(error), None
 
         if not texto:
             continue
@@ -448,17 +498,18 @@ def consultar_gemini(operacion, analisis):
             resultado = parsear_json_modelo(texto)
         except json.JSONDecodeError as error:
             print(f"[Gemini] JSON invalido: {texto[:1000]}", flush=True)
-            return None, f"Gemini devolvio JSON invalido: {error}"
+            return None, f"Gemini devolvio JSON invalido: {error}", metrica_gemini
 
         if not validar_recomendacion_ia(resultado):
             print(f"[Gemini] Respuesta fuera del esquema esperado: {resultado}", flush=True)
-            return None, "Gemini devolvio una recomendacion incompleta o fuera del esquema"
+            return None, "Gemini devolvio una recomendacion incompleta o fuera del esquema", metrica_gemini
 
         resultado = normalizar_recomendacion_ia(resultado)
         resultado["modelo_ia"] = modelo
-        return resultado, None
+        metrica_gemini["exitosa"] = True
+        return resultado, None, metrica_gemini
 
-    return None, ultimo_error or "Gemini no disponible"
+    return None, ultimo_error or "Gemini no disponible", None
 
 
 def geocodificar_lugar(lugar):
@@ -611,8 +662,55 @@ def home():
     })
 
 
+@app.route("/api/metricas-uso", methods=["GET"])
+def metricas_uso():
+    registros = leer_metricas_uso()
+    cantidad = len(registros)
+    exitosas = sum(1 for item in registros if item.get("exitosa"))
+
+    if cantidad == 0:
+        return jsonify({
+            "consultas_realizadas": 0,
+            "consultas_exitosas": 0,
+            "tasa_generacion_exitosa_porcentaje": 0,
+            "mensaje": "Aun no existen consultas instrumentadas.",
+            "promedios": {
+                "tiempo_respuesta_segundos": 0,
+                "tokens_entrada": 0,
+                "tokens_salida": 0,
+                "tokens_pensamiento": 0,
+                "tokens_totales": 0,
+            },
+        })
+
+    def promedio(campo):
+        return round(sum(float(item.get(campo) or 0) for item in registros) / cantidad, 2)
+
+    return jsonify({
+        "consultas_realizadas": cantidad,
+        "consultas_exitosas": exitosas,
+        "tasa_generacion_exitosa_porcentaje": round(exitosas * 100 / cantidad, 2),
+        "promedios": {
+            "tiempo_respuesta_segundos": promedio("tiempo_respuesta_segundos"),
+            "tiempo_gemini_segundos": promedio("duracion_gemini_segundos"),
+            "tokens_entrada": promedio("tokens_entrada"),
+            "tokens_salida": promedio("tokens_salida"),
+            "tokens_pensamiento": promedio("tokens_pensamiento"),
+            "tokens_totales": promedio("tokens_totales"),
+        },
+        "totales": {
+            "tokens_entrada": sum(item.get("tokens_entrada", 0) for item in registros),
+            "tokens_salida": sum(item.get("tokens_salida", 0) for item in registros),
+            "tokens_pensamiento": sum(item.get("tokens_pensamiento", 0) for item in registros),
+            "tokens_totales": sum(item.get("tokens_totales", 0) for item in registros),
+        },
+        "ultima_consulta": registros[-1],
+    })
+
+
 @app.route("/api/recomendar-seguro", methods=["POST"])
 def recomendar_seguro():
+    inicio_solicitud = time.perf_counter()
     data = request.get_json() or {}
 
     cantidad = data.get("cantidad")
@@ -743,9 +841,19 @@ def recomendar_seguro():
         "contenedores": contenedores,
     }
 
-    recomendacion_ia, error_ia = consultar_gemini(operacion, analisis_base)
+    recomendacion_ia, error_ia, metrica_gemini = consultar_gemini(operacion, analisis_base)
 
     if not recomendacion_ia:
+        if metrica_gemini:
+            metrica_gemini["tiempo_respuesta_segundos"] = round(
+                time.perf_counter() - inicio_solicitud,
+                3,
+            )
+            metrica_gemini["id_operacion"] = data.get("id_operacion")
+            metrica_gemini["codigo_operacion"] = data.get("codigo_operacion")
+            metrica_gemini["prompt_version"] = GEMINI_PROMPT_VERSION
+            metrica_gemini["error"] = error_ia
+            guardar_metrica_uso(metrica_gemini)
         return jsonify({
             "error": "Gemini no pudo generar la recomendacion.",
             "detalle": error_ia,
@@ -754,6 +862,15 @@ def recomendar_seguro():
             "configuracion_generacion": obtener_configuracion_generacion(),
             "metricas_enviadas": analisis_base,
         }), 503
+
+    metrica_gemini["tiempo_respuesta_segundos"] = round(
+        time.perf_counter() - inicio_solicitud,
+        3,
+    )
+    metrica_gemini["id_operacion"] = data.get("id_operacion")
+    metrica_gemini["codigo_operacion"] = data.get("codigo_operacion")
+    metrica_gemini["prompt_version"] = GEMINI_PROMPT_VERSION
+    guardar_metrica_uso(metrica_gemini)
 
     respuesta = {
         **analisis_base,
@@ -772,6 +889,7 @@ def recomendar_seguro():
         "fuente_recomendacion": "gemini",
         "modelo_ia": recomendacion_ia.get("modelo_ia", GEMINI_MODEL),
         "configuracion_generacion": obtener_configuracion_generacion(),
+        "metricas_consumo": metrica_gemini,
         "error_ia": None,
     }
 
