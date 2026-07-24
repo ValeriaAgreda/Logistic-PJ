@@ -196,6 +196,10 @@ const InsuranceAI = () => {
                   <strong>{operacionSeleccionada.porducto}</strong>
                 </div>
                 <div>
+                  <span>Incoterm</span>
+                  <strong>{operacionSeleccionada.incoterm || "-"}</strong>
+                </div>
+                <div>
                   <span>Modalidad</span>
                   <strong>
                     {contenedoresOperacion.length
@@ -238,18 +242,27 @@ const InsuranceAI = () => {
               </div>
             ) : null}
 
+            {resultado?.desactualizada ? (
+              <div className="alert alert-warning mt-3 mb-0">
+                La operacion fue modificada desde la ultima evaluacion. La recomendacion mostrada
+                esta desactualizada y puede volver a generarse.
+              </div>
+            ) : null}
+
             <button
               className="btn btn-orange w-100 mt-3"
               type="button"
               onClick={generarRecomendacion}
-              disabled={loading || loadingData || loadingSaved || !idOperacion || Boolean(resultado?.almacenada)}
+              disabled={loading || loadingData || loadingSaved || !idOperacion || Boolean(resultado?.vigente)}
             >
               {loading
                 ? "Generando..."
                 : loadingSaved
                   ? "Buscando recomendacion..."
-                  : resultado?.almacenada
-                    ? "Recomendacion guardada"
+                  : resultado?.vigente
+                    ? "Recomendacion vigente"
+                    : resultado?.desactualizada
+                      ? "Actualizar recomendacion"
                     : "Generar recomendacion"}
             </button>
           </div>

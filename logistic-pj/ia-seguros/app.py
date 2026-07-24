@@ -329,7 +329,7 @@ def construir_prompt_gemini(operacion, analisis):
         "codigo de seguro recomendado. La decision final debe ser realizada por ti, no debes "
         "copiar una respuesta generica ni asumir que todas las operaciones tienen el mismo riesgo. "
         "Analiza como minimo los datos disponibles sobre producto, peso, volumen, cantidad, "
-        "modalidad de carga, contenedores, carga LCL o FCL, origen, destino, distancia, duracion, "
+        "modalidad de carga, contenedores, carga LCL o FCL, Incoterm, origen, destino, distancia, duracion, "
         "clima, fechas, observaciones y datos faltantes. Compara conjuntamente los factores: "
         "una diferencia relevante debe reflejarse de forma razonada en el puntaje, nivel, motivos "
         "o codigo de seguro. Selecciona exactamente una opcion del catalogo entregado y no inventes "
@@ -648,6 +648,7 @@ def recomendar_seguro():
         f"peso total de la carga: {peso_total} kg",
         f"tipo de servicio: {data.get('tipo_servicio') or 'no especificado'}",
         f"tipo de nacionalizacion: {data.get('tipo_nacionalizacion') or 'no especificado'}",
+        f"Incoterm: {data.get('incoterm') or 'no especificado'}",
         f"producto: {data.get('producto') or 'no especificado'}",
         f"origen: {data.get('origen') or 'no especificado'}",
         f"destino: {data.get('destino') or 'no especificado'}",
@@ -724,6 +725,7 @@ def recomendar_seguro():
         "codigo_operacion": data.get("codigo_operacion"),
         "tipo_servicio": data.get("tipo_servicio"),
         "tipo_nacionalizacion": data.get("tipo_nacionalizacion"),
+        "incoterm": data.get("incoterm"),
         "producto": data.get("producto"),
         "cantidad": cantidad if es_lcl else None,
         "volumen": volumen,

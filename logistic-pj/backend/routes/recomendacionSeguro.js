@@ -1,4 +1,5 @@
 const express = require("express");
+const crypto = require("crypto");
 
 const router = express.Router();
 const db = require("../db");
@@ -40,6 +41,7 @@ const mapearRecomendacion = (row) => {
     metricas_usadas: parseJsonField(row.metricas_usadas, respuesta.metricas_usadas || []),
     modelo_ia: row.modelo_ia || respuesta.modelo_ia || null,
     fuente_recomendacion: row.fuente_recomendacion || respuesta.fuente_recomendacion || "gemini",
+    hash_datos_operacion: row.hash_datos_operacion || null,
     almacenada: true,
   };
 };
@@ -57,7 +59,7 @@ const obtenerRecomendacionGuardada = async (idOperacion) => {
   return mapearRecomendacion(rows[0]);
 };
 
-const guardarRecomendacion = async (operacion, recomendacion) => {
+const guardarRecomendacion = async (operacion, recomendacion, hashDatosOperacion) => {
   const fechaRecomendacion = new Date();
   const respuesta = {
     ...recomendacion,
@@ -82,8 +84,9 @@ const guardarRecomendacion = async (operacion, recomendacion) => {
        respuesta_ia,
        modelo_ia,
        fuente_recomendacion,
+       hash_datos_operacion,
        estado
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
      ON DUPLICATE KEY UPDATE
        fecha_recomendacion = VALUES(fecha_recomendacion),
        requiere_seguro = VALUES(requiere_seguro),
@@ -97,6 +100,7 @@ const guardarRecomendacion = async (operacion, recomendacion) => {
        respuesta_ia = VALUES(respuesta_ia),
        modelo_ia = VALUES(modelo_ia),
        fuente_recomendacion = VALUES(fuente_recomendacion),
+       hash_datos_operacion = VALUES(hash_datos_operacion),
        estado = 1`,
     [
       Number(operacion.id_operacion),
@@ -112,6 +116,7 @@ const guardarRecomendacion = async (operacion, recomendacion) => {
       JSON.stringify(respuesta),
       recomendacion.modelo_ia || null,
       recomendacion.fuente_recomendacion || "gemini",
+      hashDatosOperacion,
     ]
   );
 
@@ -127,6 +132,8 @@ const obtenerOperacionConContenedores = async (idOperacion) => {
       ts.descripcion AS tipo_servicio,
       o.id_tipo_nacionalizacion,
       tn.descripcion AS tipo_nacionalizacion,
+      o.id_incoterm,
+      i.descripcion AS incoterm,
       o.porducto,
       o.origen,
       o.destino,
@@ -143,6 +150,7 @@ const obtenerOperacionConContenedores = async (idOperacion) => {
     INNER JOIN tipo_servicio ts ON ts.id_tipo_servicio = o.id_tipo_servicio
     INNER JOIN tipo_nacionalizacion tn
       ON tn.id_tipo_nacionalizacion = o.id_tipo_nacionalizacion
+    INNER JOIN incoterms i ON i.id_incoterm = o.id_incoterm
     WHERE o.id_operacion = ?
       AND o.estado = 1`,
     [Number(idOperacion)]
@@ -178,13 +186,74 @@ const obtenerOperacionConContenedores = async (idOperacion) => {
   };
 };
 
+const construirPayload = (operacion) => {
+  const esLcl = Number(operacion.lcl) === 1;
+  const usaContenedores = operacion.contenedores.length > 0;
+  const modalidadCarga = usaContenedores
+    ? "contenedorizada"
+    : esLcl
+      ? "lcl_carga_suelta"
+      : "carga_no_contenedorizada";
+
+  return {
+    id_operacion: Number(operacion.id_operacion),
+    codigo_operacion: operacion.codigo_operacion,
+    tipo_servicio: operacion.tipo_servicio,
+    tipo_nacionalizacion: operacion.tipo_nacionalizacion,
+    incoterm: operacion.incoterm,
+    producto: operacion.porducto,
+    modalidad_carga: modalidadCarga,
+    usa_contenedores: usaContenedores,
+    lcl: esLcl,
+    cantidad: esLcl ? operacion.cantidad : null,
+    volumen: esLcl ? Number(operacion.volumen || 0) || null : null,
+    peso: esLcl ? Number(operacion.peso || 0) || null : null,
+    origen: operacion.origen,
+    destino: operacion.destino,
+    nro_madre: operacion.nro_madre,
+    nro_hijo: operacion.nro_hijo,
+    observacion: operacion.observacion,
+    etd: operacion.etd,
+    eta: operacion.eta,
+    contenedores: operacion.contenedores.map((contenedor) => ({
+      id_contenedor: Number(contenedor.id_contenedor),
+      numero_contenedor: contenedor.numero_contenedor,
+      tipo_contenedor: contenedor.tipo_contenedor || "",
+      naviera: contenedor.naviera || "",
+      peso_bruto: Number(contenedor.peso_bruto || 0),
+      fecha_llegada_puerto: contenedor.fecha_llegada_puerto,
+      fecha_devolucion_limite: contenedor.fecha_devolucion_limite,
+      fecha_devolucion: contenedor.fecha_devolucion,
+    })),
+  };
+};
+
+const calcularHashDatosOperacion = (payload) =>
+  crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+
+const agregarEstadoVigencia = (recomendacion, hashActual) => {
+  if (!recomendacion) return null;
+  const vigente =
+    Boolean(recomendacion.hash_datos_operacion) &&
+    recomendacion.hash_datos_operacion === hashActual;
+
+  return {
+    ...recomendacion,
+    vigente,
+    desactualizada: !vigente,
+  };
+};
+
 router.get("/", async (_req, res) => {
   res.json([]);
 });
 
 router.get("/operacion/:id_operacion", async (req, res) => {
   try {
-    const recomendacion = await obtenerRecomendacionGuardada(req.params.id_operacion);
+    const [recomendacion, operacion] = await Promise.all([
+      obtenerRecomendacionGuardada(req.params.id_operacion),
+      obtenerOperacionConContenedores(req.params.id_operacion),
+    ]);
 
     if (!recomendacion) {
       return res.status(404).json({
@@ -192,7 +261,12 @@ router.get("/operacion/:id_operacion", async (req, res) => {
       });
     }
 
-    res.json(recomendacion);
+    if (!operacion) {
+      return res.status(404).json({ error: "Operacion no encontrada." });
+    }
+
+    const hashActual = calcularHashDatosOperacion(construirPayload(operacion));
+    res.json(agregarEstadoVigencia(recomendacion, hashActual));
   } catch (error) {
     console.error("Error al obtener recomendacion de seguro:", error);
     res.status(500).json({
@@ -210,11 +284,6 @@ router.post("/operacion/:id_operacion", async (req, res) => {
       return res.status(404).json({ error: "Operacion no encontrada." });
     }
 
-    const recomendacionGuardada = await obtenerRecomendacionGuardada(operacion.id_operacion);
-    if (recomendacionGuardada && req.query.regenerar !== "1") {
-      return res.status(200).json(recomendacionGuardada);
-    }
-
     const tipoServicio = String(operacion.tipo_servicio || "").trim().toLowerCase();
     const esLcl = Number(operacion.lcl) === 1;
     const servicioPermiteContenedor =
@@ -226,43 +295,18 @@ router.post("/operacion/:id_operacion", async (req, res) => {
       });
     }
 
-    const usaContenedores = operacion.contenedores.length > 0;
-    const modalidadCarga = usaContenedores
-      ? "contenedorizada"
-      : esLcl
-        ? "lcl_carga_suelta"
-        : "carga_no_contenedorizada";
+    const payload = construirPayload(operacion);
+    const hashDatosOperacion = calcularHashDatosOperacion(payload);
+    const recomendacionGuardada = await obtenerRecomendacionGuardada(operacion.id_operacion);
 
-    const payload = {
-      id_operacion: operacion.id_operacion,
-      codigo_operacion: operacion.codigo_operacion,
-      tipo_servicio: operacion.tipo_servicio,
-      tipo_nacionalizacion: operacion.tipo_nacionalizacion,
-      producto: operacion.porducto,
-      modalidad_carga: modalidadCarga,
-      usa_contenedores: usaContenedores,
-      lcl: esLcl,
-      cantidad: esLcl ? operacion.cantidad : null,
-      volumen: esLcl ? Number(operacion.volumen || 0) || null : null,
-      peso: esLcl ? Number(operacion.peso || 0) || null : null,
-      origen: operacion.origen,
-      destino: operacion.destino,
-      nro_madre: operacion.nro_madre,
-      nro_hijo: operacion.nro_hijo,
-      observacion: operacion.observacion,
-      etd: operacion.etd,
-      eta: operacion.eta,
-      contenedores: operacion.contenedores.map((contenedor) => ({
-        id_contenedor: contenedor.id_contenedor,
-        numero_contenedor: contenedor.numero_contenedor,
-        tipo_contenedor: contenedor.tipo_contenedor || "",
-        naviera: contenedor.naviera || "",
-        peso_bruto: Number(contenedor.peso_bruto || 0),
-        fecha_llegada_puerto: contenedor.fecha_llegada_puerto,
-        fecha_devolucion_limite: contenedor.fecha_devolucion_limite,
-        fecha_devolucion: contenedor.fecha_devolucion,
-      })),
-    };
+    if (
+      recomendacionGuardada?.hash_datos_operacion &&
+      recomendacionGuardada.hash_datos_operacion === hashDatosOperacion
+    ) {
+      return res.status(200).json(
+        agregarEstadoVigencia(recomendacionGuardada, hashDatosOperacion)
+      );
+    }
 
     const flaskResponse = await fetch(FLASK_IA_URL, {
       method: "POST",
@@ -286,8 +330,17 @@ router.post("/operacion/:id_operacion", async (req, res) => {
       ...recomendacion,
     };
 
-    const recomendacionGuardadaNueva = await guardarRecomendacion(operacion, recomendacionGenerada);
-    res.status(200).json(recomendacionGuardadaNueva || recomendacionGenerada);
+    const recomendacionGuardadaNueva = await guardarRecomendacion(
+      operacion,
+      recomendacionGenerada,
+      hashDatosOperacion
+    );
+    res.status(200).json(
+      agregarEstadoVigencia(
+        recomendacionGuardadaNueva || recomendacionGenerada,
+        hashDatosOperacion
+      )
+    );
   } catch (error) {
     console.error("Error al generar recomendacion de seguro:", error);
     res.status(500).json({
